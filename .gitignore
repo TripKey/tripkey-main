@@ -1,0 +1,49 @@
+# --- Security & Environment ---
+.env
+.env.local
+.env.*.local
+*.env
+! .env.example #샘플 파일 예외처리
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
+
+# --- IDEs ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+
+# --- Language Specific (Monorepo) ---
+
+# Java (Spring Boot)
+**/build/
+**/.gradle/
+**/bin/
+**/out/
+
+# Python (FastAPI)
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.venv/
+**/venv/
+**/env/
+**/.pytest_cache/
+**/.python-version
+
+# Node(React)
+**/node_modules/
+**/dist/
+**/.eslintcache
+**/.next/
+**/out/
+
+# --- Docker ---
+**/*.log
+**/docker/data/ # 로컬 DB 대비
