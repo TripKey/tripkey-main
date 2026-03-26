@@ -1,0 +1,26 @@
+# CODEOWNERS
+# 각 경로에 해당하는 PR은 지정된 팀원에게 자동으로 리뷰 요청이 갑니다.
+# 문서: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# ── 전체 (기본값) ──────────────────────────────────
+*                           @oevinqu
+
+# ── Frontend ───────────────────────────────────────
+apps/frontend/              @minsoo4 @hge2ne
+
+# ── Backend ────────────────────────────────────────
+apps/backend/               @Minjun1023
+
+# ── AI Engine ──────────────────────────────────────
+apps/ai-engine/             @oevinqu
+
+# ── Infra ──────────────────────────────────────────
+infra/                      @oevinqu
+docker-compose.yml          @oevinqu
+
+# ── 문서 ───────────────────────────────────────────
+docs/                       @oevinqu
+
+# ── 공통 설정 ───────────────────────────────────────
+shared/                     @oevinqu @Minjun1023 @minsoo4 @hge2ne
+.github/                    @oevinqu
