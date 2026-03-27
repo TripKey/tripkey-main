@@ -1,0 +1,86 @@
+# ────────────────────────────────────────────
+# TripKey — docker-compose (로컬 개발용)
+#
+# 사전 준비:
+#   각 앱 .env.example → .env 복사 후 값 채우기
+#   cp apps/frontend/.env.example apps/frontend/.env
+#   cp apps/backend/.env.example apps/backend/.env
+#   cp apps/ai-engine/.env.example apps/ai-engine/.env
+#
+# 실행:
+#   docker-compose up --build
+#
+# 개별 실행:
+#   docker-compose up frontend
+#   docker-compose up backend
+#   docker-compose up ai-engine
+# ────────────────────────────────────────────
+
+services:
+
+  # ── Frontend (React + Vite → nginx) ────────
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+    container_name: tripkey-frontend
+    ports:
+      - "3000:80" # 로컬 3000 → nginx 80
+    env_file:
+      - ./apps/frontend/.env
+    depends_on:
+      - backend
+    networks:
+      - tripkey-network
+    restart: unless-stopped
+
+  # ── Backend (Java Spring Boot) ──────────────
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: tripkey-backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./apps/backend/.env
+    environment:
+      # AI Engine 내부 통신 주소 (컨테이너 이름으로 호출)
+      AI_ENGINE_URL: http://ai-engine:8000
+      # Supabase는 외부 서비스 — .env에서 주입
+      # SUPABASE_URL: ${SUPABASE_URL}
+      # SUPABASE_KEY: ${SUPABASE_KEY}
+    depends_on:
+      - ai-engine
+    networks:
+      - tripkey-network
+    restart: unless-stopped
+
+  # ── AI Engine (Python FastAPI) ──────────────
+  ai-engine:
+    build:
+      context: ./apps/ai-engine
+      dockerfile: Dockerfile
+    container_name: tripkey-ai-engine
+    ports:
+      - "8000:8000" # 로컬 디버깅용. 프로덕션에서는 외부 노출 제거 예정
+    env_file:
+      - ./apps/ai-engine/.env
+    environment:
+      # GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+    networks:
+      - tripkey-network
+    restart: unless-stopped
+
+networks:
+  tripkey-network:
+    driver: bridge
+
+# ────────────────────────────────────────────
+# TODO (팀 논의 후 결정)
+# - AWS 배포 시 별도 docker-compose.prod.yml 작성
+# - ai-engine 포트 프로덕션 외부 노출 여부 결정
+# - 헬스체크 (healthcheck) 추가 여부
+# - 로그 드라이버 설정 (awslogs 등)
+# ────────────────────────────────────────────
