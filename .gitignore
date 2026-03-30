@@ -47,3 +47,6 @@ Thumbs.db
 # --- Docker ---
 **/*.log
 **/docker/data/ # 로컬 DB 대비
+
+# docs
+docs/
