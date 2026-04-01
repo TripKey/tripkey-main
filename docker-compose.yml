@@ -62,8 +62,8 @@ services:
       context: ./apps/ai-engine
       dockerfile: Dockerfile
     container_name: tripkey-ai-engine
-    ports:
-      - "8000:8000" # 로컬 디버깅용. 프로덕션에서는 외부 노출 제거 예정
+    expose:
+      - "8000" # 내부 통신용 포트 (외부 노출은 backend → ai-engine 통신만)
     env_file:
       - ./apps/ai-engine/.env
     environment:

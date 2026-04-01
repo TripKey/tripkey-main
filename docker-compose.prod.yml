@@ -1,0 +1,23 @@
+services:
+  frontend:
+    ports:
+      - "80:80"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ai-engine:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
