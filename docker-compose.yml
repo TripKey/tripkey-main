@@ -18,14 +18,14 @@
 
 services:
 
-  # ── Frontend (React + Vite → nginx) ────────
+  # ── Frontend (React + Vite dev server) ────────
   frontend:
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
     container_name: tripkey-frontend
     ports:
-      - "3000:80" # 로컬 3000 → nginx 80
+      - "3000:3000" # 로컬 3000 → Vite dev server 3000
     env_file:
       - ./apps/frontend/.env
     depends_on:
