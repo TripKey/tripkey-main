@@ -22,12 +22,18 @@ services:
   frontend:
     build:
       context: ./apps/frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: tripkey-frontend
     ports:
       - "3000:3000" # 로컬 3000 → Vite dev server 3000
     env_file:
       - ./apps/frontend/.env
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./apps/frontend:/app
+      - /app/node_modules
     depends_on:
       - backend
     networks:
@@ -46,7 +52,7 @@ services:
       - ./apps/backend/.env
     environment:
       # AI Engine 내부 통신 주소 (컨테이너 이름으로 호출)
-      AI_ENGINE_URL: http://ai-engine:8000
+      AI_ENGINE_URL: http://tripkey-ai-engine:8000
       # Supabase는 외부 서비스 — .env에서 주입
       # SUPABASE_URL: ${SUPABASE_URL}
       # SUPABASE_KEY: ${SUPABASE_KEY}
@@ -66,9 +72,6 @@ services:
       - "8000" # 내부 통신용 포트 (외부 노출은 backend → ai-engine 통신만)
     env_file:
       - ./apps/ai-engine/.env
-    environment:
-      # GEMINI_API_KEY: ${GEMINI_API_KEY}
-      # GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
     networks:
       - tripkey-network
     restart: unless-stopped
