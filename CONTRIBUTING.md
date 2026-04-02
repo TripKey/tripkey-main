@@ -6,7 +6,7 @@ TripKey 프로젝트에 기여하기 전에 이 문서를 먼저 읽어주세요
 
 ## 브랜치 전략
 
-`main` ← `develop` ← `{type}/{name}/#{issue}-{work}`
+`main` ← `develop` ← `{type}/#{issue}-{work}`
 
 - `main`: 배포 브랜치. 직접 push 금지
 - `develop`: 개발 통합 브랜치. PR을 통해서만 merge
