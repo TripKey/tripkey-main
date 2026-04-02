@@ -6,7 +6,7 @@ TripKey 프로젝트에 기여하기 전에 이 문서를 먼저 읽어주세요
 
 ## 브랜치 전략
 
-`main` ← `develop` ← `{type}/#{issue}-{work}`
+`main` ← `develop` ← `{type}/{issue}-{work}`
 
 - `main`: 배포 브랜치. 직접 push 금지
 - `develop`: 개발 통합 브랜치. PR을 통해서만 merge
@@ -14,7 +14,7 @@ TripKey 프로젝트에 기여하기 전에 이 문서를 먼저 읽어주세요
 
 ```bash
 git checkout develop
-git checkout -b feat/hyobeen/#12-login
+git checkout -b feat/12-login
 ```
 
 브랜치 `type`은 커밋 컨벤션과 동일하게 사용합니다.
