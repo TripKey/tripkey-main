@@ -51,9 +51,9 @@ tripkey-main/
 
 ### 사전 요구사항
 
-- Docker / docker-compose
+- Docker / Docker Compose
 - Node.js 20+
-- Java 17+
+- Java 21+
 - Python 3.11+
 
 ### 환경변수 설정
@@ -69,67 +69,41 @@ cp apps/ai-engine/.env.example apps/ai-engine/.env
 필요한 키 목록:
 
 ```
-# backend / ai-engine 공통
+# frontend
+VITE_API_BASE_URL=/api
+
+# backend
+SPRING_PROFILES_ACTIVE=dev
+AI_ENGINE_URL=http://tripkey-ai-engine:8000
 SUPABASE_URL=
 SUPABASE_KEY=
+GEMINI_API_KEY=
+GOOGLE_MAPS_API_KEY=
 
 # ai-engine
 GEMINI_API_KEY=
 GOOGLE_MAPS_API_KEY=
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 ### 실행
 
 ```bash
 # 전체 실행 (권장)
-docker-compose up
+docker compose up --build
 
 # 개별 실행
-cd apps/frontend && npm install && npm run dev     # http://localhost:5173
+cd apps/frontend && npm install && npm run dev     # http://localhost:3000
 cd apps/backend && ./gradlew bootRun               # http://localhost:8080
-cd apps/ai-engine && uvicorn main:app --reload     # http://localhost:8000
+cd apps/ai-engine && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
----
+### 확인 방법
 
-## 브랜치 전략
-
-```
-main                              ← 배포용. 직접 푸시 금지
-develop                           ← 통합 브랜치. PR로만 머지
-{type}/{이름}/#{이슈번호}-{기능명}     ← 작업 브랜치
-```
-브랜치 타입은 커밋 컨벤션과 동일하게 맞춥니다.
----
-
-## 커밋 컨벤션
-
-```
-feat:      새로운 기능
-fix:       버그 수정
-chore:     설정, 패키지 변경
-docs:      문서 수정
-style:     코드 포맷 (로직 변경 없음)
-refactor:  리팩토링
-test:      테스트 추가/수정
-```
-
-**예시**
-
-```
-feat: Dump 입력 화면 구현 (SCR-02)
-fix: PlaceCard 상태 전환 오류 수정
-docs: API 명세서 엔드포인트 업데이트
-```
-
----
-
-## PR 규칙
-
-- `feature/*` → `develop` PR 후 머지
-- 셀프 머지 금지. 최소 1명 리뷰 후 머지
-- PR 템플릿 필수 작성 (`.github/PULL_REQUEST_TEMPLATE.md`)
-- PR 단위는 하나의 기능 범위로 잘라주세요
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:8080` 접속 시 404가 보여도 서버가 떠 있으면 정상입니다.
+- AI Engine: `docker compose logs --tail=50 ai-engine` 또는 컨테이너 내부에서 `/health`로 확인할 수 있습니다.
 
 ---
 
@@ -137,9 +111,8 @@ docs: API 명세서 엔드포인트 업데이트
 
 | 문서 | 위치 |
 |---|---|
-| Lean PRD | `docs/TripKey_Lean_PRD_v1.1.md` |
-| 기능명세서 | `docs/TripKey_기능명세서_v1.0.xlsx` |
-| API 명세서 | `docs/openapi.yaml` |
-| 시스템 아키텍처 | `docs/TripKey_SystemArchitecture_v1.2.md` |
+| 기여 가이드 | `CONTRIBUTING.md` |
+| 인프라 문서 | `infra/README.md` |
+| 공유 리소스 문서 | `shared/README.md` |
 
 ---

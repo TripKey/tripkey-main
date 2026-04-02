@@ -16,8 +16,7 @@ apps/ai-engine/             @oevinqu
 
 # ── Infra ──────────────────────────────────────────
 infra/                      @oevinqu
-docker-compose.yml          @oevinqu
-
+docker-compose*.yml         @oevinqu
 # ── 문서 ───────────────────────────────────────────
 docs/                       @oevinqu
 

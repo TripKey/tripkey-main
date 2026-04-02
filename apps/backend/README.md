@@ -6,5 +6,5 @@
 확인을 위해 README.md (현재) 파일에 폴더 구조를 간단히 정리해주세요.
 
 Dockerfile 예시로 만들어놨습니다.
-gradle, 17버전, build/libs/*.jar 로 초안 만들어놨습니다.
+gradle, 17버전, build/libs/*.jar 로 초안 만들어놨습니다. -> gradle 확인: java 21
 초안이기에 직접 수정하셔도 되고 저에게 부탁하셔도 됩니다.
