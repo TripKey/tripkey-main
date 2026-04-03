@@ -18,6 +18,7 @@ def health() -> dict[str, str]:
 
 
 @app.post("/internal/ai/parse")
+<<<<<<< HEAD
 def parse_user_input(
     req: ParseRequest,
 ) -> dict:  ## 이후 pydantic BaseModel로 응답 스키마 정의 필요
@@ -36,3 +37,8 @@ def parse_user_input(
         ],
         "context_summary": "오사카 중심 여행",
     }
+=======
+def parse_user_input(req: dict):
+    text = req.get("text", "")
+    return {"raw": text, "places": ["도톤보리", "유니버셜 스튜디오"]}
+>>>>>>> 247d476 (feat: add /test/ai/parse endpoint and validate AI Engine call flow)
