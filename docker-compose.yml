@@ -72,6 +72,9 @@ services:
       - "8000" # 내부 통신용 포트 (외부 노출은 backend → ai-engine 통신만)
     env_file:
       - ./apps/ai-engine/.env
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./apps/ai-engine:/app
     networks:
       - tripkey-network
     restart: unless-stopped
