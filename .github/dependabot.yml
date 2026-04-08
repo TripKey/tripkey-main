@@ -1,0 +1,76 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/apps/frontend"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    labels:
+      - "type: chore"
+      - "area: frontend"
+
+  - package-ecosystem: "gradle"
+    directory: "/apps/backend"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    labels:
+      - "type: chore"
+      - "area: backend"
+
+  - package-ecosystem: "pip"
+    directory: "/apps/ai-engine"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    labels:
+      - "type: chore"
+      - "area: ai"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "type: chore"
+      - "area: infra"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/frontend"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "type: chore"
+      - "area: frontend"
+      - "area: infra"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/backend"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "type: chore"
+      - "area: backend"
+      - "area: infra"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/ai-engine"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "type: chore"
+      - "area: ai"
+      - "area: infra"
