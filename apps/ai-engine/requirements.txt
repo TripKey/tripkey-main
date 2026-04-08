@@ -4,7 +4,7 @@ uvicorn==0.44.0
 
 # ── Schema / Validation ──────────────────────────────
 pydantic==2.10.4
-pydantic-settings==2.7.0
+pydantic-settings==2.13.1
 
 # ── Gemini (LLM) ─────────────────────────────────────
 google-generativeai==0.8.3
