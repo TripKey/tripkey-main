@@ -1,3 +1,5 @@
+import './DumpActionBar.css';
+
 type DumpActionBarProps = {
   onBack: () => void
   onNext: () => void
@@ -14,17 +16,19 @@ const DumpActionBar = ({onBack, onNext, isNextDisabled}:DumpActionBarProps) => {
         <div className='dump-action-bar'>
 
             <button 
-                className='back-button'
+                className='dump-back-button'
                 type="button"
                 onClick={onBack}>
                 이전
             </button>
 
-            <div>
-                <p>{nextGuideMessage}</p>
+            <div className='dump-next-section'>
+                <p className='dump-action-message'>
+                    {nextGuideMessage}
+                </p>
 
                 <button 
-                className='next-button'
+                className='dump-next-button'
                 type="button"
                 onClick={onNext}
                 disabled={isNextDisabled}>

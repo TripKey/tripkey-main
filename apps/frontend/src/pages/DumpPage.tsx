@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import './DumpPage.css';
 
 import DumpActionBar from '../components/dump/DumpActionBar';
 import DumpGuideCard from '../components/dump/DumpGuideCard';
@@ -29,8 +30,8 @@ const DumpPage = () => {
                 {/*공통 컴포넌트 순서도*/}
             </div>
 
-            <section className='container'>
-                <div className='header'>
+            <section className='dump-container'>
+                <div className='dump-header'>
                     <h1 >여행 정보 입력</h1>
                     <p>가고 싶은 곳, 하고 싶은 것, 떠오르는 생각을 자유롭게 적어주세요</p>
                 </div>

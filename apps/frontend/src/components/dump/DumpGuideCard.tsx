@@ -1,3 +1,5 @@
+import './DumpGuideCard.css';
+
 const guideItems = [
     '가고 싶은 지역, 관광지, 맛집',
     '원하는 여행 분위기나 스타일',

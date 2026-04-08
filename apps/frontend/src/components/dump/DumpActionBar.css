@@ -1,0 +1,16 @@
+.dump-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dump-back-button {}
+
+.dump-next-section {
+}
+
+.dump-action-message {
+  display: inline-block
+}
+
+.dump-next-button {}

@@ -1,3 +1,5 @@
+import './DumpForm.css';
+
 type DumpFormProps = {
     dumpText : string
     dumpTextCount : number
@@ -34,16 +36,17 @@ const DumpForm = ({ dumpText, dumpTextCount, onTextChange }: DumpFormProps) => {
     return (
         <div className="dump-form">
             <textarea
+                className="dump-textarea"
                 value={dumpText}
                 onChange={handleChange}
                 placeholder="여행에 대해 자유롭게 적어주세요."
                 maxLength={MAX_DUMP_TEXT_LENGTH}
             />
 
-            <p className="status-message">
+            <p className="dump-status-message">
                 {getStatusMessage()}
             </p>
-            <div className="text-count">
+            <div className="dump-text-count">
                 {dumpTextCount} / {MAX_DUMP_TEXT_LENGTH}
             </div>
         </div>

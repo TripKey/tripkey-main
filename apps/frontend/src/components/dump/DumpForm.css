@@ -1,0 +1,14 @@
+.dump-form {
+    display: flex;
+    flex-direction: column;
+}
+
+.dump-textarea {
+    height: 300px;
+}
+
+.dump-status-message {
+}
+
+.dump-text-count {
+}
