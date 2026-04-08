@@ -8,13 +8,10 @@ import time
 
 from google.api_core.exceptions import ResourceExhausted
 import google.genai as genai
-import googlemaps
 import os
 
 load_dotenv()  # .env 파일에서 환경 변수 로드
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-gmaps = googlemaps.Client(key=os.getenv("GOOGLE_MAPS_API_KEY"))
 GEMINI_COOLDOWN_SECONDS = int(os.getenv("GEMINI_COOLDOWN_SECONDS", "60"))
 gemini_blocked_until = 0.0
 
@@ -74,6 +71,7 @@ def call_gemini(prompt: str) -> str:
             f"Gemini temporarily blocked. Retry after {retry_after} seconds."
         )
 
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
     text = response.text
 
