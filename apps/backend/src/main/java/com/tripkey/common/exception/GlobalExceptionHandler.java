@@ -13,13 +13,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(TripNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleTripNotFound(TripNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(new ErrorResponse("TRIP_NOT_FOUND", e.getMessage()));
+                .body(new ErrorResponse("TRIP_NOT_FOUND", "여행 세션을 찾을 수 없어요"));
     }
 
     @ExceptionHandler(DumpNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleDumpNotFound(DumpNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(new ErrorResponse("TRIP_NOT_FOUND", e.getMessage()));
+                .body(new ErrorResponse("TRIP_NOT_FOUND", "여행 세션을 찾을 수 없어요"));
     }
 
     @ExceptionHandler(DumpNotCompletedException.class)
