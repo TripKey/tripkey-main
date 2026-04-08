@@ -1,5 +1,5 @@
 # ── Stage 1: Build ──────────────────────────
-FROM eclipse-temurin:21-jdk-jammy AS builder
+FROM eclipse-temurin:25-jdk-jammy AS builder
 
 WORKDIR /app
 COPY gradlew .
@@ -12,7 +12,7 @@ RUN chmod +x gradlew
 RUN ./gradlew bootJar -x test
 
 # ── Stage 2: Run ────────────────────────────
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:25-jre-jammy
 
 WORKDIR /app
 COPY --from=builder /app/build/libs/*.jar app.jar
