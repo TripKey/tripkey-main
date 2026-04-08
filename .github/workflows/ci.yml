@@ -72,3 +72,7 @@ jobs:
 
       - name: Install AI engine dependencies
         run: pip install -r requirements.txt
+
+      - name: Run AI engine tests
+        run: |
+          python -m pytest --maxfail=1 --disable-warnings -q
