@@ -1,3 +1,9 @@
+import DumpPage from './pages/DumpPage';
+
 export default function App() {
-  return <div>Mini Shop</div>;
+  return (
+    <>
+      <DumpPage />
+    </>
+  );
 }
