@@ -42,15 +42,19 @@ public class GlobalExceptionHandler {
                 .orElse("입력값을 확인해주세요");
 
         String code = "VALIDATION_ERROR";
+        HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
+
         if (message.contains("blank") || message.contains("10자")) {
             code = "DUMP_TOO_SHORT";
             message = "최소 10자 이상 입력해주세요";
+            status = HttpStatus.BAD_REQUEST;
         } else if (message.contains("3000")) {
             code = "DUMP_TOO_LONG";
             message = "최대 글자 수에 도달했어요";
+            status = HttpStatus.BAD_REQUEST;
         }
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        return ResponseEntity.status(status)
                 .body(new ErrorResponse(code, message));
     }
 }

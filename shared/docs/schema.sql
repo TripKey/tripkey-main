@@ -12,6 +12,14 @@ create table if not exists public.trips (
   updated_at        timestamptz not null default now()
 );
 
+-- 여행지 목록 (SCR-01 온보딩에서 저장)
+create table if not exists public.trip_destinations (
+  id          bigserial   primary key,
+  trip_id     uuid        not null references public.trips(trip_id),
+  name        text        not null,                                 -- 여행지명
+  sort_order  smallint    not null default 0                        -- 정렬 순서
+);
+
 -- Dump 파싱 작업 (SCR-02 텍스트 제출 시 생성, SCR-02P에서 상태 폴링)
 create table if not exists public.dump_jobs (
   job_id          uuid        primary key,                      -- 파싱 작업 고유 ID
