@@ -33,6 +33,13 @@ public class Trip {
     @Column(name = "confirmed_at")
     private OffsetDateTime confirmedAt;
 
+    public Trip(Short travelDays, Short companionCount, Boolean hasFlight, Boolean hasAccommodation) {
+        this.travelDays = travelDays;
+        this.companionCount = companionCount;
+        this.hasFlight = hasFlight;
+        this.hasAccommodation = hasAccommodation;
+    }
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
