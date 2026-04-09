@@ -1,8 +1,8 @@
-# TripKey Codex Rules
+# TripKey Claude Code Rules
 
 ## ⚠️ MD file modification policy
 - Never modify any `.md` file without explicit user permission.
-- This applies to all Markdown files including `AGENTS.md`, review docs, SSOT docs, prompt docs, and project documentation.
+- This applies to all Markdown files including `CLAUDE.md`, review docs, SSOT docs, prompt docs, and project documentation.
 - Do not even propose Markdown edits unless the user explicitly asks for Markdown changes.
 - If a Markdown change seems necessary, stop and ask first in exactly this format:
 
@@ -41,18 +41,17 @@
 ## TripKey core invariants
 - Preserve the service interaction model:
   - Browser-facing flows must go through backend.
-  - DB-backed non-AI flows typically follow: frontend -> backend -> database
-  - AI-dependent flows typically follow: frontend -> backend -> ai-engine -> backend -> database
-  - frontend must never call ai-engine directly
+  - DB-backed non-AI flows typically follow: `frontend -> backend -> database`
+  - AI-dependent flows typically follow: `frontend -> backend -> ai-engine -> backend -> database`
+  - frontend must never call ai-engine directly.
 - Preserve browser-facing API usage through `/api/*`.
 - Preserve backend app route prefix `/v1/*`.
-- Frontend must not call `ai-engine` directly.
 - `ai-engine` is internal-only and must not be publicly exposed.
-- Preserve MVP session behavior:
-  `trip_id` based, TTL 24h, no login.
+- Internal ai-engine address: `http://tripkey-ai-engine:8000`
+- Preserve MVP session behavior: `trip_id` based, TTL 24h, no login.
 - Preserve explicit fallback behavior for LLM- and Maps-dependent flows.
 - Preserve flow-centered domains:
-  `/trips`, `/groups`, `/schedule`, `/verify`, `/confirm`.
+  `/trips`, `/groups`, `/schedule`, `/verify`, `/confirm`
 
 ## Repo reading policy
 - Start narrow and expand only when repository evidence requires it.
@@ -92,10 +91,10 @@ A task is complete only when all applicable items are done:
 4. assumptions and risks are reported.
 
 ## Review doc location
-- `shared/docs/review/core-review.md`
-- `shared/docs/review/backend-review.md`
-- `shared/docs/review/frontend-review.md`
-- `shared/docs/review/ai-engine-review.md`
+- `shared/docs/agent/review/core-review.md`
+- `shared/docs/agent/review/backend-review.md`
+- `shared/docs/agent/review/frontend-review.md`
+- `shared/docs/agent/review/ai-engine-review.md`
 
 ## Output format
 
