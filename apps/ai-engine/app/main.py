@@ -7,15 +7,11 @@ from json import JSONDecodeError
 import time
 
 from google.api_core.exceptions import ResourceExhausted
-import google.generativeai as genai
-import googlemaps
+import google.genai as genai
 import os
 
 load_dotenv()  # .env 파일에서 환경 변수 로드
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-gmaps = googlemaps.Client(key=os.getenv("GOOGLE_MAPS_API_KEY"))
-model = genai.GenerativeModel("gemini-2.5-flash")
 GEMINI_COOLDOWN_SECONDS = int(os.getenv("GEMINI_COOLDOWN_SECONDS", "60"))
 gemini_blocked_until = 0.0
 
@@ -73,8 +69,9 @@ def call_gemini(prompt: str) -> str:
         retry_after = int(gemini_blocked_until - time.monotonic()) + 1
         raise RuntimeError(f"Gemini temporarily blocked. Retry after {retry_after} seconds.")
 
-    response = model.generate_content(prompt)
-    text = getattr(response, "text", None)
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+    text = response.text
 
     if not text:
         raise ValueError("Gemini returned an empty response")
