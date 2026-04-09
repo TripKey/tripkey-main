@@ -48,8 +48,6 @@ Thumbs.db
 **/*.log
 **/docker/data/ # 로컬 DB 대비
 
-# docs (schema.sql은 예외)
+# docs
 docs/
 !shared/docs/
-shared/docs/*
-!shared/docs/schema.sql
