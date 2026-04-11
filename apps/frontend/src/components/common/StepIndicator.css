@@ -1,0 +1,16 @@
+.step-indicator {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.step-dot {
+  width: 24px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: #e0e0e0;
+}
+
+.step-dot-active {
+  background-color: #6c5ce7;
+}

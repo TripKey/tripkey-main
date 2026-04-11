@@ -1,0 +1,54 @@
+/* 전체 화면 중앙 정렬 */
+.progress-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background-color: #fafafa;
+}
+
+.progress-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  padding: 0 24px;
+}
+
+/* 로딩 스피너 */
+.progress-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #6c5ce7;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 텍스트 */
+.progress-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.progress-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #888888;
+  line-height: 1.6;
+}
+
+.progress-caption {
+  margin: 0;
+  font-size: 13px;
+  color: #aaaaaa;
+}
