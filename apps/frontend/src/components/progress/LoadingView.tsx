@@ -1,6 +1,6 @@
+import { STEP_TEXTS } from '../../types/progress';
 import StatusIcon from '../common/StatusIcon';
 import StepIndicator from '../common/StepIndicator';
-import { STEP_TEXTS } from '../../types/progress';
 
 type LoadingViewProps = {
   step: 1 | 2 | 3;

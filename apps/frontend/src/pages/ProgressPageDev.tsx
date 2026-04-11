@@ -1,5 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
+
 import type { ProgressStatus } from '../types/progress';
+
 import ProgressPage from './ProgressPage';
 
 /**
@@ -45,19 +47,21 @@ const ProgressPageDev = () => {
         onGoBack={() => alert('→ SCR-02로 복귀 (미구현)')}
         onContinue={() => alert('→ SCR-03으로 이동 (미구현)')}
       />
-      <nav style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        display: 'flex',
-        gap: '8px',
-        padding: '12px 16px',
-        background: '#f5f5f5',
-        borderTop: '1px solid #ddd',
-        justifyContent: 'center',
-        flexWrap: 'wrap',
-      }}>
+      <nav
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          display: 'flex',
+          gap: '8px',
+          padding: '12px 16px',
+          background: '#f5f5f5',
+          borderTop: '1px solid #ddd',
+          justifyContent: 'center',
+          flexWrap: 'wrap',
+        }}
+      >
         {mockButtons.map(({ label, query }) => (
           <button
             key={query}
@@ -65,12 +69,13 @@ const ProgressPageDev = () => {
             style={{
               padding: '6px 14px',
               borderRadius: '6px',
-              border: `1px solid ${('?' + params.toString()) === query ? '#4a90d9' : '#ccc'}`,
-              background: ('?' + params.toString()) === query ? '#4a90d9' : '#fff',
-              color: ('?' + params.toString()) === query ? '#fff' : '#333',
+              border: `1px solid ${'?' + params.toString() === query ? '#4a90d9' : '#ccc'}`,
+              background:
+                '?' + params.toString() === query ? '#4a90d9' : '#fff',
+              color: '?' + params.toString() === query ? '#fff' : '#333',
               cursor: 'pointer',
               fontSize: '13px',
-              fontWeight: ('?' + params.toString()) === query ? 600 : 400,
+              fontWeight: '?' + params.toString() === query ? 600 : 400,
             }}
           >
             {label}
