@@ -1,57 +1,67 @@
-import { useState } from 'react';
+import { useDumpStore } from '../utils/dump-store';
+import { useNavigate } from 'react-router-dom';
+import { DUMP_TEXT } from '../utils/constants';
+
 import './DumpPage.css';
 
 import DumpActionBar from '../components/dump/DumpActionBar';
 import DumpGuideCard from '../components/dump/DumpGuideCard';
 import DumpForm from '../components/dump/DumpForm';
 
-const MIN_DUMP_TEXT_LENGTH = 10;
+const DumpPage = ({ tripId }: { tripId: string }) => {
+  const { dumpText, requestStatus, errorMessage, setDumpText, submitDump } =
+    useDumpStore();
 
-const DumpPage = () => {
-    const [dumpText, setDumpText] = useState('');
+  const dumpTextCount = dumpText.trim().length;
 
-    const dumpTextCount = dumpText.trim().length;
-    const isNextDisabled = dumpTextCount < MIN_DUMP_TEXT_LENGTH;
+  const isNextDisabled =
+    dumpTextCount < DUMP_TEXT.MIN_LENGTH || requestStatus === 'loading';
 
-    const handleDumpTextChange = (nextDumpText: string) => {
-        setDumpText(nextDumpText);
-    };
+  const handleDumpTextChange = (nextDumpText: string) => {
+    setDumpText(nextDumpText);
+  };
 
-    const handleClickBack = () => {
-        console.log('이전');
-    };
-    const handleClickNext = () => {
-        console.log('다음');
-    };
+  const handleClickBack = () => {
+    console.log('이전');
+  };
 
-    return (
-        <main className='dump-page'>
-            <div className='area'>
-                {/*공통 컴포넌트 순서도*/}
-            </div>
+  const navigate = useNavigate();
 
-            <section className='dump-container'>
-                <div className='dump-header'>
-                    <h1 >여행 정보 입력</h1>
-                    <p>가고 싶은 곳, 하고 싶은 것, 떠오르는 생각을 자유롭게 적어주세요</p>
-                </div>
+  const handleClickNext = async () => {
+    const isSuccess = await submitDump(tripId);
 
-                <DumpGuideCard />
-                
-                <DumpForm
-                    dumpText={dumpText}
-                    dumpTextCount={dumpTextCount}
-                    onTextChange={handleDumpTextChange} 
-                />
-                
-                <DumpActionBar 
-                    onBack={handleClickBack}
-                    onNext={handleClickNext}
-                    isNextDisabled={isNextDisabled}
-                />
-            </section>
-        </main>
-    )
-}
+    if (isSuccess) {
+      navigate('/progress');
+    }
+  };
+
+  return (
+    <main className="dump-page">
+      <div className="area">{/* 공통 컴포넌트 순서도 */}</div>
+
+      <section className="dump-container">
+        <div className="dump-header">
+          <h1>여행 정보 입력</h1>
+          <p>가고 싶은 곳, 하고 싶은 것, 떠오르는 생각을 자유롭게 적어주세요</p>
+        </div>
+
+        <DumpGuideCard />
+
+        <DumpForm
+          dumpText={dumpText}
+          dumpTextCount={dumpTextCount}
+          onTextChange={handleDumpTextChange}
+        />
+
+        <DumpActionBar
+          onBack={handleClickBack}
+          onNext={handleClickNext}
+          isNextDisabled={isNextDisabled}
+          errorMessage={errorMessage}
+        />
+      </section>
+    </main>
+  );
+};
 
 export default DumpPage;

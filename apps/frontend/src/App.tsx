@@ -8,7 +8,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<DevIndexPage />} />
-        <Route path="/dump" element={<DumpPage />} />
+        <Route path="/dump" element={<DumpPage tripId="1" />} />
         <Route path="/progress" element={<ProgressPageDev />} />
       </Routes>
     </BrowserRouter>
