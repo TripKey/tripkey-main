@@ -114,6 +114,17 @@ tripkey-main/
 - 비동기 처리 (Dump + polling)
 - fallback 필수
 
+### Dump Parse 계약
+- backend → ai-engine parse request:
+  - `trip_id: string`
+  - `dump_text: string`
+- ai-engine → backend parse response:
+  - `cards: PlaceCard[]`
+  - `context_summary?: string`
+  - `alert_cards?: AlertCard[]`
+- `instance_id`는 ai-engine이 생성하지 않는다.
+- `instance_id`는 backend가 발급하고 저장 책임을 가진다.
+
 ---
 
 ## ⚙️ 개발 원칙
@@ -122,9 +133,37 @@ tripkey-main/
 - Backend: orchestration / DB
 - AI Engine: 분석 / 계산
 
+### Parse 계약 책임 분리
+- AI Engine:
+  - `place_id`
+  - `name`
+  - `category`
+  - `classification`
+  - `status`
+  - `estimated_duration_min`
+  - `coordinates`
+  - `time_constraint`
+  - `conflict_*`
+  - `remind`
+  - `context_summary`
+  - `alert_cards`
+- Backend:
+  - `instance_id` 발급
+  - 저장
+  - 정제 후 클라이언트 응답 구성
+  - fallback / 에러 응답 제어
+
 ### Fallback
 - LLM 실패 → rule-based
 - Maps 실패 → 예측값
+
+### 내부 코드값 표준
+- API / AI / Backend / DB 계약값은 영문 코드값을 사용한다.
+- Frontend 사용자 노출 문구는 한글 라벨 매핑으로 처리한다.
+- PlaceCard 기준 내부 표준값:
+  - `category`: `attraction`, `shopping`, `dining`, `accommodation`, `transportation`, `uncategorized`
+  - `classification`: `confirmed`, `open_question`, `undecided`, `unassigned`
+  - `status`: `loading`, `success`, `error`
 
 ---
 
@@ -239,6 +278,10 @@ shared/docs/agent/review/
 Dump:
 frontend → backend → ai → polling  
 
+Dump Parse:
+backend는 ai-engine raw response를 그대로 신뢰하지 않는다.
+ai-engine은 raw response를 normalization한 뒤 schema validation을 통과한 결과만 backend에 전달한다.
+
 Schedule:
 drag & drop → PATCH → DB  
 
@@ -285,10 +328,10 @@ Maps API → fallback
 
 - 모노레포 완료
 - Backend: 구조만 존재
-- AI Engine: 구조만 존재
+- AI Engine: parse schema / normalization 초안 반영
 - Frontend: 초기 상태
 
 ---
 
 ※ Living Document  
-최종 변경: 2026-04-09
+최종 변경: 2026-04-13
