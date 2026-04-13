@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
+from pydantic import ValidationError
 
 import json
 from json import JSONDecodeError
@@ -28,43 +29,59 @@ def health() -> dict[str, str]:
 # --- [build prompt] --- #
 def build_prompt(req: ParseRequest) -> str:
     return f"""
-    사용자 입력을 여행 일정 후보 카드로 파싱해줘.
+    Parse the user's dump text into travel place candidate cards.
 
-    입력 정보:
-    - text: {req.text}
-    - destination: {req.destination}
-    - travel_days: {req.travel_days}
+    Input:
+    - trip_id: {req.trip_id}
+    - dump_text: {req.dump_text}
 
-    반드시 아래 조건을 모두 지켜.
-    - 응답은 JSON 객체 하나만 반환한다.
-    - 마크다운, 코드블록, 설명문, 주석을 포함하지 않는다.
-    - cards 배열은 비우지 않는다.
-    - 사용자가 도시명만 입력해도 대표 장소 후보를 최소 3개 이상 채운다.
-    - 실존 가능성이 높은 장소만 반환한다.
-    - 각 카드는 아래 스키마를 정확히 따른다.
-    - classification 값은 confirmed 또는 unconfirmed 중 하나다.
-    - status 값은 success 또는 failure 중 하나다.
-    - estimated_duration_min 는 숫자로 반환한다.
-    - coordinates.lat, coordinates.lng 는 숫자로 반환한다.
+    Follow all rules below.
+    - Return exactly one JSON object.
+    - Do not return markdown, code fences, explanations, or comments.
+    - The cards array must not be empty.
+    - If the input only contains a city or destination, return at least 3 likely place cards.
+    - Only return places that are likely to exist in the real world.
+    - Do not generate instance_id.
+    - Each card must follow the schema exactly.
+    - category must be one of: attraction, shopping, dining, accommodation, transportation, uncategorized.
+    - classification must be one of: confirmed, open_question, undecided, unassigned.
+    - status must be one of: loading, success, error.
+    - estimated_duration_min must be an integer.
+    - If status is success, estimated_duration_min is required.
+    - If status is error, classification must be unassigned.
+    - coordinates must be null or an object with numeric lat and lng.
+    - context_summary is optional.
+    - alert_cards is optional.
 
-    응답 스키마:
+    Response schema:
     {{
       "cards": [
         {{
           "place_id": "string",
-          "instance_id": "string",
           "name": "string",
-          "category": "string",
-          "classification": "confirmed" | "unconfirmed",
-          "estimated_duration_min": number,
+          "category": "attraction" | "shopping" | "dining" | "accommodation" | "transportation" | "uncategorized",
+          "classification": "confirmed" | "open_question" | "undecided" | "unassigned",
+          "status": "loading" | "success" | "error",
+          "estimated_duration_min": number | null,
           "coordinates": {{
             "lat": number,
             "lng": number
-          }},
-          "status": "success" | "failure"
+          }} | null,
+          "time_constraint": "string" | null,
+          "is_ai_generated": true | false | null,
+          "conflict_type": "string" | null,
+          "conflict_reason": "string" | null,
+          "remind": ["string"] | null
         }}
       ],
-      "context_summary": "string"
+      "context_summary": "string",
+      "alert_cards": [
+        {{
+          "type": "string",
+          "message": "string",
+          "related_instance_ids": ["string"]
+        }}
+      ]
     }}
     """
 
@@ -102,7 +119,12 @@ def clean_gemini_response(raw: str) -> str:
 
 def parse_gemini_response(raw: str) -> ParseResponse:
     cleaned = clean_gemini_response(raw)
-    return ParseResponse.model_validate(json.loads(cleaned))
+    parsed = ParseResponse.model_validate(json.loads(cleaned))
+
+    if not parsed.cards:
+        raise ValueError("cards must not be empty")
+
+    return parsed
 
 
 @app.post("/internal/ai/parse")
@@ -124,10 +146,20 @@ def parse_user_input(
                 "error": str(e),
             },
         ) from e
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "GEMINI_COOLDOWN_ACTIVE",
+                "message": "Gemini is temporarily blocked due to recent quota errors",
+                "error": str(e),
+            },
+        ) from e
     except ValueError as e:
         raise HTTPException(
             status_code=502,
             detail={
+                "code": "EMPTY_RESPONSE",
                 "message": "Gemini returned an empty response",
                 "prompt": prompt,
                 "error": str(e),
@@ -137,6 +169,7 @@ def parse_user_input(
         raise HTTPException(
             status_code=502,
             detail={
+                "code": "MODEL_CALL_FAILED",
                 "message": "Failed to call Gemini",
                 "prompt": prompt,
                 "error": str(e),
@@ -145,11 +178,32 @@ def parse_user_input(
 
     try:
         return parse_gemini_response(raw)
-    except (JSONDecodeError, ValueError) as e:
+    except JSONDecodeError as e:
         raise HTTPException(
             status_code=502,
             detail={
+                "code": "INVALID_JSON",
+                "message": "Gemini response was not valid JSON",
+                "raw": raw,
+                "error": str(e),
+            },
+        ) from e
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "INVALID_SCHEMA",
                 "message": "Gemini response did not match the expected schema",
+                "raw": raw,
+                "error": str(e),
+            },
+        ) from e
+    except ValueError as e:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "INVALID_RESPONSE",
+                "message": "Gemini response failed post-parse validation",
                 "raw": raw,
                 "error": str(e),
             },
