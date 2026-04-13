@@ -1,0 +1,41 @@
+.status-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+}
+
+.status-icon-symbol {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Logo: purple rounded square */
+.status-icon-logo {
+  background-color: #6c5ce7;
+  border-radius: 18px;
+  color: #ffffff;
+}
+
+/* Error: red circle */
+.status-icon-error {
+  background-color: #fde8e8;
+  border-radius: 50%;
+  color: #e74c3c;
+}
+
+/* Warning: yellow circle */
+.status-icon-warning {
+  background-color: #fff8e1;
+  border-radius: 50%;
+  color: #f59e0b;
+}
+
+/* Info: orange circle */
+.status-icon-info {
+  background-color: #fff0e0;
+  border-radius: 50%;
+  color: #e17055;
+}

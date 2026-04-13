@@ -60,7 +60,7 @@ docs: 로컬 실행 가이드 업데이트
 ## PR 규칙
 
 - PR 제목은 커밋 컨벤션과 동일한 형식을 사용합니다.
-- PR 본문에 `Closes #이슈번호`를 반드시 포함합니다.
+- PR 본문에 관련 이슈를 반드시 포함합니다. 작업 성격에 따라 `Closes #이슈번호` 또는 `Refs #이슈번호`를 사용합니다.
 - 최소 1명 이상 리뷰 승인 후 merge 합니다.
 - PR 템플릿은 `.github/PULL_REQUEST_TEMPLATE.md`를 사용합니다.
 - PR 범위는 하나의 기능 또는 하나의 목적 단위로 잘라주세요.
@@ -72,7 +72,7 @@ docs: 로컬 실행 가이드 업데이트
 <!-- 변경사항 간단히 설명 -->
 
 ## 관련 이슈
-Closes #
+Closes # 또는 Refs #
 
 ## 변경 범위
 - [ ] Frontend
@@ -144,6 +144,18 @@ cd apps/frontend && npm install && npm run dev
 cd apps/backend && ./gradlew bootRun
 cd apps/ai-engine && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+### Frontend lint
+
+```bash
+cd apps/frontend
+npm run lint
+npm run lint:fix
+```
+
+- `npm run lint`: 프론트엔드 lint 규칙 검사
+- `npm run lint:fix`: 자동 수정 가능한 항목 정리
+- 초기 도입 단계이므로 warning 중심으로 운영하며, 추후 점진적으로 강화할 수 있습니다.
 
 ### 동작 확인
 
