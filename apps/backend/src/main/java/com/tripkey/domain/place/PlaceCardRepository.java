@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface PlaceCardRepository extends JpaRepository<PlaceCard, UUID> {
 
     List<PlaceCard> findAllByTripId(UUID tripId);
+
+    void deleteAllByTripId(UUID tripId);
 }

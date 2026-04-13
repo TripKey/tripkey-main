@@ -1,6 +1,7 @@
 package com.tripkey.domain.place;
 
 import com.tripkey.common.converter.StringListConverter;
+import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -69,6 +70,29 @@ public class PlaceCard {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    public static PlaceCard createFromAiResponse(UUID tripId, AiPlaceCardDto dto) {
+        PlaceCard card = new PlaceCard();
+        card.tripId = tripId;
+        card.placeId = dto.placeId();
+        card.status = normalizeStatus(dto.status());
+        card.name = defaultString(dto.name(), "이름 미정");
+        card.category = defaultString(dto.category(), "미분류");
+        card.classification = normalizeClassification(dto.classification());
+        card.estimatedDurationMin = dto.estimatedDurationMin() != null ? dto.estimatedDurationMin() : (short) 60;
+        card.timeConstraint = dto.timeConstraint();
+        card.isAiGenerated = true;
+        card.conflictType = dto.conflictType();
+        card.conflictReason = dto.conflictReason();
+        card.remind = dto.remind() != null ? dto.remind() : List.of();
+
+        if (dto.coordinates() != null) {
+            card.lat = dto.coordinates().lat();
+            card.lng = dto.coordinates().lng();
+        }
+
+        return card;
+    }
+
     @PrePersist
     protected void onCreate() {
         this.instanceId = UUID.randomUUID();
@@ -79,5 +103,35 @@ public class PlaceCard {
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = OffsetDateTime.now();
+    }
+
+    private static String normalizeStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return "success";
+        }
+
+        return switch (status.toLowerCase()) {
+            case "failure", "error" -> "error";
+            case "loading" -> "loading";
+            default -> "success";
+        };
+    }
+
+    private static String normalizeClassification(String classification) {
+        if (classification == null || classification.isBlank()) {
+            return "undecided";
+        }
+
+        return switch (classification.toLowerCase()) {
+            case "confirmed" -> "confirmed";
+            case "open_question" -> "open_question";
+            case "unassigned" -> "unassigned";
+            case "undecided", "unconfirmed" -> "undecided";
+            default -> "undecided";
+        };
+    }
+
+    private static String defaultString(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 }
