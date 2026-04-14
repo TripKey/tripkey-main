@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -29,6 +30,7 @@ public class DumpAsyncProcessor {
     private final AiEngineClient aiEngineClient;
 
     @Async("dumpTaskExecutor")
+    @Transactional
     public void process(UUID jobId) {
         DumpJob job = dumpJobRepository.findById(jobId).orElse(null);
         if (job == null) {
