@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Entity
@@ -73,15 +74,15 @@ public class PlaceCard {
     public static PlaceCard createFromAiResponse(UUID tripId, AiPlaceCardDto dto) {
         PlaceCard card = new PlaceCard();
         card.tripId = tripId;
-        card.placeId = dto.placeId();
+        card.placeId = normalizePlaceId(dto.placeId());
         card.status = normalizeStatus(dto.status());
         card.name = defaultString(dto.name(), "이름 미정");
-        card.category = defaultString(dto.category(), "미분류");
+        card.category = normalizeCategory(dto.category());
         card.classification = normalizeClassification(dto.classification());
         card.estimatedDurationMin = dto.estimatedDurationMin() != null ? dto.estimatedDurationMin() : (short) 60;
         card.timeConstraint = dto.timeConstraint();
         card.isAiGenerated = true;
-        card.conflictType = dto.conflictType();
+        card.conflictType = normalizeConflictType(dto.conflictType());
         card.conflictReason = dto.conflictReason();
         card.remind = dto.remind() != null ? dto.remind() : List.of();
 
@@ -129,6 +130,43 @@ public class PlaceCard {
             case "undecided", "unconfirmed" -> "undecided";
             default -> "undecided";
         };
+    }
+
+    private static String normalizeCategory(String category) {
+        if (category == null || category.isBlank()) {
+            return "미분류";
+        }
+
+        String normalized = category.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "관광", "tour", "attraction", "sightseeing", "landmark" -> "관광";
+            case "쇼핑", "shopping", "mart", "market" -> "쇼핑";
+            case "식사", "food", "dining", "restaurant", "cafe", "카페" -> "식사";
+            case "숙박", "stay", "lodging", "hotel", "accommodation" -> "숙박";
+            case "교통", "transport", "transportation", "transit" -> "교통";
+            case "미분류", "unknown", "other" -> "미분류";
+            default -> "미분류";
+        };
+    }
+
+    private static String normalizeConflictType(String conflictType) {
+        if (conflictType == null || conflictType.isBlank()) {
+            return null;
+        }
+
+        String normalized = conflictType.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "timing_constraint", "time_constraint", "timing", "time" -> "timing_constraint";
+            case "choice_conflict", "duplicate", "duplication", "choice" -> "choice_conflict";
+            default -> null;
+        };
+    }
+
+    private static String normalizePlaceId(String placeId) {
+        if (placeId == null || placeId.isBlank()) {
+            return "unknown:" + UUID.randomUUID();
+        }
+        return placeId.trim();
     }
 
     private static String defaultString(String value, String fallback) {
