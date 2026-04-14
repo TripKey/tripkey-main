@@ -1,10 +1,21 @@
 # TripKey Codex Rules
 
+<<<<<<< HEAD
 ## ⚠️ MD file modification policy
 - Never modify any `.md` file without explicit user permission.
 - This applies to all Markdown files including `AGENTS.md`, review docs, SSOT docs, prompt docs, and project documentation.
 - Do not even propose Markdown edits unless the user explicitly asks for Markdown changes.
 - If a Markdown change seems necessary, stop and ask first in exactly this format:
+=======
+## Purpose
+- This document defines the default working rules for agents operating in the TripKey repository.
+- The goal is to protect core architecture and project documents without making routine coding work unnecessarily slow.
+
+## ⚠️ MD file modification policy
+- Never modify any `.md` file without explicit user permission.
+- This applies to all Markdown files including `AGENTS.md`, review docs, SSOT docs, prompt docs, and project documentation.
+- If a Markdown change seems necessary, explain why and ask first in exactly this format:
+>>>>>>> docs/agent-rules
 
 ```text
 [MD 수정 허락 요청]
@@ -20,6 +31,7 @@
 - Do not translate code, identifiers, API field names, logs, error codes, or file paths.
 - Preserve the existing language of a file unless the user explicitly asks to rewrite it.
 
+<<<<<<< HEAD
 ## Default working mode
 - Default to analysis, planning, review, and change proposals.
 - Do not edit files unless the user explicitly says one of:
@@ -28,6 +40,12 @@
   - `적용해`
   - `고쳐`
 - If the task is ambiguous, ask short questions first or provide a short plan.
+=======
+## Default working style
+- Default to solving the user’s task directly when the request clearly implies implementation.
+- Ask before proceeding when the change affects Markdown documents, architecture, API contracts, policy, or other non-obvious cross-layer decisions.
+- If the task is ambiguous, ask a short clarifying question or provide a short plan first.
+>>>>>>> docs/agent-rules
 
 ## Core behavior
 - Act as both an implementer and a reviewer.
@@ -64,6 +82,15 @@
 - If a task affects more than one layer, read all relevant review files before concluding.
 - Even if the task looks single-layered, include adjacent layer review when the contract changes.
 
+<<<<<<< HEAD
+=======
+### Review doc location
+- `shared/docs/agent/review/core-review.md`
+- `shared/docs/agent/review/backend-review.md`
+- `shared/docs/agent/review/frontend-review.md`
+- `shared/docs/agent/review/ai-engine-review.md`
+
+>>>>>>> docs/agent-rules
 ### Common combinations
 | Task type | Review files to read |
 |-----------|----------------------|
@@ -90,6 +117,7 @@ A task is complete only when all applicable items are done:
 2. relevant checks/tests are run when possible,
 3. the diff is reviewed for side effects,
 4. assumptions and risks are reported.
+<<<<<<< HEAD
 
 ## Review doc location
 - `shared/docs/review/core-review.md`
@@ -112,3 +140,5 @@ A task is complete only when all applicable items are done:
 3. Checks run
 4. Risks / assumptions
 5. Follow-up review notes
+=======
+>>>>>>> docs/agent-rules

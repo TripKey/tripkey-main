@@ -60,6 +60,12 @@ public class DumpJob {
         this.step = step;
     }
 
+    public void markProcessing(Short step) {
+        this.status = "processing";
+        this.step = step;
+        this.errorCode = null;
+    }
+
     public void fail(String errorCode) {
         this.status = "failed";
         this.errorCode = errorCode;
@@ -67,6 +73,8 @@ public class DumpJob {
 
     public void complete(String contextSummary) {
         this.status = "completed";
+        this.step = 3;
+        this.errorCode = null;
         this.contextSummary = contextSummary;
     }
 

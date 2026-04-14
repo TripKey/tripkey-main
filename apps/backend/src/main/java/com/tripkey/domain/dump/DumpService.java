@@ -29,8 +29,8 @@ public class DumpService {
     private final DumpJobRepository dumpJobRepository;
     private final PlaceCardRepository placeCardRepository;
     private final TripRepository tripRepository;
+    private final DumpAsyncProcessor dumpAsyncProcessor;
 
-    @Transactional
     public DumpSubmitResponse submit(UUID tripId, String dumpText) {
         if (!tripRepository.existsById(tripId)) {
             throw new TripNotFoundException(tripId);
@@ -42,8 +42,7 @@ public class DumpService {
 
         DumpJob job = DumpJob.create(tripId, dumpText);
         dumpJobRepository.save(job);
-
-        // TODO: AI Engine 비동기 호출 (파싱 요청)
+        dumpAsyncProcessor.process(job.getJobId());
 
         return new DumpSubmitResponse(job.getJobId(), job.getStatus());
     }

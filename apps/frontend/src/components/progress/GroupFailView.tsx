@@ -1,5 +1,5 @@
-import StatusIcon from '../common/StatusIcon';
 import Button from '../common/Button';
+import StatusIcon from '../common/StatusIcon';
 
 type GroupFailViewProps = {
   onContinue?: () => void;
