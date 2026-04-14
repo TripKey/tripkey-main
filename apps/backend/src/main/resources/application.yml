@@ -1,6 +1,8 @@
 spring:
   application:
     name: backend
+  jackson:
+    property-naming-strategy: SNAKE_CASE
   datasource:
     url: ${SUPABASE_DB_URL}
     username: ${SUPABASE_DB_USERNAME}
@@ -16,3 +18,9 @@ spring:
 
 server:
   port: 8080
+  servlet:
+    context-path: /v1
+
+app:
+  ai-engine:
+    base-url: ${AI_ENGINE_URL:http://tripkey-ai-engine:8000}
