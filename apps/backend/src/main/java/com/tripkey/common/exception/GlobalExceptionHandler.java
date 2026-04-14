@@ -3,6 +3,7 @@ package com.tripkey.common.exception;
 import com.tripkey.dto.common.ErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -36,22 +37,28 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException e) {
-        String message = e.getBindingResult().getFieldErrors().stream()
+        FieldError fieldError = e.getBindingResult().getFieldErrors().stream()
                 .findFirst()
-                .map(f -> f.getDefaultMessage())
-                .orElse("입력값을 확인해주세요");
-
+                .orElse(null);
+        String message = fieldError != null ? fieldError.getDefaultMessage() : "입력값을 확인해주세요";
         String code = "VALIDATION_ERROR";
         HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
 
-        if (message.contains("blank") || message.contains("10자")) {
-            code = "DUMP_TOO_SHORT";
-            message = "최소 10자 이상 입력해주세요";
-            status = HttpStatus.BAD_REQUEST;
-        } else if (message.contains("3000")) {
-            code = "DUMP_TOO_LONG";
-            message = "최대 글자 수에 도달했어요";
-            status = HttpStatus.BAD_REQUEST;
+        if (fieldError != null && "dumpText".equals(fieldError.getField())) {
+            String validationCode = fieldError.getCode();
+            String value = fieldError.getRejectedValue() == null
+                    ? ""
+                    : String.valueOf(fieldError.getRejectedValue()).trim();
+
+            if ("NotBlank".equals(validationCode) || value.length() < 10) {
+                code = "DUMP_TOO_SHORT";
+                message = "최소 10자 이상 입력해주세요";
+                status = HttpStatus.BAD_REQUEST;
+            } else if ("Size".equals(validationCode) && value.length() > 3000) {
+                code = "DUMP_TOO_LONG";
+                message = "최대 글자 수에 도달했어요";
+                status = HttpStatus.BAD_REQUEST;
+            }
         }
 
         return ResponseEntity.status(status)
