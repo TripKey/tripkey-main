@@ -51,12 +51,12 @@ export const useDumpStore = create<DumpStore>((set, get) => ({
 
     try {
       const response = await submitDumpText(tripId, {
-        dump_text: dumpText,
+        dumpText: dumpText,
       });
 
       set({
         requestStatus: 'success',
-        jobId: response.job_id,
+        jobId: response.jobId,
       });
       return true;
     } catch (error) {

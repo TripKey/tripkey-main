@@ -4,11 +4,11 @@ export type DumpErrorCode =
   | 'DUMP_URL_NOT_ALLOWED';
 
 export interface DumpSubmitRequest {
-  dump_text: string;
+  dumpText: string;
 }
 
 export interface DumpSubmitResponse {
-  job_id: string;
+  jobId: string;
   status: 'pending';
 }
 
