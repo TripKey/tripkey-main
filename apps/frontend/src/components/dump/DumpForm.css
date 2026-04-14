@@ -1,14 +1,41 @@
 .dump-form {
-    display: flex;
-    flex-direction: column;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .dump-textarea {
-    height: 300px;
+  width: 100%;
+  min-height: 300px;
+  padding: 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  background-color: #ffffff;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #1a1a1a;
+  resize: none;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.dump-textarea:focus {
+  border-color: #6c5ce7;
+}
+
+.dump-textarea::placeholder {
+  color: #aaaaaa;
 }
 
 .dump-status-message {
+  min-height: 20px;
+  margin: 0;
+  font-size: 13px;
+  color: #888888;
 }
 
 .dump-text-count {
+  margin-left: auto;
+  font-size: 13px;
+  color: #aaaaaa;
 }
