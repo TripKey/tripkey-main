@@ -8,7 +8,7 @@ pydantic-settings==2.13.1
 
 # ── Gemini (LLM) ─────────────────────────────────────
 google-genai==1.70.0
-google-api-core==2.19.1
+google-api-core==2.30.3
 
 # ── External API (Google Maps Directions) ────────────
 googlemaps==4.10.0
