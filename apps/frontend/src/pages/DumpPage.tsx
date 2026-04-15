@@ -8,9 +8,13 @@ import { useDumpStore } from '../utils/dump-store';
 
 import './DumpPage.css';
 
-const DumpPage = ({ tripId }: { tripId: string }) => {
-  const { dumpText, requestStatus, errorMessage, setDumpText, submitDump } =
-    useDumpStore();
+type DumpPageProps = {
+  tripId: string;
+};
+
+const DumpPage = ({ tripId }: DumpPageProps) => {
+  const { dumpText, requestStatus, errorMessage, actions } = useDumpStore();
+  const { setDumpText, submitDump } = actions;
 
   const dumpTextCount = dumpText.trim().length;
 
@@ -22,7 +26,7 @@ const DumpPage = ({ tripId }: { tripId: string }) => {
   };
 
   const handleClickBack = () => {
-    console.log('이전');
+    navigate('/');
   };
 
   const navigate = useNavigate();
