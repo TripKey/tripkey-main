@@ -116,14 +116,17 @@ tripkey-main/
 
 ### Dump Parse 계약
 - backend → ai-engine parse request:
-  - `trip_id: string`
-  - `dump_text: string`
+  - `text: string`
+  - `destination?: string`
+  - `travel_days?: number`
+  - `trip_id?: string`
 - ai-engine → backend parse response:
   - `cards: PlaceCard[]`
   - `context_summary?: string`
   - `alert_cards?: AlertCard[]`
 - `instance_id`는 ai-engine이 생성하지 않는다.
-- `instance_id`는 backend가 발급하고 저장 책임을 가진다.
+- `instance_id`와 `trip_id` 저장 책임은 backend가 가진다.
+- `trip_id`는 세션/저장 식별자이며, ai-engine의 저장 책임을 의미하지 않는다.
 
 ---
 
@@ -279,14 +282,39 @@ Dump:
 frontend → backend → ai → polling  
 
 Dump Parse:
-backend는 ai-engine raw response를 그대로 신뢰하지 않는다.
-ai-engine은 raw response를 normalization한 뒤 schema validation을 통과한 결과만 backend에 전달한다.
+backend → ai-engine 호출 시 `text`, `destination`, `travel_days`를 전달한다.
+ai-engine은 raw response를 normalization한 뒤 schema validation을 통과한 결과만 backend에 반환한다.
+backend는 ai-engine response를 그대로 신뢰하지 않고, 저장 직전에 도메인 규칙으로 한 번 더 normalization한다.
 
 Schedule:
 drag & drop → PATCH → DB  
 
 Verify:
 Maps API → fallback  
+
+---
+
+## 🔐 Dependency Update 정책
+
+### Dependabot 운영 원칙
+- 기본 운영은 `security-only`
+- 일반 version update PR은 받지 않는다.
+- 보안 취약점이 있는 dependency에 대해서만 PR을 생성한다.
+- auto-merge는 사용하지 않는다.
+- security PR은 CI 통과 후 사람이 확인하고 머지한다.
+
+### Dependabot 설정 원칙
+- `open-pull-requests-limit: 0`을 사용해 version updates를 비활성화한다.
+- security updates는 ecosystem별로 그룹화할 수 있다.
+- semver major 보안 업데이트도 차단하지 않는다.
+- default branch 기준으로 security updates가 생성되도록 운영한다.
+
+### 현재 적용 대상
+- frontend npm
+- backend gradle
+- ai-engine pip
+- github-actions
+- docker
 
 ---
 
