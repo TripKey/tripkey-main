@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tripkey.dto.dump.DumpResultResponse;
 import com.tripkey.dto.dump.DumpStatusResponse;
 import com.tripkey.dto.trip.TripCreateResponse;
+import com.tripkey.infra.aiengine.dto.AiParseRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.json.JsonTest;
@@ -94,5 +95,24 @@ class JsonNamingStrategyTest {
                 .doesNotContain("conflictType")
                 .doesNotContain("conflictReason")
                 .doesNotContain("relatedInstanceIds");
+    }
+
+    @Test
+    void serializesAiParseRequestWithBackendToAiContract() throws Exception {
+        AiParseRequest request = new AiParseRequest(
+                "Osaka 4-day trip with Dotonbori and USJ",
+                "Osaka",
+                (short) 4
+        );
+
+        String json = objectMapper.writeValueAsString(request);
+
+        assertThat(json)
+                .contains("\"text\"")
+                .contains("\"destination\"")
+                .contains("\"travel_days\"")
+                .doesNotContain("travelDays")
+                .doesNotContain("dump_text")
+                .doesNotContain("trip_id");
     }
 }

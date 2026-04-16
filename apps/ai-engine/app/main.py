@@ -78,17 +78,24 @@ def health() -> dict[str, str]:
 
 # --- [build prompt] --- #
 def build_prompt(req: ParseRequest) -> str:
+    destination = req.destination if req.destination else "not provided"
+    travel_days = req.travel_days if req.travel_days is not None else "not provided"
+    trip_id = req.trip_id if req.trip_id else "not provided"
+
     return f"""
     Parse the user's dump text into travel place candidate cards.
 
     Input:
-    - trip_id: {req.trip_id}
-    - dump_text: {req.dump_text}
+    - trip_id: {trip_id}
+    - destination: {destination}
+    - travel_days: {travel_days}
+    - text: {req.text}
 
     Follow all rules below.
     - Return exactly one JSON object.
     - Do not return markdown, code fences, explanations, or comments.
     - The cards array must not be empty.
+    - Use destination and travel_days as grounding context when they are provided.
     - If the input only contains a city or destination, return at least 3 likely place cards.
     - Only return places that are likely to exist in the real world.
     - Do not generate instance_id.

@@ -14,8 +14,10 @@ class AlertCard(BaseModel):
 class ParseRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    trip_id: str
-    dump_text: str
+    text: str
+    destination: str | None = None
+    travel_days: int | None = None
+    trip_id: str | None = None
 
 
 class ParseResponse(BaseModel):
