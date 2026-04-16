@@ -1,32 +1,49 @@
-import { useState } from 'react';
-import './DumpPage.css';
+import { useNavigate } from 'react-router-dom';
 
 import DumpActionBar from '../components/dump/DumpActionBar';
 import DumpForm from '../components/dump/DumpForm';
 import DumpGuideCard from '../components/dump/DumpGuideCard';
+import { DUMP_TEXT } from '../utils/constants';
+import { useDumpStore } from '../utils/dump-store';
 
-const MIN_DUMP_TEXT_LENGTH = 10;
+import './DumpPage.css';
 
-const DumpPage = () => {
-  const [dumpText, setDumpText] = useState('');
+type DumpPageProps = {
+  tripId: string;
+};
+
+const DumpPage = ({ tripId }: DumpPageProps) => {
+  const { dumpText, requestStatus, errorMessage, actions } = useDumpStore();
+  const { setDumpText, submitDump } = actions;
 
   const dumpTextCount = dumpText.trim().length;
-  const isNextDisabled = dumpTextCount < MIN_DUMP_TEXT_LENGTH;
+
+  const isNextDisabled =
+    dumpTextCount < DUMP_TEXT.MIN_LENGTH || requestStatus === 'loading';
 
   const handleDumpTextChange = (nextDumpText: string) => {
     setDumpText(nextDumpText);
   };
 
   const handleClickBack = () => {
-    console.log('이전');
+    navigate('/');
   };
-  const handleClickNext = () => {
-    console.log('다음');
+
+  const navigate = useNavigate();
+
+  const handleClickNext = async () => {
+    navigate('/progress');
+
+    const isSuccess = await submitDump(tripId);
+
+    if (!isSuccess) {
+      navigate('/dump');
+    }
   };
 
   return (
     <main className="dump-page">
-      <div className="area">{/*공통 컴포넌트 순서도*/}</div>
+      <div className="area">{/* 공통 컴포넌트 순서도 */}</div>
 
       <section className="dump-container">
         <div className="dump-header">
@@ -46,6 +63,7 @@ const DumpPage = () => {
           onBack={handleClickBack}
           onNext={handleClickNext}
           isNextDisabled={isNextDisabled}
+          errorMessage={errorMessage}
         />
       </section>
     </main>

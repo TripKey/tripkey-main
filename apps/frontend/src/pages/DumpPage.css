@@ -1,21 +1,38 @@
-/* DumpPage */
+/* 페이지 전체 영역 */
 .dump-page {
-  width:600px;
-  margin:0 auto;
+  max-width: 600px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 24px;
+  background-color: #fafafa;
+  min-height: 100vh;
+  box-sizing: border-box;
 }
 
 /* 본문 영역 */
 .dump-container {
   display: flex;
   flex-direction: column;
+  gap: 24px;
 }
 
 /* 페이지 제목 영역 */
 .dump-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .dump-header h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
 }
 
 .dump-header p {
+  margin: 0;
+  font-size: 14px;
+  color: #888888;
+  line-height: 1.6;
 }

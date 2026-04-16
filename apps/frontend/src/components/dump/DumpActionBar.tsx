@@ -1,15 +1,18 @@
+import Button from '../common/Button';
 import './DumpActionBar.css';
 
 type DumpActionBarProps = {
   onBack: () => void;
   onNext: () => void;
   isNextDisabled: boolean;
+  errorMessage: string | null;
 };
 
 const DumpActionBar = ({
   onBack,
   onNext,
   isNextDisabled,
+  errorMessage,
 }: DumpActionBarProps) => {
   const nextGuideMessage = isNextDisabled
     ? '10자 입력시 활성화'
@@ -17,21 +20,17 @@ const DumpActionBar = ({
 
   return (
     <div className="dump-action-bar">
-      <button className="dump-back-button" type="button" onClick={onBack}>
+      <Button variant="outlined" onClick={onBack}>
         이전
-      </button>
+      </Button>
 
       <div className="dump-next-section">
         <p className="dump-action-message">{nextGuideMessage}</p>
+        {errorMessage && <p className="dump-error-message">{errorMessage}</p>}
 
-        <button
-          className="dump-next-button"
-          type="button"
-          onClick={onNext}
-          disabled={isNextDisabled}
-        >
+        <Button variant="filled" onClick={onNext} disabled={isNextDisabled}>
           다음
-        </button>
+        </Button>
       </div>
     </div>
   );
