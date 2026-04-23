@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import DevIndexPage from './pages/DevIndexPage';
 import DumpPage from './pages/DumpPage';
+import OnboardingPage from './pages/OnboardingPage';
 import ProgressPageDev from './pages/ProgressPageDev';
 
 export default function App() {
@@ -11,6 +12,10 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<DevIndexPage />} />
+        <Route
+          path="/onboarding"
+          element={<OnboardingPage tripId={tripId} />}
+        />
         <Route path="/dump" element={<DumpPage tripId={tripId} />} />
         <Route path="/progress" element={<ProgressPageDev />} />
       </Routes>
