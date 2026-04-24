@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException, status
 
 from app.schemas.parse import ParseRequest, ParseResponse
-from app.services.core_parse import GeminiCooldownError, parse_with_blocking_enrichment
+from app.services.core_parse import GeminiCooldownError, parse_with_blocking_enrichment, to_public_card
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,6 @@ async def parse_endpoint(req: ParseRequest) -> ParseResponse:
     return ParseResponse(
         trip_id=req.trip_id,
         context_summary=result.context_summary,
-        cards=result.cards,
+        cards=[to_public_card(card) for card in result.cards],
         alert_cards=result.alert_cards,
     )

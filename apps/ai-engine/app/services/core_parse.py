@@ -6,8 +6,10 @@ import os
 import re
 import time
 import uuid
+import asyncio
 from dataclasses import dataclass
 from difflib import SequenceMatcher
+from typing import Literal, Optional
 
 import httpx
 from google.api_core.exceptions import ResourceExhausted
@@ -37,6 +39,7 @@ PLACES_FIELD_MASK = ",".join(
     ]
 )
 PLACES_HINT_MESSAGE = "장소 정보를 확인해주세요."
+PLACES_MAX_CONCURRENCY = int(os.getenv("PLACES_MAX_CONCURRENCY", "4"))
 PLACES_ELIGIBLE_CATEGORIES = {
     Category.PLACE,
     Category.ACTIVITY,
@@ -55,9 +58,13 @@ class GeminiCooldownError(RuntimeError):
 @dataclass
 class CoreParseResult:
     context_summary: str
-    cards: list[CardResponse]
+    cards: list["ParsedCard"]
     alert_cards: list[AlertCardResponse]
     raw_response: str
+
+
+class ParsedCard(CardResponse):
+    search_alias: Optional[str] = None
 
 
 def _gemini_client() -> genai.Client:
@@ -86,11 +93,11 @@ def _extract_json(raw: str) -> dict:
     return parsed
 
 
-def _parse_cards(raw_cards: list[dict]) -> list[CardResponse]:
-    cards: list[CardResponse] = []
+def _parse_cards(raw_cards: list[dict]) -> list[ParsedCard]:
+    cards: list[ParsedCard] = []
     for index, raw_card in enumerate(raw_cards):
         try:
-            cards.append(CardResponse.model_validate(raw_card))
+            cards.append(ParsedCard.model_validate(raw_card))
         except Exception as exc:
             logger.warning("Skipping invalid card at index=%d | error=%s | raw=%s", index, exc, raw_card)
     return cards
@@ -114,7 +121,7 @@ def _normalize_for_match(value: str | None) -> str:
     return re.sub(r"[^0-9a-zA-Z가-힣ぁ-ゔァ-ヴー々〆〤一-龥]", "", value).lower()
 
 
-def _is_name_match(card: CardResponse, place_name: str) -> bool:
+def _is_name_match(card: ParsedCard, place_name: str) -> bool:
     candidate = _normalize_for_match(place_name)
     if not candidate:
         return False
@@ -133,7 +140,7 @@ def _is_name_match(card: CardResponse, place_name: str) -> bool:
     return False
 
 
-def _append_user_context(card: CardResponse, message: str) -> str:
+def _append_user_context(card: ParsedCard, message: str) -> str:
     if not card.user_context:
         return message
     if message in card.user_context:
@@ -141,7 +148,7 @@ def _append_user_context(card: CardResponse, message: str) -> str:
     return f"{card.user_context} {message}".strip()
 
 
-def _query_candidates(card: CardResponse, req: ParseRequest) -> list[str]:
+def _query_candidates(card: ParsedCard, req: ParseRequest) -> list[str]:
     destinations = [destination.strip() for destination in req.destinations if destination.strip()]
     primary_destination = destinations[0] if destinations else ""
     location = (card.location or "").strip()
@@ -184,7 +191,7 @@ async def _search_place(query: str, api_key: str) -> dict | None:
         return response.json()
 
 
-def _apply_place_match(card: CardResponse, place: dict) -> CardResponse:
+def _apply_place_match(card: ParsedCard, place: dict) -> ParsedCard:
     location = place.get("location") or {}
     coordinates = None
     if location.get("latitude") is not None and location.get("longitude") is not None:
@@ -204,7 +211,7 @@ def _apply_place_match(card: CardResponse, place: dict) -> CardResponse:
     )
 
 
-async def _enrich_card(card: CardResponse, req: ParseRequest, api_key: str) -> CardResponse:
+async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> ParsedCard:
     if card.classification == Classification.UNASSIGNED:
         return card
     if card.category not in PLACES_ELIGIBLE_CATEGORIES:
@@ -235,19 +242,35 @@ async def _enrich_card(card: CardResponse, req: ParseRequest, api_key: str) -> C
     )
 
 
-async def enrich_cards_blocking(req: ParseRequest, cards: list[CardResponse]) -> list[CardResponse]:
+async def _enrich_card_with_semaphore(
+    semaphore: asyncio.Semaphore,
+    card: ParsedCard,
+    req: ParseRequest,
+    api_key: str,
+) -> ParsedCard:
+    async with semaphore:
+        return await _enrich_card(card, req, api_key)
+
+
+async def enrich_cards_blocking(req: ParseRequest, cards: list[ParsedCard]) -> list[ParsedCard]:
     api_key = _places_api_key()
     if not api_key:
         logger.info("Skipping Places enrichment because API key is not configured.")
         return cards
 
-    enriched_cards: list[CardResponse] = []
-    for card in cards:
-        try:
-            enriched_cards.append(await _enrich_card(card, req, api_key))
-        except Exception as exc:
-            logger.warning("Blocking enrichment failed for card=%s | error=%s", card.name, exc)
+    semaphore = asyncio.Semaphore(max(1, PLACES_MAX_CONCURRENCY))
+    results = await asyncio.gather(
+        *[_enrich_card_with_semaphore(semaphore, card, req, api_key) for card in cards],
+        return_exceptions=True,
+    )
+
+    enriched_cards: list[ParsedCard] = []
+    for card, result in zip(cards, results):
+        if isinstance(result, Exception):
+            logger.warning("Blocking enrichment failed for card=%s | error=%s", card.name, result)
             enriched_cards.append(card)
+            continue
+        enriched_cards.append(result)
     return enriched_cards
 
 
@@ -278,7 +301,7 @@ def _call_gemini(prompt: str, model_name: str = "gemini-2.5-flash") -> str:
 
 async def parse_core(req: ParseRequest) -> CoreParseResult:
     prompt = build_core_parse_prompt(req)
-    raw_text = _call_gemini(prompt)
+    raw_text = await asyncio.to_thread(_call_gemini, prompt)
 
     parsed = _extract_json(raw_text)
 
@@ -317,3 +340,8 @@ async def parse_with_blocking_enrichment(req: ParseRequest) -> CoreParseResult:
         alert_cards=result.alert_cards,
         raw_response=result.raw_response,
     )
+
+
+def to_public_card(card: ParsedCard) -> CardResponse:
+    payload = card.model_dump(exclude={"search_alias"})
+    return CardResponse.model_validate(payload)
