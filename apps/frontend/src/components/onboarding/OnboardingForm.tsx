@@ -1,4 +1,5 @@
 import Input from '../common/Input';
+import './OnboardingForm.css';
 
 type OnboardingFormProps = {
   title: string;
@@ -14,11 +15,10 @@ const OnboardingForm = ({
   subtitle,
 }: OnboardingFormProps) => {
   return (
-    <div>
-      <h2>{title}</h2>
-
+    <div className="onboarding-form">
+      <h2 className="onboarding-form__title">{title}</h2>
       <Input name={name} placeholder={placeholder} errorMessage={undefined} />
-      <p>{subtitle}</p>
+      <p className="onboarding-form__subtitle">{subtitle}</p>
     </div>
   );
 };
