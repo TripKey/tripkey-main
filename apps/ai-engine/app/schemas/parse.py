@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Category(str, Enum):
@@ -100,11 +100,26 @@ class CardResponse(BaseModel):
 
     tags: Optional[list[str]] = None
     source: Optional[str] = None
-    search_alias: Optional[str] = None
 
     check_in: Optional[str] = None
     check_out: Optional[str] = None
     flight_number: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_question_fields(self) -> "CardResponse":
+        if self.classification == Classification.UNDECIDED:
+            if not self.question_text:
+                raise ValueError("undecided cards must include question_text.")
+
+            if self.placement_status == PlacementStatus.READY_PARTIAL and not self.options:
+                raise ValueError("candidate-style undecided cards must include options.")
+
+            if self.placement_status == PlacementStatus.NEEDS_INPUT and self.options:
+                raise ValueError("direct-input undecided cards must not include options.")
+        elif self.question_text or self.options:
+            raise ValueError("question_text/options are only allowed for undecided cards.")
+
+        return self
 
 
 class AlertCardResponse(BaseModel):
@@ -113,7 +128,7 @@ class AlertCardResponse(BaseModel):
     id: str
     type: str
     category: AlertCategory
-    scope: str = "trip"
+    scope: Literal["trip"] = "trip"
     day: Optional[int] = None
     message: str
     related_instance_ids: Optional[list[str]] = None

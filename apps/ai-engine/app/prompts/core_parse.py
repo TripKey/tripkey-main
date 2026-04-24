@@ -78,14 +78,21 @@ def build_core_parse_prompt(req: ParseRequest) -> str:
 - For each flight input provided, create exactly one transport card.
 
 ### classification Rules
-- confirmed: user clearly intends to visit.
-- open_question: user is uncertain or AI-generated recommendation.
-- undecided: user will go but specific place is not decided.
-- unassigned: AI cannot interpret user intent at all.
+- confirmed: 장소명이 명확히 특정되고 의도가 확정된 완성형 카드.
+  Examples: "이치란 라멘 꼭 가야해", "유니버설 스튜디오 예약했어"
+- open_question: 사용자가 불확실하게 언급하거나 AI가 자체 추가한 추천 카드.
+  Examples: "테라로사 있으면 좋겠다", "가볼까", is_ai_generated: true 카드
+- undecided: 의도는 있지만 장소가 특정되지 않은 카드.
+  - AI가 후보 제시 가능하면 placement_status는 ready_partial, question_text와 options를 함께 생성
+    Examples: "스시 꼭 먹고 싶어", "카페 한 군데 가고 싶어"
+  - AI도 특정 불가하면 placement_status는 needs_input, question_text는 생성하고 options는 null
+    Examples: "친구집 갈거야", "우리 단골집", "아는 곳 있어"
+- unassigned: AI가 의도조차 해석하지 못한 경우.
 
 ### placement_status Rules
 - confirmed / open_question → ready_partial
-- undecided → needs_input
+- undecided + AI 후보 가능 → ready_partial
+- undecided + AI 특정 불가 → needs_input
 - unassigned → blocked
 
 ### category Rules
@@ -119,10 +126,10 @@ def build_core_parse_prompt(req: ParseRequest) -> str:
 - Exception: if user explicitly intends to visit multiple of the same type, set true
 
 ### question_text / options Rules
-- Only use for undecided cards.
-- question_text: a short Korean question to ask the user
-- options: 2~4 suggested answer options in Korean
-- Leave both null for non-undecided cards
+- question_text is required for every undecided card and must be a short Korean question.
+- If undecided + placement_status = ready_partial, options must contain 2~4 suggested answer options in Korean.
+- If undecided + placement_status = needs_input, options must be null.
+- Leave both null for confirmed / open_question / unassigned cards.
 
 ### blocked_reason Rules
 - Only use for unassigned cards.
