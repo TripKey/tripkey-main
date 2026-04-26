@@ -96,11 +96,80 @@ def _extract_json(raw: str) -> dict:
     return parsed
 
 
+def _infer_name_from_text(value: str | None, category: str | None) -> str | None:
+    if not value or not isinstance(value, str):
+        return None
+
+    text = value.strip()
+    if not text:
+        return None
+
+    explicit_patterns = [
+        r"어떤\s+(.+?)\s+(?:에\s+방문|을\s+방문|를\s+방문)",
+        r"어떤\s+(.+?)\s+(?:을\s+먹|를\s+먹)",
+        r"어떤\s+(.+?)\s+(?:을\s+원|를\s+원)",
+        r"(.+?)\s+방문을\s+희망",
+        r"(.+?)\s+식사를\s+희망",
+    ]
+    for pattern in explicit_patterns:
+        match = re.search(pattern, text)
+        if match:
+            candidate = match.group(1).strip(" \"'")
+            if candidate:
+                return candidate
+
+    keyword_fallbacks = [
+        ("오코노미야끼", "오코노미야끼 맛집"),
+        ("카페", "카페"),
+        ("라멘", "라멘"),
+        ("스시", "스시"),
+        ("료칸", "료칸"),
+        ("친구집", "친구집"),
+        ("친구네 집", "친구네 집"),
+        ("단골집", "단골집"),
+    ]
+    for keyword, replacement in keyword_fallbacks:
+        if keyword in text:
+            return replacement
+
+    if category == Category.FOOD.value and "맛집" in text:
+        return "맛집"
+
+    return None
+
+
+def _ensure_card_name(raw_card: dict) -> dict:
+    name = raw_card.get("name")
+    if isinstance(name, str) and name.strip():
+        return raw_card
+
+    inferred_name = (
+        _infer_name_from_text(raw_card.get("question_text"), raw_card.get("category"))
+        or _infer_name_from_text(raw_card.get("user_context"), raw_card.get("category"))
+    )
+
+    tags = raw_card.get("tags")
+    if not inferred_name and isinstance(tags, list):
+        for tag in tags:
+            inferred_name = _infer_name_from_text(tag, raw_card.get("category"))
+            if inferred_name:
+                break
+
+    if inferred_name:
+        patched = dict(raw_card)
+        patched["name"] = inferred_name
+        logger.info("Patched missing card name | inferred_name=%s | raw=%s", inferred_name, raw_card)
+        return patched
+
+    return raw_card
+
+
 def _parse_cards(raw_cards: list[dict]) -> list[ParsedCard]:
     cards: list[ParsedCard] = []
     for index, raw_card in enumerate(raw_cards):
         try:
-            cards.append(ParsedCard.model_validate(raw_card))
+            normalized_card = _ensure_card_name(raw_card)
+            cards.append(ParsedCard.model_validate(normalized_card))
         except Exception as exc:
             logger.warning("Skipping invalid card at index=%d | error=%s | raw=%s", index, exc, raw_card)
     return cards
@@ -283,7 +352,6 @@ def _apply_place_match(card: ParsedCard, place: dict) -> ParsedCard:
             "coordinates": coordinates,
             "address": place.get("formattedAddress"),
             "location": resolved_location,
-            "name": display_name.get("text") or card.name,
         }
     )
 

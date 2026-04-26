@@ -169,3 +169,42 @@ def test_apply_flight_constraints_sets_time_constraint() -> None:
     updated = core_parse._apply_flight_constraints(cards, req)
 
     assert updated[0].time_constraint == "09:00 출발"
+
+
+def test_ensure_card_name_infers_from_question_text() -> None:
+    raw = {
+        "name": None,
+        "category": "food",
+        "classification": "undecided",
+        "placement_status": "ready_partial",
+        "is_ai_generated": False,
+        "allow_duplicate": False,
+        "question_text": "어떤 오코노미야끼 맛집에 방문하시겠어요?",
+        "options": ["치보", "후쿠타로"],
+    }
+
+    normalized = core_parse._ensure_card_name(raw)
+
+    assert normalized["name"] == "오코노미야끼 맛집"
+
+
+def test_apply_place_match_keeps_original_name() -> None:
+    card = ParsedCard(
+        name="도톤보리",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+    place = {
+        "id": "place-1",
+        "displayName": {"text": "Dotonbori"},
+        "formattedAddress": "Osaka",
+        "location": {"latitude": 34.0, "longitude": 135.0},
+    }
+
+    updated = core_parse._apply_place_match(card, place)
+
+    assert updated.name == "도톤보리"
+    assert updated.place_id == "place-1"
