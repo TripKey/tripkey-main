@@ -71,7 +71,11 @@ def build_core_parse_prompt(req: ParseRequest) -> str:
 
 ### Card Generation Rules
 - Extract every place, activity, food, accommodation, and transport the user mentioned.
-- If the user only mentioned a destination with no specific places, generate at least 3 likely place cards with is_ai_generated: true and classification: open_question.
+- Only generate is_ai_generated: true recommendation cards when:
+  - the user explicitly asks for recommendations, or
+  - the dump only contains destination-level context with no specific places at all.
+- Even then, generate at most 3 recommendation cards.
+- If recommendation cards are generated, classification must be open_question and question_text/options must stay null.
 - Accommodation cards must be generated from the structured accommodation inputs above, not inferred from dump_text.
 - Flight cards must be generated from the structured flight inputs above, not inferred from dump_text.
 - For each accommodation input, create exactly one accommodation card.
@@ -128,6 +132,8 @@ def build_core_parse_prompt(req: ParseRequest) -> str:
 ### question_text / options Rules
 - question_text is required for every undecided card and must be a short Korean question.
 - If undecided + placement_status = ready_partial, options must contain 2~4 suggested answer options in Korean.
+- options must only contain concrete place names or venue names.
+- Do not include category descriptions, generic nouns, or abstract labels in options.
 - If undecided + placement_status = needs_input, options must be null.
 - Leave both null for confirmed / open_question / unassigned cards.
 
@@ -142,6 +148,14 @@ def build_core_parse_prompt(req: ParseRequest) -> str:
   - 도쿄타워 → 東京タワー
   - 오사카성 → 大阪城
 - If unnecessary, set null.
+
+### user_context Rules
+- A short Korean sentence reflecting the user's context for this card.
+- Do not copy the dump_text verbatim.
+- Rewrite the user's intent into a short interpreted sentence.
+- Do not include Places matching hint text inside user_context.
+- Example: "꼭 방문하고 싶은 장소로 언급하셨어요", "2인 기준으로 식사 후보를 준비했어요"
+- Leave null if no specific context.
 
 ## Response Schema
 {{

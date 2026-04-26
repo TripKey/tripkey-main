@@ -8,8 +8,9 @@ import time
 import uuid
 import asyncio
 from dataclasses import dataclass
+from datetime import datetime
 from difflib import SequenceMatcher
-from typing import Literal, Optional
+from typing import Optional
 
 import httpx
 from google.api_core.exceptions import ResourceExhausted
@@ -22,7 +23,9 @@ from app.schemas.parse import (
     Category,
     Classification,
     Coordinates,
+    FlightInput,
     ParseRequest,
+    PlacementStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -148,6 +151,65 @@ def _append_user_context(card: ParsedCard, message: str) -> str:
     return f"{card.user_context} {message}".strip()
 
 
+def _sanitize_needs_input_cards(cards: list[ParsedCard]) -> list[ParsedCard]:
+    sanitized: list[ParsedCard] = []
+    for card in cards:
+        if card.placement_status == PlacementStatus.NEEDS_INPUT:
+            sanitized.append(
+                card.model_copy(
+                    update={
+                        "location": None,
+                        "coordinates": None,
+                        "place_id": None,
+                        "address": None,
+                    }
+                )
+            )
+            continue
+        sanitized.append(card)
+    return sanitized
+
+
+def _format_flight_time_constraint(value: str) -> str | None:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return f"{parsed.strftime('%H:%M')} 출발"
+
+
+def _matches_flight_card(card: ParsedCard, flight: FlightInput) -> bool:
+    if card.flight_number and flight.flight_number:
+        return card.flight_number.strip().lower() == flight.flight_number.strip().lower()
+
+    if not card.name:
+        return False
+
+    name = card.name.lower()
+    departure = (flight.departure_airport or "").lower()
+    arrival = (flight.arrival_airport or "").lower()
+    return bool(departure and arrival and departure in name and arrival in name)
+
+
+def _apply_flight_constraints(cards: list[ParsedCard], req: ParseRequest) -> list[ParsedCard]:
+    flights = [flight for flight in [req.departure_flight, req.return_flight] if flight and flight.datetime]
+    if not flights:
+        return cards
+
+    updated_cards: list[ParsedCard] = []
+    for card in cards:
+        updated = card
+        if card.category == Category.TRANSPORT and not card.time_constraint:
+            for flight in flights:
+                if _matches_flight_card(card, flight):
+                    formatted = _format_flight_time_constraint(flight.datetime or "")
+                    if formatted:
+                        updated = card.model_copy(update={"time_constraint": formatted})
+                    break
+        updated_cards.append(updated)
+    return updated_cards
+
+
 def _query_candidates(card: ParsedCard, req: ParseRequest) -> list[str]:
     destinations = [destination.strip() for destination in req.destinations if destination.strip()]
     primary_destination = destinations[0] if destinations else ""
@@ -172,6 +234,21 @@ def _query_candidates(card: ParsedCard, req: ParseRequest) -> list[str]:
         deduped.append(candidate)
         seen.add(candidate)
     return deduped
+
+
+def _uses_search_alias(card: ParsedCard, query: str) -> bool:
+    alias = (card.search_alias or "").strip()
+    return bool(alias and alias in query)
+
+
+def _can_accept_single_result_without_name_match(card: ParsedCard, query: str, places: list[dict]) -> bool:
+    if len(places) != 1:
+        return False
+    if _uses_search_alias(card, query):
+        return True
+    if card.source == "structured_input" and card.category in {Category.ACCOMMODATION, Category.TRANSPORT}:
+        return True
+    return False
 
 
 async def _search_place(query: str, api_key: str) -> dict | None:
@@ -214,6 +291,8 @@ def _apply_place_match(card: ParsedCard, place: dict) -> ParsedCard:
 async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> ParsedCard:
     if card.classification == Classification.UNASSIGNED:
         return card
+    if card.placement_status == PlacementStatus.NEEDS_INPUT:
+        return card
     if card.category not in PLACES_ELIGIBLE_CATEGORIES:
         return card
     if not card.name.strip():
@@ -227,19 +306,49 @@ async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> Par
             return card
 
         places = payload.get("places") if isinstance(payload, dict) else None
+        logger.info(
+            "Places query complete | card=%s | query=%s | results=%d",
+            card.name,
+            query,
+            len(places or []),
+        )
         if not places:
             continue
 
-        top_place = places[0]
-        display_name = ((top_place.get("displayName") or {}).get("text") or "").strip()
-        if _is_name_match(card, display_name):
-            return _apply_place_match(card, top_place)
+        for index, place in enumerate(places):
+            display_name = ((place.get("displayName") or {}).get("text") or "").strip()
+            formatted_address = (place.get("formattedAddress") or "").strip()
+            name_matched = _is_name_match(card, display_name)
+            logger.info(
+                "Places candidate | card=%s | query=%s | idx=%d | name=%s | address=%s | name_matched=%s | destinations=%s",
+                card.name,
+                query,
+                index,
+                display_name,
+                formatted_address,
+                name_matched,
+                req.destinations,
+            )
+            if name_matched:
+                return _apply_place_match(card, place)
 
-    return card.model_copy(
-        update={
-            "user_context": _append_user_context(card, PLACES_HINT_MESSAGE),
-        }
-    )
+        if _can_accept_single_result_without_name_match(card, query, places):
+            logger.info(
+                "Places relaxed match accepted | card=%s | query=%s | reason=%s",
+                card.name,
+                query,
+                "alias_or_structured_input_single_result",
+            )
+            return _apply_place_match(card, places[0])
+
+    if card.source != "structured_input":
+        return card.model_copy(
+            update={
+                "user_context": _append_user_context(card, PLACES_HINT_MESSAGE),
+            }
+        )
+
+    return card
 
 
 async def _enrich_card_with_semaphore(
@@ -333,7 +442,9 @@ async def parse_core(req: ParseRequest) -> CoreParseResult:
 
 async def parse_with_blocking_enrichment(req: ParseRequest) -> CoreParseResult:
     result = await parse_core(req)
-    enriched_cards = await enrich_cards_blocking(req, result.cards)
+    sanitized_cards = _sanitize_needs_input_cards(result.cards)
+    constrained_cards = _apply_flight_constraints(sanitized_cards, req)
+    enriched_cards = await enrich_cards_blocking(req, constrained_cards)
     return CoreParseResult(
         context_summary=result.context_summary,
         cards=enriched_cards,
