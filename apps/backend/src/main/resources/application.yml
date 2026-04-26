@@ -21,6 +21,14 @@ server:
   servlet:
     context-path: /v1
 
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+  default-produces-media-type: application/json
+
 app:
   ai-engine:
     base-url: ${AI_ENGINE_URL:http://tripkey-ai-engine:8000}

@@ -7,5 +7,5 @@ import java.util.UUID;
 
 public interface DumpJobRepository extends JpaRepository<DumpJob, UUID> {
 
-    Optional<DumpJob> findFirstByTripIdOrderByCreatedAtDesc(UUID tripId);
+    Optional<DumpJob> findByJobIdAndTripId(UUID jobId, UUID tripId);
 }

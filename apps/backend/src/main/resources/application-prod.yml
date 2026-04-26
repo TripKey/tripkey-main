@@ -2,3 +2,9 @@ spring:
   config:
     activate:
       on-profile: prod
+
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false

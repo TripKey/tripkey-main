@@ -45,15 +45,21 @@ public class DumpAsyncProcessor {
             Trip trip = tripRepository.findById(job.getTripId())
                     .orElseThrow(() -> new IllegalStateException("Trip not found for dump job"));
 
-            String destinations = tripDestinationRepository.findByTripTripIdOrderBySortOrder(job.getTripId()).stream()
+            List<String> destinations = tripDestinationRepository
+                    .findByTripTripIdOrderBySortOrder(job.getTripId()).stream()
                     .map(TripDestination::getName)
                     .distinct()
-                    .reduce((left, right) -> left + ", " + right)
-                    .orElse(null);
+                    .toList();
 
-            AiParseResponse response = aiEngineClient.parseDump(
-                    new AiParseRequest(job.getDumpText(), destinations, trip.getTravelDays())
+            AiParseRequest request = new AiParseRequest(
+                    job.getTripId(),
+                    job.getDumpText(),
+                    destinations,
+                    trip.getTravelDays(),
+                    trip.getCompanionCount()
             );
+
+            AiParseResponse response = aiEngineClient.parseDump(request);
 
             job.updateStep((short) 2);
             dumpJobRepository.save(job);
@@ -73,6 +79,13 @@ public class DumpAsyncProcessor {
             }
 
             placeCardRepository.saveAll(cards);
+
+            if (response.alertCards() != null && !response.alertCards().isEmpty()) {
+                log.info("Received {} alert cards for trip={} (parse_version={})",
+                        response.alertCards().size(), job.getTripId(), response.parseVersion());
+                // TODO[SCR-03]: persist alert_cards alongside Cards SSOT (`GET /trips/{trip_id}/cards`).
+            }
+
             job.complete(response.contextSummary());
             dumpJobRepository.save(job);
         } catch (Exception e) {
