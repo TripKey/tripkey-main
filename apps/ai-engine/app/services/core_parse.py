@@ -343,7 +343,6 @@ def _apply_place_match(card: ParsedCard, place: dict) -> ParsedCard:
     if location.get("latitude") is not None and location.get("longitude") is not None:
         coordinates = Coordinates(lat=float(location["latitude"]), lng=float(location["longitude"]))
 
-    display_name = place.get("displayName") or {}
     resolved_location = card.location or place.get("shortFormattedAddress") or place.get("formattedAddress")
 
     return card.model_copy(
