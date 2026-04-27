@@ -48,27 +48,38 @@ class DumpAsyncProcessorTest {
     void processMarksJobCompletedAndStoresParsedCards() {
         UUID tripId = UUID.randomUUID();
         DumpJob job = DumpJob.create(tripId, "오사카 3박4일 여행입니다.");
-        Trip trip = new Trip((short) 4, (short) 2, false, false);
+        Trip trip = new Trip((short) 4, (short) 2);
         TripDestination destination = new TripDestination(trip, "오사카", (short) 0);
 
+        AiPlaceCardDto card = new AiPlaceCardDto(
+                "place-1",
+                "도톤보리",
+                "place",
+                "confirmed",
+                "ready_partial",
+                false,
+                false,
+                (short) 90,
+                new AiPlaceCardDto.Coordinates(34.6687, 135.5013),
+                "오사카 중앙구",
+                null,
+                null,
+                "야간 방문 추천",
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null
+        );
+
         AiParseResponse response = new AiParseResponse(
-                List.of(
-                        new AiPlaceCardDto(
-                                "place-1",
-                                null,
-                                "도톤보리",
-                                "관광",
-                                "confirmed",
-                                (short) 90,
-                                new AiPlaceCardDto.Coordinates(34.6687, 135.5013),
-                                "success",
-                                null,
-                                null,
-                                null,
-                                List.of("야간 방문 추천")
-                        )
-                ),
-                "오사카 시내 중심 동선"
+                List.of(card),
+                "오사카 시내 중심 동선",
+                List.of(),
+                "3.2.0"
         );
 
         when(dumpJobRepository.findById(job.getJobId())).thenReturn(Optional.of(job));

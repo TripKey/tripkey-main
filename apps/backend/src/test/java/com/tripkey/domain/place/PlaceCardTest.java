@@ -11,71 +11,178 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PlaceCardTest {
 
     @Test
-    void createFromAiResponseNormalizesCategoryAndConflictType() {
+    void createFromAiResponseFillsBackendManagedFields() {
         AiPlaceCardDto dto = new AiPlaceCardDto(
                 "place-1",
-                null,
-                "Dotonbori",
-                "restaurant",
+                "도톤보리",
+                "food",
                 "confirmed",
+                "ready_partial",
+                false,
+                false,
                 (short) 90,
                 null,
-                "success",
+                "오사카 중앙구",
                 null,
-                "duplicate",
                 null,
-                List.of("visit at night")
+                "야간 방문 추천",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
 
         PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto);
 
-        assertThat(card.getCategory()).isEqualTo("식사");
-        assertThat(card.getConflictType()).isEqualTo("choice_conflict");
-        assertThat(card.getPlaceId()).isEqualTo("place-1");
+        assertThat(card.getCategory()).isEqualTo("food");
+        assertThat(card.getClassification()).isEqualTo("confirmed");
+        assertThat(card.getPlacementStatus()).isEqualTo("ready_partial");
+        assertThat(card.getProcessingStatus()).isEqualTo("completed");
+        assertThat(card.getActionType()).isEqualTo("review_only");
+        assertThat(card.getCanExclude()).isTrue();
+        assertThat(card.getAllowDuplicate()).isFalse();
+        assertThat(card.getIsExcluded()).isFalse();
+        assertThat(card.getIsAiGenerated()).isFalse();
+        assertThat(card.getSource()).isEqualTo("ai_parse");
     }
 
     @Test
-    void createFromAiResponseFallsBackForUnknownCategoryAndConflictType() {
+    void createFromAiResponseAppliesCategoryFallbacksAndDefaults() {
         AiPlaceCardDto dto = new AiPlaceCardDto(
-                "place-2",
                 null,
-                "Unknown Spot",
-                "museum",
-                "confirmed",
-                (short) 60,
+                "친구집",
+                "관광",
+                "undecided",
                 null,
-                "success",
                 null,
-                "something_else",
                 null,
-                List.of()
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "친구집 주소를 알려주세요",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
 
         PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto);
 
-        assertThat(card.getCategory()).isEqualTo("미분류");
-        assertThat(card.getConflictType()).isNull();
+        assertThat(card.getCategory()).isEqualTo("place");
+        assertThat(card.getClassification()).isEqualTo("undecided");
+        assertThat(card.getPlacementStatus()).isEqualTo("needs_input");
+        assertThat(card.getActionType()).isEqualTo("input_required");
+        assertThat(card.getAllowDuplicate()).isFalse();
+        assertThat(card.getCanExclude()).isTrue();
+        assertThat(card.getPlaceId()).isNull();
     }
 
     @Test
-    void createFromAiResponseGeneratesFallbackPlaceIdWhenMissing() {
+    void createFromAiResponseDerivesSelectRequiredWhenOptionsPresent() {
         AiPlaceCardDto dto = new AiPlaceCardDto(
-                "   ",
-                null,
-                "No Place Id",
-                "tour",
-                "confirmed",
-                (short) 60,
-                null,
-                "success",
-                null,
-                null,
-                null,
-                List.of()
+                null,                                    // place_id
+                "스시 식당",                              // name
+                "food",                                  // category
+                "undecided",                             // classification
+                "ready_partial",                         // placement_status
+                false,                                   // is_ai_generated
+                null,                                    // allow_duplicate
+                null,                                    // estimated_duration_min
+                null,                                    // coordinates
+                null,                                    // location
+                null,                                    // address
+                null,                                    // time_constraint
+                null,                                    // user_context
+                null,                                    // tips
+                "어떤 종류의 스시 레스토랑을 원하세요?",    // question_text
+                List.of("라멘", "스시", "야키토리"),       // options
+                null,                                    // blocked_reason
+                null,                                    // tags
+                null,                                    // check_in
+                null,                                    // check_out
+                null                                     // flight_number
         );
 
         PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto);
 
-        assertThat(card.getPlaceId()).startsWith("unknown:");
+        assertThat(card.getActionType()).isEqualTo("select_required");
+        assertThat(card.getOptions()).containsExactly("라멘", "스시", "야키토리");
+    }
+
+    @Test
+    void createFromAiResponseFlagsBlockedAsFixRequired() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                null,                                       // place_id
+                "알 수 없음",                                // name
+                "etc",                                      // category
+                "unassigned",                               // classification
+                "blocked",                                  // placement_status
+                false,                                      // is_ai_generated
+                null,                                       // allow_duplicate
+                null,                                       // estimated_duration_min
+                null,                                       // coordinates
+                null,                                       // location
+                null,                                       // address
+                null,                                       // time_constraint
+                null,                                       // user_context
+                null,                                       // tips
+                null,                                       // question_text
+                null,                                       // options
+                "구체적인 장소를 특정할 수 없어요",          // blocked_reason
+                null,                                       // tags
+                null,                                       // check_in
+                null,                                       // check_out
+                null                                        // flight_number
+        );
+
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto);
+
+        assertThat(card.getPlacementStatus()).isEqualTo("blocked");
+        assertThat(card.getActionType()).isEqualTo("fix_required");
+        assertThat(card.getBlockedReason()).isEqualTo("구체적인 장소를 특정할 수 없어요");
+    }
+
+    @Test
+    void createFromAiResponseSetsTransportDefaults() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                null,
+                "김포-오사카 항공편",
+                "transport",
+                "confirmed",
+                "ready",
+                false,
+                true,
+                null,
+                null,
+                null,
+                null,
+                "08:30 출발",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "KE723"
+        );
+
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto);
+
+        assertThat(card.getCategory()).isEqualTo("transport");
+        assertThat(card.getCanExclude()).isFalse();
+        assertThat(card.getAllowDuplicate()).isTrue();
+        assertThat(card.getFlightNumber()).isEqualTo("KE723");
     }
 }

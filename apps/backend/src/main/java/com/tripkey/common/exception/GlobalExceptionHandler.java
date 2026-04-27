@@ -23,12 +23,6 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("TRIP_NOT_FOUND", "여행 세션을 찾을 수 없어요"));
     }
 
-    @ExceptionHandler(DumpNotCompletedException.class)
-    public ResponseEntity<ErrorResponse> handleDumpNotCompleted(DumpNotCompletedException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(new ErrorResponse("DUMP_NOT_COMPLETED", e.getMessage()));
-    }
-
     @ExceptionHandler(DumpUrlNotAllowedException.class)
     public ResponseEntity<ErrorResponse> handleDumpUrlNotAllowed(DumpUrlNotAllowedException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

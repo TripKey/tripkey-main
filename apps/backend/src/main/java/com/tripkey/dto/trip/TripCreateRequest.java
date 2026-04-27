@@ -19,12 +19,6 @@ public record TripCreateRequest(
         @NotNull(message = "동행 인원을 입력해주세요")
         @Min(value = 1, message = "동행 인원은 1명 이상이어야 해요")
         @Max(value = 20, message = "동행 인원은 20명 이하여야 해요")
-        Short companionCount,
-
-        @NotNull(message = "항공편 보유 여부를 선택해주세요")
-        Boolean hasFlight,
-
-        @NotNull(message = "숙소 보유 여부를 선택해주세요")
-        Boolean hasAccommodation
+        Short companionCount
 ) {
 }

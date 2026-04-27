@@ -24,20 +24,12 @@ public class Trip {
     @Column(name = "companion_count", nullable = false)
     private Short companionCount;
 
-    @Column(name = "has_flight", nullable = false)
-    private Boolean hasFlight;
-
-    @Column(name = "has_accommodation", nullable = false)
-    private Boolean hasAccommodation;
-
     @Column(name = "confirmed_at")
     private OffsetDateTime confirmedAt;
 
-    public Trip(Short travelDays, Short companionCount, Boolean hasFlight, Boolean hasAccommodation) {
+    public Trip(Short travelDays, Short companionCount) {
         this.travelDays = travelDays;
         this.companionCount = companionCount;
-        this.hasFlight = hasFlight;
-        this.hasAccommodation = hasAccommodation;
     }
 
     @Column(name = "created_at", nullable = false, updatable = false)
