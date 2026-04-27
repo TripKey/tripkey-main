@@ -208,3 +208,33 @@ def test_apply_place_match_keeps_original_name() -> None:
 
     assert updated.name == "도톤보리"
     assert updated.place_id == "place-1"
+
+
+async def test_enrich_card_skips_undecided_lookup() -> None:
+    called = False
+
+    async def fake_search_place(query: str, api_key: str) -> dict | None:
+        nonlocal called
+        called = True
+        return {"places": []}
+
+    original = core_parse._search_place
+    core_parse._search_place = fake_search_place
+    try:
+        card = ParsedCard(
+            name="스시",
+            category=Category.FOOD,
+            classification=Classification.UNDECIDED,
+            placement_status=PlacementStatus.READY_PARTIAL,
+            is_ai_generated=False,
+            allow_duplicate=False,
+            question_text="어떤 스시집에 가시겠어요?",
+            options=["스시 다이", "스시잔마이"],
+        )
+
+        updated = await core_parse._enrich_card(card, _request(), "test-key")
+
+        assert updated == card
+        assert called is False
+    finally:
+        core_parse._search_place = original

@@ -359,6 +359,8 @@ def _apply_place_match(card: ParsedCard, place: dict) -> ParsedCard:
 async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> ParsedCard:
     if card.classification == Classification.UNASSIGNED:
         return card
+    if card.classification == Classification.UNDECIDED:
+        return card
     if card.placement_status == PlacementStatus.NEEDS_INPUT:
         return card
     if card.category not in PLACES_ELIGIBLE_CATEGORIES:
