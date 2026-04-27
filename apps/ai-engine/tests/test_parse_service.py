@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from app.schemas.parse import Category, Classification, FlightInput, ParseRequest, PlacementStatus
+import pytest
+
+from app.schemas.parse import (
+    Category,
+    Classification,
+    FlightInput,
+    ParseRequest,
+    PlacementStatus,
+)
 from app.services import core_parse
 from app.services.core_parse import ParsedCard, to_public_card
 
@@ -113,7 +121,9 @@ def test_parsed_card_inherits_question_validation() -> None:
     except ValueError:
         pass
     else:
-        raise AssertionError("ParsedCard should inherit CardResponse question validation")
+        raise AssertionError(
+            "ParsedCard should inherit CardResponse question validation"
+        )
 
 
 def test_sanitize_needs_input_cards_clears_location_fields() -> None:
@@ -210,6 +220,7 @@ def test_apply_place_match_keeps_original_name() -> None:
     assert updated.place_id == "place-1"
 
 
+@pytest.mark.asyncio
 async def test_enrich_card_skips_undecided_lookup() -> None:
     called = False
 
