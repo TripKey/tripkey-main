@@ -68,8 +68,10 @@ services:
       context: ./apps/ai-engine
       dockerfile: Dockerfile
     container_name: tripkey-ai-engine
-    expose:
-      - "8000" # 내부 통신용 포트 (외부 노출은 backend → ai-engine 통신만)
+    ports:
+      - "8000:8000" # 로컬 8000 → FastAPI 8000 (개발용, 프로덕션에서는 외부 노출 여부 결정)
+    # expose:
+    #   - "8000" # 내부 통신용 포트 (외부 노출은 backend → ai-engine 통신만)
     env_file:
       - ./apps/ai-engine/.env
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

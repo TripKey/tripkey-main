@@ -19,7 +19,7 @@ public class WebClientConfig {
             @Value("${app.ai-engine.base-url}") String aiEngineBaseUrl
     ) {
         HttpClient httpClient = HttpClient.create()
-                .responseTimeout(Duration.ofSeconds(20));
+                .responseTimeout(Duration.ofSeconds(90));
 
         return WebClient.builder()
                 .baseUrl(aiEngineBaseUrl)
