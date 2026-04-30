@@ -30,7 +30,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(CardNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleCardNotFound(CardNotFoundException e) {
+    public ResponseEntity<ErrorResponse> handleCardNotFound() {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ErrorResponse("CARD_NOT_FOUND", "카드를 찾을 수 없어요"));
     }
@@ -42,7 +42,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(InvalidClassificationTransitionException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidClassificationTransition(InvalidClassificationTransitionException e) {
+    public ResponseEntity<ErrorResponse> handleInvalidClassificationTransition() {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse("INVALID_CLASSIFICATION_TRANSITION", "허용되지 않는 상태 변경이에요"));
     }

@@ -206,9 +206,6 @@ class CardServiceTest {
         UUID tripId = UUID.randomUUID();
         UUID instanceId = UUID.randomUUID();
         PlaceCard card = userAccommodationCard(tripId);
-        // user card는 createUserCard에서 processing_status = 'processing' 시작
-        // 시뮬레이션: enrichment 완료 가정
-        completeProcessing(card);
 
         when(tripRepository.existsById(tripId)).thenReturn(true);
         when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
@@ -265,13 +262,5 @@ class CardServiceTest {
                 null
         );
         return PlaceCard.createFromAiResponse(tripId, dto);
-    }
-
-    /** Simulate enrichment completion by clearing processing flag via reflection-free helper. */
-    private void completeProcessing(PlaceCard card) {
-        // 사용자 카드는 createUserCard에서 processing 상태로 시작.
-        // accommodation edit 패치 결과로 다시 processing으로 들어가는 것을 검증해야 하므로
-        // 이 테스트에서는 시작 상태가 어떻든 patch 후의 결과만 검증.
-        // (PlaceCard에 임의 setter는 두지 않음)
     }
 }
