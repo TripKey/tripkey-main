@@ -136,6 +136,106 @@ public class PlaceCard {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    public static PlaceCard createUserCard(
+            UUID tripId,
+            String name,
+            String category,
+            String location,
+            Short estimatedDurationMin,
+            String timeConstraint,
+            String memo,
+            String checkIn,
+            String checkOut,
+            String flightNumber
+    ) {
+        PlaceCard card = new PlaceCard();
+        card.tripId = tripId;
+        card.name = defaultString(name, "이름 미정");
+        card.category = normalizeCategory(category);
+        card.classification = "confirmed";
+        card.placementStatus = "ready";
+        card.processingStatus = "processing";
+        card.actionType = "review_only";
+        card.canExclude = !NON_EXCLUDABLE_CATEGORIES.contains(card.category);
+        card.allowDuplicate = DUPLICATE_DEFAULT_CATEGORIES.contains(card.category);
+        card.isExcluded = false;
+        card.isAiGenerated = false;
+        card.estimatedDurationMin = estimatedDurationMin;
+        card.location = trimToNull(location);
+        card.timeConstraint = trimToNull(timeConstraint);
+        card.memo = trimToNull(memo);
+        card.checkIn = trimToNull(checkIn);
+        card.checkOut = trimToNull(checkOut);
+        card.flightNumber = trimToNull(flightNumber);
+        card.source = "manual";
+        return card;
+    }
+
+    public void changeClassification(String newClassification) {
+        String normalized = normalizeClassification(newClassification);
+        if (!"open_question".equals(this.classification) || !"confirmed".equals(normalized)) {
+            throw new com.tripkey.common.exception.InvalidClassificationTransitionException(
+                    this.classification, newClassification);
+        }
+        this.classification = "confirmed";
+        recomputeActionType();
+    }
+
+    public void setExcluded(boolean excluded) {
+        this.isExcluded = excluded;
+    }
+
+    public void setAllowDuplicate(boolean value) {
+        this.allowDuplicate = value;
+    }
+
+    public void updateNotes(String notes) {
+        this.notes = trimToNull(notes);
+    }
+
+    public void updateMemo(String memo) {
+        this.memo = trimToNull(memo);
+    }
+
+    public void applyAccommodationEdit(String location, String checkIn, String checkOut) {
+        if (location != null) {
+            this.location = trimToNull(location);
+        }
+        if (checkIn != null) {
+            this.checkIn = trimToNull(checkIn);
+        }
+        if (checkOut != null) {
+            this.checkOut = trimToNull(checkOut);
+        }
+        markReprocessing();
+    }
+
+    public void applyTransportEdit(String location, String timeConstraint, String flightNumber) {
+        if (location != null) {
+            this.location = trimToNull(location);
+        }
+        if (timeConstraint != null) {
+            this.timeConstraint = trimToNull(timeConstraint);
+        }
+        if (flightNumber != null) {
+            this.flightNumber = trimToNull(flightNumber);
+        }
+        markReprocessing();
+    }
+
+    private void markReprocessing() {
+        this.processingStatus = "processing";
+        recomputeActionType();
+    }
+
+    private void recomputeActionType() {
+        this.actionType = computeActionType(
+                this.classification,
+                this.placementStatus,
+                this.processingStatus,
+                this.options);
+    }
+
     public static PlaceCard createFromAiResponse(UUID tripId, AiPlaceCardDto dto) {
         PlaceCard card = new PlaceCard();
         card.tripId = tripId;

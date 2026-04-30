@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface DumpJobRepository extends JpaRepository<DumpJob, UUID> {
 
     Optional<DumpJob> findByJobIdAndTripId(UUID jobId, UUID tripId);
+
+    Optional<DumpJob> findFirstByTripIdOrderByCreatedAtDesc(UUID tripId);
 }

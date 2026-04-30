@@ -29,6 +29,24 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("DUMP_URL_NOT_ALLOWED", e.getMessage()));
     }
 
+    @ExceptionHandler(CardNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleCardNotFound() {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse("CARD_NOT_FOUND", "카드를 찾을 수 없어요"));
+    }
+
+    @ExceptionHandler(FlightCardDuplicateRoleException.class)
+    public ResponseEntity<ErrorResponse> handleFlightCardDuplicateRole(FlightCardDuplicateRoleException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse("FLIGHT_CARD_DUPLICATE_ROLE", e.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidClassificationTransitionException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidClassificationTransition() {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("INVALID_CLASSIFICATION_TRANSITION", "허용되지 않는 상태 변경이에요"));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException e) {
         FieldError fieldError = e.getBindingResult().getFieldErrors().stream()
