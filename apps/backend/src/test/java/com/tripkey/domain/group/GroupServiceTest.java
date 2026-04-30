@@ -84,6 +84,37 @@ class GroupServiceTest {
         assertThat(response.excluded()).isEmpty();
     }
 
+    @Test
+    void getGroups03PutsExcludedCardOnlyInExcludedGroup() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        PlaceCard excludedFix = cardWith(tripId, "fix_required", true, at(10, 0));
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(excludedFix));
+
+        Groups03Response response = groupService.getGroups03(tripId);
+
+        assertThat(response.fixRequired()).isEmpty();
+        assertThat(response.excluded()).hasSize(1)
+                .extracting(c -> c.instanceId()).containsExactly(excludedFix.getInstanceId());
+    }
+
+    @Test
+    void getGroups03SortsCardsByCreatedAtAscWithinGroups() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        PlaceCard older = cardWith(tripId, "review_only", false, at(9, 0));
+        PlaceCard newer = cardWith(tripId, "review_only", false, at(10, 0));
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(newer, older));
+
+        Groups03Response response = groupService.getGroups03(tripId);
+
+        assertThat(response.reviewOnly())
+                .extracting(c -> c.instanceId())
+                .containsExactly(older.getInstanceId(), newer.getInstanceId());
+    }
+
     private PlaceCard cardWith(UUID tripId, String actionType, boolean excluded, OffsetDateTime createdAt) {
         PlaceCard card = PlaceCard.createUserCard(
                 tripId, "테스트 카드", "place", null, null, null, null, null, null, null
