@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -45,6 +46,22 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleInvalidClassificationTransition() {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse("INVALID_CLASSIFICATION_TRANSITION", "허용되지 않는 상태 변경이에요"));
+    }
+
+    @ExceptionHandler(InvalidViewParamException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidViewParam(InvalidViewParamException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("INVALID_VIEW_PARAM", e.getMessage()));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException e) {
+        if ("view".equals(e.getParameterName())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse("INVALID_VIEW_PARAM", "view 파라미터는 03 또는 04여야 해요"));
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("MISSING_PARAMETER", e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
