@@ -15,9 +15,16 @@ RUN ./gradlew bootJar -x test
 FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system tripkey \
+    && useradd --system --gid tripkey --home-dir /app tripkey
 COPY --from=builder /app/build/libs/*.jar app.jar
+RUN chown -R tripkey:tripkey /app
+
+USER tripkey
 
 EXPOSE 8080
 
-# TODO: JVM 옵션 튜닝 필요 시 JAVA_OPTS 조정
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
