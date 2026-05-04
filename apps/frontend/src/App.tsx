@@ -12,10 +12,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<DevIndexPage />} />
-        <Route
-          path="/onboarding"
-          element={<OnboardingPage />}
-        />
+        <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/dump" element={<DumpPage tripId={tripId} />} />
         <Route path="/progress" element={<ProgressPageDev />} />
       </Routes>
