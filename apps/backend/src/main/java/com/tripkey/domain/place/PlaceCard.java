@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.locationtech.jts.geom.Point;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -79,6 +80,9 @@ public class PlaceCard {
 
     @Column(name = "lng")
     private Double lng;
+
+    @Column(name = "geom", insertable = false, updatable = false, columnDefinition = "geometry(Point,4326)")
+    private Point geom;
 
     @Column(name = "location", columnDefinition = "text")
     private String location;
