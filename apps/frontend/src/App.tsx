@@ -14,7 +14,7 @@ export default function App() {
         <Route path="/" element={<DevIndexPage />} />
         <Route
           path="/onboarding"
-          element={<OnboardingPage tripId={tripId} />}
+          element={<OnboardingPage />}
         />
         <Route path="/dump" element={<DumpPage tripId={tripId} />} />
         <Route path="/progress" element={<ProgressPageDev />} />

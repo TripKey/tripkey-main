@@ -1,0 +1,38 @@
+.traveler-reservation {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.traveler-reservation__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333333;
+  margin-bottom: 4px;
+}
+
+.traveler-reservation__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background-color: #f9f9fb;
+}
+
+.traveler-reservation__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.traveler-reservation__label {
+  font-size: 13px;
+  color: #333333;
+}
+
+.traveler-reservation__hint {
+  font-size: 10px;
+  color: #aaaaaa;
+  margin: 0;
+}

@@ -1,6 +1,7 @@
 import OnboardingForm from '../components/onboarding/OnboardingForm';
-import OnboardingSidebar from '../components/onboarding/OnboardingSidebar';
 import TravelerCount from '../components/onboarding/TravelerCount';
+import TravelerReservation from '../components/onboarding/TravelerReservation';
+import TripSummary from '../components/summary/TripSummary';
 import './OnboardingPage.css';
 
 const OnboardingPage = () => {
@@ -14,7 +15,7 @@ const OnboardingPage = () => {
           </p>
         </header>
 
-        <form className="onboarding-page__body">
+        <div className="onboarding-page__body">
           <section className="onboarding-page__card">
             <OnboardingForm
               title="여행 이름"
@@ -44,14 +45,38 @@ const OnboardingPage = () => {
             <div className="onboarding-page__calendar-area">캘린더 위치</div>
           </section>
 
-          <section className="onboarding-page__card">
-            <TravelerCount title="여행 인원" count={1} />
+          <section className="onboarding-page__card onboarding-page__traveler">
+            <TravelerCount title="동행자 수" count={1} />
+            <TravelerReservation title="여행 예약 상태" />
           </section>
-        </form>
+        </div>
       </main>
 
       <aside className="onboarding-page__sidebar">
-        <OnboardingSidebar />
+        <TripSummary
+          items={[
+            {
+              icon: '✈️',
+              label: '여행지',
+              value: '-',
+            },
+            {
+              icon: '📅',
+              label: '일정',
+              value: '-',
+            },
+            {
+              icon: '👥',
+              label: '동행자',
+              value: '-',
+            },
+            {
+              icon: '👥',
+              label: '예약완료',
+              value: '-',
+            },
+          ]}
+        />
       </aside>
     </div>
   );

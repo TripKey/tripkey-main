@@ -1,0 +1,67 @@
+.traveler-count {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.traveler-count__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333333;
+}
+
+.traveler-count__counter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.traveler-count__btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #d1d5db;
+  background-color: #ffffff;
+  font-size: 18px;
+  line-height: 1;
+  color: #333333;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.traveler-count__btn:hover {
+  border-color: #6c5ce7;
+  color: #6c5ce7;
+}
+
+.traveler-count__btn:disabled {
+  border-color: #e5e7eb;
+  color: #d1d5db;
+  cursor: not-allowed;
+}
+
+.traveler-count__input {
+  width: 40px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333333;
+  border: none;
+  outline: none;
+  background: transparent;
+  pointer-events: none;
+}
+
+.traveler-count__unit {
+  font-size: 14px;
+  color: #555555;
+}
+
+.traveler-count__hint {
+  font-size: 12px;
+  color: #aaaaaa;
+}
+

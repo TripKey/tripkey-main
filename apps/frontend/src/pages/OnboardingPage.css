@@ -5,8 +5,37 @@
   justify-content: center;
 }
 
+.onboarding-page__header {
+  margin-bottom: 8px;
+}
+
+.onboarding-page__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 6px 0;
+}
+
+.onboarding-page__desc {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.onboarding-page__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.onboarding-page__section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 12px 0;
+}
+
 .onboarding-page__main {
-  width: 480px;
+  width: 640px;
   padding: 40px 24px;
   display: flex;
   flex-direction: column;
@@ -21,9 +50,19 @@
 .onboarding-page__card {
   background-color: #ffffff;
   border-radius: 12px;
-  padding: 20px 20px;
+  padding: 20px;
   margin: 8px 0;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.onboarding-page__traveler {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+}
+
+.onboarding-page__traveler > * {
+  flex: 1;
 }
 
 .onboarding-page__calendar-area {

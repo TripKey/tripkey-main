@@ -1,41 +1,66 @@
-import ToggleSwitch from '../common/ToggleSwitch';
+import { useState } from 'react';
+
+import './TravelerCount.css';
 
 type TravelerCountProps = {
   title: string;
   count: number;
+  onCountChange?: (count: number) => void;
 };
 
-const TravelerCount = ({ title, count }: TravelerCountProps) => {
+const TravelerCount = ({ title, count, onCountChange }: TravelerCountProps) => {
+  const [current, setCurrent] = useState(count);
+
+  const handleDecrement = () => {
+    if (current <= 1) return;
+    const next = current - 1;
+    setCurrent(next);
+    onCountChange?.(next);
+  };
+
+  const handleIncrement = () => {
+    const next = current + 1;
+    setCurrent(next);
+    onCountChange?.(next);
+  };
+
   return (
-    <section>
-      <section>
-        <h2>{title}</h2>
+    <section className="traveler-count">
+      <h2 className="traveler-count__title">{title}</h2>
 
-        <div>
-          <button type="button">-</button>
-          <input type="number" name="travelers-count" value={count} readOnly />
-          <span>명</span>
-          <button type="button">+</button>
-        </div>
+      <div className="traveler-count__counter">
+        <button
+          type="button"
+          className="traveler-count__btn"
+          onClick={handleDecrement}
+          disabled={current <= 1}
+        >
+          -
+        </button>
 
-        <p>{count}명이 함께 여행을 떠납니다.</p>
-      </section>
-      <section>
-        <h3>예약 현황</h3>
+        <input
+          type="number"
+          name="travelers-count"
+          value={current}
+          readOnly
+          className="traveler-count__input"
+        />
+        <span className="traveler-count__unit">명</span>
 
-        <div>
-          <label>
-            <span>항공편 예약 완료</span>
-            <ToggleSwitch />
-          </label>
+        <button
+          type="button"
+          className="traveler-count__btn"
+          onClick={handleIncrement}
+        >
+          +
+        </button>
+      </div>
 
-          <label>
-            <span>숙소 예약 완료</span>
-            <ToggleSwitch />
-          </label>
-        </div>
-      </section>
+      <p className="traveler-count__hint">
+        {current}명이 함께 여행을 떠납니다.
+      </p>
     </section>
   );
 };
+
 export default TravelerCount;
