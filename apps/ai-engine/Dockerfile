@@ -6,6 +6,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+RUN useradd --system --home-dir /app tripkey \
+    && chown -R tripkey:tripkey /app
+
+USER tripkey
 
 EXPOSE 8000
 

@@ -32,3 +32,4 @@ springdoc:
 app:
   ai-engine:
     base-url: ${AI_ENGINE_URL:http://tripkey-ai-engine:8000}
+    timeout-seconds: ${AI_ENGINE_TIMEOUT_SECONDS:90}

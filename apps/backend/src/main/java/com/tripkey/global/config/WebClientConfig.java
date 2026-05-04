@@ -16,10 +16,11 @@ public class WebClientConfig {
 
     @Bean
     public WebClient aiEngineWebClient(
-            @Value("${app.ai-engine.base-url}") String aiEngineBaseUrl
+            @Value("${app.ai-engine.base-url}") String aiEngineBaseUrl,
+            @Value("${app.ai-engine.timeout-seconds}") long aiEngineTimeoutSeconds
     ) {
         HttpClient httpClient = HttpClient.create()
-                .responseTimeout(Duration.ofSeconds(90));
+                .responseTimeout(Duration.ofSeconds(aiEngineTimeoutSeconds));
 
         return WebClient.builder()
                 .baseUrl(aiEngineBaseUrl)
