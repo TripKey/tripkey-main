@@ -2,6 +2,7 @@
 -- Scope: SCR-02P까지 도입된 Card SSOT 모델의 완전한 스키마.
 --        notes / memo / day 컬럼은 SCR-03/04/05에서 채워짐 (이 시점엔 NULL).
 -- Source of truth: Supabase. 이 파일은 Supabase 실제 스키마를 미러링합니다.
+-- 의존 확장: postgis (place_cards.geom 컬럼 / GiST 인덱스에서 사용)
 
 -- 여행 세션 (SCR-01 온보딩에서 생성)
 create table if not exists public.trips (
@@ -89,8 +90,19 @@ create table if not exists public.place_cards (
   -- 교통 전용
   flight_number          text,                                     -- 항공편 번호
 
+  -- 공간 (lat/lng 기반 generated column, SRID 4326)
+  geom                   geometry(Point, 4326)
+    generated always as (
+      case
+        when lat is not null and lng is not null
+          then st_setsrid(st_makepoint(lng, lat), 4326)
+        else null
+      end
+    ) stored,
+
   created_at             timestamptz not null default now(),
   updated_at             timestamptz not null default now()
 );
 
 create index if not exists idx_place_cards_trip_id on public.place_cards (trip_id);
+create index if not exists idx_place_cards_geom    on public.place_cards using gist (geom);
