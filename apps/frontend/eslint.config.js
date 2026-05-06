@@ -24,7 +24,10 @@ const baseRules = {
   'react-hooks/rules-of-hooks': 'error',
   'react-hooks/exhaustive-deps': 'warn',
   // Vite HMR과 충돌하기 쉬운 export 패턴을 가볍게 점검합니다.
-  'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+  'react-refresh/only-export-components': [
+    'warn',
+    { allowConstantExport: true },
+  ],
   // props 타입은 interface보다 type 사용을 권장합니다.
   '@typescript-eslint/consistent-type-definitions': ['warn', 'type'],
   // 컴포넌트는 선언문보다 화살표 함수 스타일로 통일합니다.
@@ -62,7 +65,12 @@ const baseRules = {
 export default [
   {
     // 빌드 산출물과 설정 파일 일부는 lint 대상에서 제외합니다.
-    ignores: ['dist', '.eslintrc.cjs', 'vite.config.ts', 'commitlint.config.js'],
+    ignores: [
+      'dist',
+      '.eslintrc.cjs',
+      'vite.config.ts',
+      'commitlint.config.js',
+    ],
   },
   js.configs.recommended,
   {
@@ -158,6 +166,15 @@ export default [
     files: ['src/App.tsx', 'src/main.tsx', 'src/vite-env.d.ts'],
     rules: {
       'check-file/filename-naming-convention': 'off',
+    },
+  },
+  {
+    // shadcn/ui CLI가 생성하는 파일은 lowercase 컨벤션과 cva variants re-export 패턴을 사용합니다.
+    // 외부 도구가 관리하는 영역이므로 우리 팀 컨벤션을 강제하지 않습니다.
+    files: ['src/components/ui/**/*.{ts,tsx}', 'src/lib/**/*.{ts,tsx}'],
+    rules: {
+      'check-file/filename-naming-convention': 'off',
+      'react-refresh/only-export-components': 'off',
     },
   },
 ];
