@@ -149,6 +149,7 @@ class GroupServiceTest {
         assertThat(response.available()).isEmpty();
         assertThat(response.pendingReorder()).isEmpty();
         assertThat(response.unavailable()).isEmpty();
+        assertThat(response.excluded()).isEmpty();
     }
 
     @Test
@@ -197,7 +198,7 @@ class GroupServiceTest {
     }
 
     @Test
-    void getGroups04SkipsExcludedCards() {
+    void getGroups04PutsExcludedCardsInExcludedSectionRegardlessOfOtherStatus() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
 
@@ -208,6 +209,9 @@ class GroupServiceTest {
 
         Groups04Response response = groupService.getGroups04(tripId);
 
+        assertThat(response.excluded())
+                .extracting(CardDto::instanceId)
+                .containsExactly(excluded.getInstanceId());
         assertThat(response.available()).isEmpty();
         assertThat(response.pendingReorder()).isEmpty();
         assertThat(response.unavailable()).isEmpty();

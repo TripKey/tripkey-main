@@ -72,12 +72,14 @@ public class GroupService {
             throw new TripNotFoundException(tripId);
         }
 
+        List<PlaceCard> excluded = new ArrayList<>();
         List<PlaceCard> unavailable = new ArrayList<>();
         List<PlaceCard> pendingReorder = new ArrayList<>();
         List<PlaceCard> availableCandidates = new ArrayList<>();
 
         for (PlaceCard card : placeCardRepository.findAllByTripId(tripId)) {
             if (Boolean.TRUE.equals(card.getIsExcluded())) {
+                excluded.add(card);
                 continue;
             }
             String placement = card.getPlacementStatus();
@@ -98,7 +100,8 @@ public class GroupService {
         return Groups04Response.of(
                 available,
                 toSortedDtos(pendingReorder),
-                toSortedDtos(unavailable)
+                toSortedDtos(unavailable),
+                toSortedDtos(excluded)
         );
     }
 
