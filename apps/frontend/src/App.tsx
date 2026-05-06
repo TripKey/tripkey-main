@@ -5,7 +5,7 @@ import DumpPage from './pages/DumpPage';
 import OnboardingPage from './pages/OnboardingPage';
 import ProgressPageDev from './pages/ProgressPageDev';
 
-export default function App() {
+const App = () => {
   const tripId = '550e8400-e29b-41d4-a716-446655440000';
 
   return (
@@ -18,4 +18,6 @@ export default function App() {
       </Routes>
     </BrowserRouter>
   );
-}
+};
+
+export default App;
