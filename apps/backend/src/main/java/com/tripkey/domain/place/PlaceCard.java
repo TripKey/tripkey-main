@@ -72,6 +72,9 @@ public class PlaceCard {
     @Column(name = "is_ai_generated", nullable = false)
     private Boolean isAiGenerated;
 
+    @Column(name = "pending_reorder", nullable = false)
+    private Boolean pendingReorder;
+
     @Column(name = "estimated_duration_min")
     private Short estimatedDurationMin;
 
@@ -164,6 +167,7 @@ public class PlaceCard {
         card.allowDuplicate = DUPLICATE_DEFAULT_CATEGORIES.contains(card.category);
         card.isExcluded = false;
         card.isAiGenerated = false;
+        card.pendingReorder = true;
         card.estimatedDurationMin = estimatedDurationMin;
         card.location = trimToNull(location);
         card.timeConstraint = trimToNull(timeConstraint);
@@ -251,6 +255,7 @@ public class PlaceCard {
                 : DUPLICATE_DEFAULT_CATEGORIES.contains(card.category);
         card.canExclude = !NON_EXCLUDABLE_CATEGORIES.contains(card.category);
         card.isExcluded = false;
+        card.pendingReorder = false;
         card.actionType = computeActionType(card.classification, card.placementStatus);
 
         card.estimatedDurationMin = dto.estimatedDurationMin();

@@ -66,6 +66,15 @@ public class GroupService {
         return Groups03Response.of(inputRequired, selectRequired, fixRequired, reviewOnly, excluded);
     }
 
+    @Transactional
+    public Groups04Response reorderGroups(UUID tripId) {
+        if (!tripRepository.existsById(tripId)) {
+            throw new TripNotFoundException(tripId);
+        }
+        placeCardRepository.markAllReordered(tripId);
+        return getGroups04(tripId);
+    }
+
     @Transactional(readOnly = true)
     public Groups04Response getGroups04(UUID tripId) {
         if (!tripRepository.existsById(tripId)) {
@@ -88,8 +97,12 @@ public class GroupService {
                 unavailable.add(card);
                 continue;
             }
-            if ("processing".equals(processing) || card.getGeom() == null) {
+            if ("processing".equals(processing) || Boolean.TRUE.equals(card.getPendingReorder())) {
                 pendingReorder.add(card);
+                continue;
+            }
+            if (card.getGeom() == null) {
+                unavailable.add(card);
                 continue;
             }
             availableCandidates.add(card);

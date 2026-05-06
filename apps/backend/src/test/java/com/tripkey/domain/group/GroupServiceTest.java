@@ -29,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -177,24 +178,44 @@ class GroupServiceTest {
     }
 
     @Test
-    void getGroups04ClassifiesPendingReorderByProcessingOrMissingGeom() {
+    void getGroups04ClassifiesPendingReorderByProcessingOrPendingFlag() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
 
         PlaceCard stillProcessing = stockCard(tripId, "ready_partial", "processing",
                 point(139.7, 35.69), "신주쿠", at(10, 0));
-        PlaceCard noGeom = stockCard(tripId, "ready_partial", "completed", null, "신주쿠", at(10, 1));
+        PlaceCard pendingFlag = stockCard(tripId, "ready_partial", "completed",
+                point(139.7, 35.69), "신주쿠", at(10, 1));
+        setField(pendingFlag, "pendingReorder", true);
 
         when(placeCardRepository.findAllByTripId(tripId))
-                .thenReturn(List.of(stillProcessing, noGeom));
+                .thenReturn(List.of(stillProcessing, pendingFlag));
 
         Groups04Response response = groupService.getGroups04(tripId);
 
         assertThat(response.pendingReorder())
                 .extracting(CardDto::instanceId)
-                .containsExactlyInAnyOrder(stillProcessing.getInstanceId(), noGeom.getInstanceId());
+                .containsExactlyInAnyOrder(stillProcessing.getInstanceId(), pendingFlag.getInstanceId());
         assertThat(response.available()).isEmpty();
         assertThat(response.unavailable()).isEmpty();
+    }
+
+    @Test
+    void getGroups04PutsCardsWithoutGeomIntoUnavailableWhenAlreadyReordered() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        PlaceCard noGeom = stockCard(tripId, "ready_partial", "completed", null, "신주쿠", at(10, 0));
+
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(noGeom));
+
+        Groups04Response response = groupService.getGroups04(tripId);
+
+        assertThat(response.unavailable())
+                .extracting(CardDto::instanceId)
+                .containsExactly(noGeom.getInstanceId());
+        assertThat(response.pendingReorder()).isEmpty();
+        assertThat(response.available()).isEmpty();
     }
 
     @Test
@@ -295,6 +316,60 @@ class GroupServiceTest {
         assertThat(response.available().get(0).label()).isEqualTo("기타");
     }
 
+    @Test
+    void reorderGroupsThrowsTripNotFoundWhenTripMissing() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(false);
+
+        assertThatThrownBy(() -> groupService.reorderGroups(tripId))
+                .isInstanceOf(TripNotFoundException.class);
+    }
+
+    @Test
+    void reorderGroupsMarksAllPendingAndReturnsRefreshedGroups04() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.markAllReordered(tripId)).thenReturn(2);
+
+        // markAllReordered 호출 후 상태 시뮬레이션 — pending_reorder=false (stockCard 기본값) 인 카드 두 장
+        PlaceCard a = stockCard(tripId, "ready_partial", "completed",
+                point(139.7016, 35.6586), "시부야", at(10, 0));
+        PlaceCard b = stockCard(tripId, "ready_partial", "completed",
+                point(139.7020, 35.6590), "시부야", at(10, 1));
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(a, b));
+        when(placeCardRepository.clusterAvailableCards(eq(tripId), anyDouble(), anyInt()))
+                .thenReturn(List.of(
+                        new Object[]{a.getInstanceId(), 0},
+                        new Object[]{b.getInstanceId(), 0}
+                ));
+
+        Groups04Response response = groupService.reorderGroups(tripId);
+
+        verify(placeCardRepository).markAllReordered(tripId);
+        assertThat(response.view()).isEqualTo("04");
+        assertThat(response.available()).hasSize(1);
+        assertThat(response.available().get(0).label()).isEqualTo("시부야");
+        assertThat(response.available().get(0).cards()).hasSize(2);
+        assertThat(response.pendingReorder()).isEmpty();
+    }
+
+    @Test
+    void reorderGroupsIsIdempotent() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.markAllReordered(tripId)).thenReturn(0);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
+
+        Groups04Response first = groupService.reorderGroups(tripId);
+        Groups04Response second = groupService.reorderGroups(tripId);
+
+        verify(placeCardRepository, org.mockito.Mockito.times(2)).markAllReordered(tripId);
+        assertThat(first.view()).isEqualTo("04");
+        assertThat(second.view()).isEqualTo("04");
+        assertThat(first.available()).isEmpty();
+        assertThat(second.available()).isEmpty();
+    }
+
     private PlaceCard cardWith(UUID tripId, String actionType, boolean excluded, OffsetDateTime createdAt) {
         PlaceCard card = PlaceCard.createUserCard(
                 tripId, "테스트 카드", "place", null, null, null, null, null, null, null
@@ -322,6 +397,9 @@ class GroupServiceTest {
         setField(card, "processingStatus", processingStatus);
         setField(card, "geom", geom);
         setField(card, "createdAt", createdAt);
+        // 대부분의 SCR-04 시나리오는 "재정렬이 끝난 카드" 가정 → 기본 pending_reorder=false.
+        // pending_reorder=true 동작을 검증해야 하는 테스트는 setField 로 명시 override.
+        setField(card, "pendingReorder", false);
         return card;
     }
 

@@ -23,6 +23,11 @@ public interface PlaceCardRepository extends JpaRepository<PlaceCard, UUID> {
     @Query("delete from PlaceCard p where p.tripId = :tripId")
     void deleteAllByTripId(@Param("tripId") UUID tripId);
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional
+    @Query("update PlaceCard p set p.pendingReorder = false where p.tripId = :tripId and p.pendingReorder = true")
+    int markAllReordered(@Param("tripId") UUID tripId);
+
     @Query(value = """
             select instance_id,
                    st_clusterdbscan(st_transform(geom, 3857), :epsMeters, :minPts) over () as cluster_id
