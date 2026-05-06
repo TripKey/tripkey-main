@@ -3,6 +3,11 @@ import './DevIndexPage.css';
 
 const pages = [
   {
+    path: '/onboarding',
+    title: 'Onboarding Page',
+    description: '온보딩 페이지',
+  },
+  {
     path: '/dump',
     title: 'Dump Page',
     description: '여행 정보 입력 페이지',
