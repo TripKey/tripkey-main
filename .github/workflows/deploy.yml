@@ -6,9 +6,49 @@ on:
       - develop
 
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push frontend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/tripkey-frontend:latest \
+            --build-arg VITE_API_BASE_URL=/api \
+            apps/frontend
+          docker push $ECR_REGISTRY/tripkey-frontend:latest
+
+      - name: Build and push backend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/tripkey-backend:latest apps/backend
+          docker push $ECR_REGISTRY/tripkey-backend:latest
+
+      - name: Build and push ai-engine
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/tripkey-ai-engine:latest apps/ai-engine
+          docker push $ECR_REGISTRY/tripkey-ai-engine:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -19,12 +59,19 @@ jobs:
 
       - name: Deploy via SSM
         run: |
-          aws ssm send-command \
+          COMMAND_ID=$(aws ssm send-command \
             --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=[
+            --parameters commands='[
+              "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com",
               "cd /home/ec2-user/tripkey-main",
               "git pull origin develop",
-              "docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build"
+              "export ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com && docker compose -f docker-compose.yml -f docker-compose.prod.yml pull",
+              "export ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
             ]' \
-            --output text
+            --query "Command.CommandId" \
+            --output text)
+          
+          aws ssm wait command-executed \
+            --command-id $COMMAND_ID \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }}

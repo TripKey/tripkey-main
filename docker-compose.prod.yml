@@ -1,10 +1,7 @@
 services:
   frontend:
-    build:
-      context: ./apps/frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: /api
+    image: ${ECR_REGISTRY}/tripkey-frontend:latest
+    build: !reset null
     env_file: !reset []
     ports: !override
       - "80:80"
@@ -27,6 +24,8 @@ services:
         max-file: "3"
 
   backend:
+    image: ${ECR_REGISTRY}/tripkey-backend:latest
+    build: !reset null
     ports: !reset []
     expose:
       - "8080"
@@ -56,6 +55,8 @@ services:
         max-file: "3"
 
   ai-engine:
+    image: ${ECR_REGISTRY}/tripkey-ai-engine:latest
+    build: !reset null
     ports: !reset []
     expose:
       - "8000"
