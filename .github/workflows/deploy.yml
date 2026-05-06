@@ -67,6 +67,7 @@ jobs:
               "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com",
               "cd /home/ec2-user/tripkey-main",
               "git pull origin fix/cd-remove-build-flag",
+              "docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d",
               "docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
             ]' \
             --query "Command.CommandId" \
