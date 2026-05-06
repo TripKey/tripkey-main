@@ -17,6 +17,9 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 
+# --- Claude Code ---
+.playwright-mcp/
+
 
 # --- Language Specific (Monorepo) ---
 
