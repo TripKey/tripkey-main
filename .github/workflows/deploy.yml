@@ -63,7 +63,7 @@ jobs:
             --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
             --document-name "AWS-RunShellScript" \
             --parameters commands='[
-              "git config --global --add safe.directory /home/ec2-user/tripkey-main",
+              "export HOME=/root && git config --global --add safe.directory /home/ec2-user/tripkey-main",
               "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com",
               "cd /home/ec2-user/tripkey-main",
               "git pull origin fix/cd-remove-build-flag",
