@@ -1,2 +1,9 @@
 // settings.gradle
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
 rootProject.name = 'tripkey-backend'
