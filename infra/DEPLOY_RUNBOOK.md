@@ -4,7 +4,7 @@
 
 이 문서는 AWS EC2 같은 단일 호스트에서 Docker Compose로 TripKey production
 구성을 배포하는 절차를 다룹니다. 데이터베이스는 별도 RDS가 아니라 현재 사용 중인
-Supabase 관리형 PostgreSQL을 사용합니다..
+Supabase 관리형 PostgreSQL을 사용합니다.
 
 ## 사전 준비
 
