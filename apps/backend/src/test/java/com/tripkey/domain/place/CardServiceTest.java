@@ -87,7 +87,7 @@ class CardServiceTest {
 
         assertThat(created.classification()).isEqualTo("confirmed");
         assertThat(created.processingStatus()).isEqualTo("processing");
-        assertThat(created.placementStatus()).isEqualTo("ready");
+        assertThat(created.placementStatus()).isEqualTo("ready_partial");
         assertThat(created.actionType()).isEqualTo("review_only");
         assertThat(created.isAiGenerated()).isFalse();
         assertThat(created.canExclude()).isTrue();
