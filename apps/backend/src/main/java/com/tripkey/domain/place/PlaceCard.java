@@ -157,7 +157,7 @@ public class PlaceCard {
         card.name = defaultString(name, "이름 미정");
         card.category = normalizeCategory(category);
         card.classification = "confirmed";
-        card.placementStatus = "ready";
+        card.placementStatus = "ready_partial";
         card.processingStatus = "processing";
         card.actionType = "review_only";
         card.canExclude = !NON_EXCLUDABLE_CATEGORIES.contains(card.category);
@@ -233,11 +233,7 @@ public class PlaceCard {
     }
 
     private void recomputeActionType() {
-        this.actionType = computeActionType(
-                this.classification,
-                this.placementStatus,
-                this.processingStatus,
-                this.options);
+        this.actionType = computeActionType(this.classification, this.placementStatus);
     }
 
     public static PlaceCard createFromAiResponse(UUID tripId, AiPlaceCardDto dto) {
@@ -255,7 +251,7 @@ public class PlaceCard {
                 : DUPLICATE_DEFAULT_CATEGORIES.contains(card.category);
         card.canExclude = !NON_EXCLUDABLE_CATEGORIES.contains(card.category);
         card.isExcluded = false;
-        card.actionType = computeActionType(card.classification, card.placementStatus, card.processingStatus, dto.options());
+        card.actionType = computeActionType(card.classification, card.placementStatus);
 
         card.estimatedDurationMin = dto.estimatedDurationMin();
         if (dto.coordinates() != null) {
@@ -336,20 +332,17 @@ public class PlaceCard {
         };
     }
 
-    private static String computeActionType(String classification, String placementStatus, String processingStatus, List<String> options) {
-        if ("failed".equals(processingStatus)) {
-            return "fix_required";
-        }
-        if ("blocked".equals(placementStatus)) {
-            return "fix_required";
-        }
-        if ("needs_input".equals(placementStatus)) {
-            return "input_required";
-        }
-        if ("undecided".equals(classification) && options != null && !options.isEmpty()) {
-            return "select_required";
-        }
-        return "review_only";
+    private static String computeActionType(String classification, String placementStatus) {
+        return switch (classification) {
+            case "confirmed", "open_question" -> "review_only";
+            case "undecided" -> switch (placementStatus) {
+                case "ready_partial" -> "select_required";
+                case "needs_input" -> "input_required";
+                default -> "review_only";
+            };
+            case "unassigned" -> "blocked".equals(placementStatus) ? "fix_required" : "review_only";
+            default -> "review_only";
+        };
     }
 
     private static String trimToNull(String value) {
