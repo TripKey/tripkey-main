@@ -24,7 +24,8 @@ public interface PlaceCardRepository extends JpaRepository<PlaceCard, UUID> {
     void deleteAllByTripId(@Param("tripId") UUID tripId);
 
     @Query(value = """
-            select instance_id, st_clusterdbscan(geom, :eps, :minPts) over () as cluster_id
+            select instance_id,
+                   st_clusterdbscan(st_transform(geom, 3857), :epsMeters, :minPts) over () as cluster_id
             from place_cards
             where trip_id = :tripId
               and is_excluded = false
@@ -34,6 +35,6 @@ public interface PlaceCardRepository extends JpaRepository<PlaceCard, UUID> {
             """, nativeQuery = true)
     List<Object[]> clusterAvailableCards(
             @Param("tripId") UUID tripId,
-            @Param("eps") double eps,
+            @Param("epsMeters") double epsMeters,
             @Param("minPts") int minPts);
 }

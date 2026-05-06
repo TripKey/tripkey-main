@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GroupService {
 
-    private static final double SCR04_CLUSTER_EPS_DEGREES = 0.018;
+    private static final double SCR04_CLUSTER_EPS_METERS = 1500.0;
     private static final int SCR04_CLUSTER_MIN_POINTS = 1;
     private static final String FALLBACK_LABEL = "기타";
 
@@ -108,7 +108,7 @@ public class GroupService {
         }
 
         Map<UUID, Integer> clusterIdByInstance = placeCardRepository
-                .clusterAvailableCards(tripId, SCR04_CLUSTER_EPS_DEGREES, SCR04_CLUSTER_MIN_POINTS).stream()
+                .clusterAvailableCards(tripId, SCR04_CLUSTER_EPS_METERS, SCR04_CLUSTER_MIN_POINTS).stream()
                 .filter(row -> row[1] != null)
                 .collect(Collectors.toMap(
                         row -> (UUID) row[0],
