@@ -164,3 +164,36 @@ npm run lint:fix
 - AI Engine: `docker compose logs --tail=50 ai-engine` 또는 컨테이너 내부 `/health`로 확인합니다.
 
 ---
+
+## Claude Code 개발 도구 (선택)
+
+Claude Code 를 함께 사용하는 팀원을 위한 안내입니다. 사용하지 않으면 건너뛰어도 됩니다.
+
+### MCP 서버
+
+repo 루트의 `.mcp.json` 에 stitch / shadcn / playwright 3종이 등록되어 있어,
+Claude Code 가 이 디렉터리에서 실행되면 자동으로 연결됩니다. 별도 설치는 필요 없습니다.
+
+### Skills
+
+`.claude/skills/shadcn-ui/` 는 repo 에 vendor 되어 있어 자동으로 사용 가능합니다.
+stitch 관련 skill 묶음은 외부 플러그인이라 1회 설치가 필요합니다:
+
+```bash
+# Claude Code 안에서
+/plugin marketplace add https://github.com/gabelul/stitch-kit.git
+/plugin install stitch-kit@stitch-kit
+```
+
+### (선택) ShadcnBlocks 프리미엄 API
+
+shadcn-ui skill 의 프리미엄 블록 기능을 쓰려면 본인 API key 가 필요합니다.
+무료 컴포넌트는 키 없이도 동작합니다.
+
+```bash
+export SHADCNBLOCKS_API_KEY=...
+```
+
+또는 1Password CLI (`op`) 를 쓰는 경우 `OP_SHADCNBLOCKS_REF` 환경변수로 reference path 를 지정합니다.
+
+---
