@@ -27,8 +27,8 @@ echo "Logging in to ECR: $ECR_REGISTRY"
 aws ecr get-login-password --region "$AWS_REGION" \
   | docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
-echo "Pulling branch: $DEPLOY_BRANCH"
-git pull origin "$DEPLOY_BRANCH"
+# echo "Pulling branch: $DEPLOY_BRANCH"
+git pull origin "${DEPLOY_BRANCH:-fix/cd-remove-build-flag}"
 
 echo "Pulling compose images"
 ECR_REGISTRY="$ECR_REGISTRY" docker compose "${COMPOSE_FILES[@]}" pull
