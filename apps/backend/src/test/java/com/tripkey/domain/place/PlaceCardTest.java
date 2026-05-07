@@ -36,7 +36,7 @@ class PlaceCardTest {
                 null
         );
 
-        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto);
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
 
         assertThat(card.getCategory()).isEqualTo("food");
         assertThat(card.getClassification()).isEqualTo("confirmed");
@@ -76,7 +76,7 @@ class PlaceCardTest {
                 null
         );
 
-        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto);
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
 
         assertThat(card.getCategory()).isEqualTo("place");
         assertThat(card.getClassification()).isEqualTo("undecided");
@@ -113,7 +113,7 @@ class PlaceCardTest {
                 null                                     // flight_number
         );
 
-        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto);
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
 
         assertThat(card.getActionType()).isEqualTo("select_required");
         assertThat(card.getOptions()).containsExactly("라멘", "스시", "야키토리");
@@ -145,7 +145,7 @@ class PlaceCardTest {
                 null                                        // flight_number
         );
 
-        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto);
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
 
         assertThat(card.getPlacementStatus()).isEqualTo("blocked");
         assertThat(card.getActionType()).isEqualTo("fix_required");
@@ -178,11 +178,55 @@ class PlaceCardTest {
                 "KE723"
         );
 
-        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto);
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
 
         assertThat(card.getCategory()).isEqualTo("transport");
         assertThat(card.getCanExclude()).isFalse();
         assertThat(card.getAllowDuplicate()).isTrue();
         assertThat(card.getFlightNumber()).isEqualTo("KE723");
+    }
+
+    @Test
+    void createFromAiResponseWithAiParseSourceMarksPendingReorderFalse() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                "place-1",
+                "도톤보리",
+                "food",
+                "confirmed",
+                "ready_partial",
+                false,
+                false,
+                (short) 90,
+                null, null, null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
+
+        assertThat(card.getSource()).isEqualTo("ai_parse");
+        assertThat(card.getPendingReorder())
+                .as("ai_parse 카드는 즉시 클러스터에 합류해야 하므로 false")
+                .isFalse();
+    }
+
+    @Test
+    void createFromAiResponseWithAiRecommendSourceMarksPendingReorderTrue() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                "place-1",
+                "도톤보리",
+                "food",
+                "confirmed",
+                "ready_partial",
+                false,
+                false,
+                (short) 90,
+                null, null, null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_recommend");
+
+        assertThat(card.getSource()).isEqualTo("ai_recommend");
+        assertThat(card.getPendingReorder())
+                .as("ai_recommend 카드는 사용자가 인지하도록 pending_reorder=true 로 분류")
+                .isTrue();
     }
 }

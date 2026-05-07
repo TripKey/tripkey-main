@@ -261,6 +261,6 @@ class CardServiceTest {
                 null,
                 null
         );
-        return PlaceCard.createFromAiResponse(tripId, dto);
+        return PlaceCard.createFromAiResponse(tripId, dto, "ai_parse");
     }
 }

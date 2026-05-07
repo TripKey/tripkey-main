@@ -67,7 +67,7 @@ public class DumpAsyncProcessor {
             List<PlaceCard> cards = response.cards() == null
                     ? List.of()
                     : response.cards().stream()
-                    .map(card -> PlaceCard.createFromAiResponse(job.getTripId(), card))
+                    .map(card -> PlaceCard.createFromAiResponse(job.getTripId(), card, "ai_parse"))
                     .toList();
 
             placeCardRepository.deleteAllByTripId(job.getTripId());
