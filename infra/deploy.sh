@@ -21,7 +21,7 @@ set +a
 : "${ECR_REGISTRY:?ECR_REGISTRY is required in $APP_DIR/.env}"
 
 AWS_REGION="${AWS_REGION:-ap-northeast-2}"
-DEPLOY_BRANCH="${DEPLOY_BRANCH:-fix/cd-remove-build-flag}"
+DEPLOY_BRANCH="fix/cd-remove-build-flag"
 
 echo "Logging in to ECR: $ECR_REGISTRY"
 aws ecr get-login-password --region "$AWS_REGION" \
