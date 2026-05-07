@@ -24,6 +24,7 @@ from app.schemas.parse import (
     Classification,
     Coordinates,
     FlightInput,
+    FlightRole,
     ParseRequest,
     PlacementStatus,
 )
@@ -261,20 +262,33 @@ def _matches_flight_card(card: ParsedCard, flight: FlightInput) -> bool:
 
 
 def _apply_flight_constraints(cards: list[ParsedCard], req: ParseRequest) -> list[ParsedCard]:
-    flights = [flight for flight in [req.departure_flight, req.return_flight] if flight and flight.datetime]
+    flights = [
+        (req.departure_flight, FlightRole.OUTBOUND),
+        (req.return_flight, FlightRole.INBOUND),
+    ]
+    flights = [(flight, role) for flight, role in flights if flight and flight.datetime]
     if not flights:
         return cards
 
     updated_cards: list[ParsedCard] = []
     for card in cards:
         updated = card
-        if card.category == Category.TRANSPORT and not card.time_constraint:
-            for flight in flights:
+        if card.category == Category.TRANSPORT:
+            matched = False
+            for flight, role in flights:
                 if _matches_flight_card(card, flight):
+                    matched = True
+                    updates = {
+                        "flight_datetime": flight.datetime,
+                        "flight_role": role,
+                    }
                     formatted = _format_flight_time_constraint(flight.datetime or "")
-                    if formatted:
-                        updated = card.model_copy(update={"time_constraint": formatted})
+                    if formatted and not card.time_constraint:
+                        updates["time_constraint"] = formatted
+                    updated = card.model_copy(update=updates)
                     break
+            if not matched and card.flight_role:
+                updated = card.model_copy(update={"flight_role": None})
         updated_cards.append(updated)
     return updated_cards
 

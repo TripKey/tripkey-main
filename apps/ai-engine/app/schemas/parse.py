@@ -29,6 +29,11 @@ class PlacementStatus(str, Enum):
     BLOCKED = "blocked"
 
 
+class FlightRole(str, Enum):
+    OUTBOUND = "outbound"
+    INBOUND = "inbound"
+
+
 class AlertCategory(str, Enum):
     PRACTICAL = "practical"
     INSIGHT = "insight"
@@ -104,6 +109,8 @@ class CardResponse(BaseModel):
     check_in: Optional[str] = None
     check_out: Optional[str] = None
     flight_number: Optional[str] = None
+    flight_datetime: Optional[str] = None
+    flight_role: Optional[FlightRole] = None
 
     @model_validator(mode="after")
     def validate_question_fields(self) -> "CardResponse":
