@@ -54,6 +54,12 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("INVALID_VIEW_PARAM", e.getMessage()));
     }
 
+    @ExceptionHandler(InvalidDayParamException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidDayParam(InvalidDayParamException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("INVALID_DAY_PARAM", e.getMessage()));
+    }
+
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException e) {
         if ("view".equals(e.getParameterName())) {

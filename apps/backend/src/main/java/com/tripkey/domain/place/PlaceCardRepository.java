@@ -14,9 +14,14 @@ public interface PlaceCardRepository extends JpaRepository<PlaceCard, UUID> {
 
     List<PlaceCard> findAllByTripId(UUID tripId);
 
+    List<PlaceCard> findAllByTripIdAndDay(UUID tripId, Integer day);
+
     Optional<PlaceCard> findByInstanceIdAndTripId(UUID instanceId, UUID tripId);
 
     boolean existsByTripIdAndCategoryAndFlightNumber(UUID tripId, String category, String flightNumber);
+
+    @Query("select coalesce(max(p.day), 0) from PlaceCard p where p.tripId = :tripId")
+    int findMaxDayByTripId(@Param("tripId") UUID tripId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional
