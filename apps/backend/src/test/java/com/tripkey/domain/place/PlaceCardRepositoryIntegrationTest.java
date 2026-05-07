@@ -96,6 +96,7 @@ class PlaceCardRepositoryIntegrationTest {
         setField(card, "allowDuplicate", false);
         setField(card, "isExcluded", false);
         setField(card, "isAiGenerated", false);
+        setField(card, "pendingReorder", false);
         setField(card, "lat", lat);
         setField(card, "lng", lng);
         setField(card, "createdAt", now);

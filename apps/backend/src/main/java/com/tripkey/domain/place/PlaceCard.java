@@ -72,6 +72,9 @@ public class PlaceCard {
     @Column(name = "is_ai_generated", nullable = false)
     private Boolean isAiGenerated;
 
+    @Column(name = "pending_reorder", nullable = false)
+    private Boolean pendingReorder;
+
     @Column(name = "estimated_duration_min")
     private Short estimatedDurationMin;
 
@@ -164,6 +167,7 @@ public class PlaceCard {
         card.allowDuplicate = DUPLICATE_DEFAULT_CATEGORIES.contains(card.category);
         card.isExcluded = false;
         card.isAiGenerated = false;
+        card.pendingReorder = true;
         card.estimatedDurationMin = estimatedDurationMin;
         card.location = trimToNull(location);
         card.timeConstraint = trimToNull(timeConstraint);
@@ -236,7 +240,7 @@ public class PlaceCard {
         this.actionType = computeActionType(this.classification, this.placementStatus);
     }
 
-    public static PlaceCard createFromAiResponse(UUID tripId, AiPlaceCardDto dto) {
+    public static PlaceCard createFromAiResponse(UUID tripId, AiPlaceCardDto dto, String source) {
         PlaceCard card = new PlaceCard();
         card.tripId = tripId;
         card.placeId = trimToNull(dto.placeId());
@@ -251,6 +255,8 @@ public class PlaceCard {
                 : DUPLICATE_DEFAULT_CATEGORIES.contains(card.category);
         card.canExclude = !NON_EXCLUDABLE_CATEGORIES.contains(card.category);
         card.isExcluded = false;
+        card.source = source;
+        card.pendingReorder = "ai_recommend".equals(source);
         card.actionType = computeActionType(card.classification, card.placementStatus);
 
         card.estimatedDurationMin = dto.estimatedDurationMin();
@@ -267,7 +273,6 @@ public class PlaceCard {
         card.options = dto.options();
         card.blockedReason = trimToNull(dto.blockedReason());
         card.tags = dto.tags();
-        card.source = "ai_parse";
         card.checkIn = trimToNull(dto.checkIn());
         card.checkOut = trimToNull(dto.checkOut());
         card.flightNumber = trimToNull(dto.flightNumber());

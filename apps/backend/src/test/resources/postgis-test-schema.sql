@@ -50,6 +50,7 @@ create table place_cards (
   allow_duplicate        boolean     not null default false,
   is_excluded            boolean     not null default false,
   is_ai_generated        boolean     not null,
+  pending_reorder        boolean     not null default true,
   estimated_duration_min smallint,
   lat                    double precision,
   lng                    double precision,
