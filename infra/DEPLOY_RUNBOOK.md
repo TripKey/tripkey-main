@@ -9,6 +9,7 @@ Supabase 관리형 PostgreSQL을 사용합니다.
 ## 사전 준비
 
 - 호스트에 Docker와 Docker Compose가 설치되어 있어야 합니다.
+- 호스트에서 ECR image pull 권한이 있는 AWS credentials 또는 instance role을 사용할 수 있어야 합니다.
 - Supabase schema가 이미 적용되어 있어야 합니다.
 - 호스트에 필요한 env 파일이 있어야 합니다.
   - `apps/backend/.env`
@@ -80,25 +81,36 @@ GOOGLE_MAPS_API_KEY=
 AI_ENGINE_WORKERS=2
 ```
 
+## Deploy 필수 Env
+
+`infra/deploy.sh`는 repository root의 `.env`에서 배포 설정을 읽습니다.
+
+```env
+ECR_REGISTRY=<AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com
+AWS_REGION=ap-northeast-2
+DEPLOY_BRANCH=develop
+```
+
 EC2 호스트에서 직접 파일을 만들거나, 팀에서 사용하는 secret 관리 경로를 통해
 복사합니다. 파일 위치 예시는 다음과 같습니다.
 
 ```bash
+vi .env
 vi apps/backend/.env
 vi apps/ai-engine/.env
-chmod 600 apps/backend/.env apps/ai-engine/.env
+chmod 600 .env apps/backend/.env apps/ai-engine/.env
 ```
 
 ## 실행
 
-실행 전 dev compose와 prod compose가 병합된 최종 설정을 확인합니다.
+실행 전 base compose와 prod compose가 병합된 최종 설정을 확인합니다.
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml config
 ```
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+./infra/deploy.sh
 ```
 
 기본적으로 host port를 외부에 공개하는 컨테이너는 frontend뿐입니다.

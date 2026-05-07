@@ -1,15 +1,8 @@
 services:
   frontend:
-    build:
-      context: ./apps/frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: /api
-    env_file: !reset []
-    ports: !override
+    image: ${ECR_REGISTRY}/tripkey-frontend:latest
+    ports:
       - "80:80"
-    volumes: !reset []
-    environment: !reset []
     depends_on:
       backend:
         condition: service_started
@@ -27,9 +20,11 @@ services:
         max-file: "3"
 
   backend:
-    ports: !reset []
+    image: ${ECR_REGISTRY}/tripkey-backend:latest
     expose:
       - "8080"
+    env_file:
+      - ./apps/backend/.env
     environment:
       SPRING_PROFILES_ACTIVE: prod
       AI_ENGINE_URL: http://tripkey-ai-engine:8000
@@ -56,10 +51,11 @@ services:
         max-file: "3"
 
   ai-engine:
-    ports: !reset []
+    image: ${ECR_REGISTRY}/tripkey-ai-engine:latest
     expose:
       - "8000"
-    volumes: !reset []
+    env_file:
+      - ./apps/ai-engine/.env
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${AI_ENGINE_WORKERS:-2}
     restart: unless-stopped
     healthcheck:

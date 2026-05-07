@@ -91,7 +91,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 ```bash
 # 전체 실행 (권장)
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 # 개별 실행
 cd apps/frontend && npm install && npm run dev     # http://localhost:3000
@@ -103,7 +103,7 @@ cd apps/ai-engine && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 - Frontend: `http://localhost:3000`
 - Backend: `http://localhost:8080` 접속 시 404가 보여도 서버가 떠 있으면 정상입니다.
-- AI Engine: `docker compose logs --tail=50 ai-engine` 또는 컨테이너 내부에서 `/health`로 확인할 수 있습니다.
+- AI Engine: `docker compose -f docker-compose.yml -f docker-compose.dev.yml logs --tail=50 ai-engine` 또는 컨테이너 내부에서 `/health`로 확인할 수 있습니다.
 
 ---
 

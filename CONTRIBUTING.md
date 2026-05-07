@@ -126,15 +126,15 @@ cp apps/ai-engine/.env.example apps/ai-engine/.env
 ### 전체 서비스 실행
 
 ```bash
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
 ### 개별 서비스 실행
 
 ```bash
-docker compose up frontend
-docker compose up backend
-docker compose up ai-engine
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up frontend
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up backend
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up ai-engine
 ```
 
 ### 개별 앱 로컬 실행
@@ -161,7 +161,7 @@ npm run lint:fix
 
 - Frontend: `http://localhost:3000`
 - Backend: `http://localhost:8080` 접속 시 404가 보여도 서버가 떠 있으면 정상입니다.
-- AI Engine: `docker compose logs --tail=50 ai-engine` 또는 컨테이너 내부 `/health`로 확인합니다.
+- AI Engine: `docker compose -f docker-compose.yml -f docker-compose.dev.yml logs --tail=50 ai-engine` 또는 컨테이너 내부 `/health`로 확인합니다.
 
 ---
 
