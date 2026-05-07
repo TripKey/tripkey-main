@@ -292,6 +292,20 @@ def test_apply_flight_constraints_leaves_middle_flight_without_role_when_unmatch
     assert updated[0].flight_role is None
 
 
+def test_card_response_rejects_non_iso_flight_datetime() -> None:
+    with pytest.raises(ValueError, match="flight_datetime must be an ISO datetime string"):
+        ParsedCard(
+            name="KE703",
+            category=Category.TRANSPORT,
+            classification=Classification.CONFIRMED,
+            placement_status=PlacementStatus.READY_PARTIAL,
+            is_ai_generated=False,
+            allow_duplicate=True,
+            flight_number="KE703",
+            flight_datetime="7월 1일 오전 9시",
+        )
+
+
 def test_ensure_card_name_infers_from_question_text() -> None:
     raw = {
         "name": None,

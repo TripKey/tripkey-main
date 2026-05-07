@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from datetime import datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -111,6 +112,15 @@ class CardResponse(BaseModel):
     flight_number: Optional[str] = None
     flight_datetime: Optional[str] = None
     flight_role: Optional[FlightRole] = None
+
+    @model_validator(mode="after")
+    def validate_flight_datetime(self) -> "CardResponse":
+        if self.flight_datetime:
+            try:
+                datetime.fromisoformat(self.flight_datetime.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ValueError("flight_datetime must be an ISO datetime string.") from exc
+        return self
 
     @model_validator(mode="after")
     def validate_question_fields(self) -> "CardResponse":
