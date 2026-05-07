@@ -92,7 +92,7 @@ chmod 600 apps/backend/.env apps/ai-engine/.env
 
 ## 실행
 
-실행 전 dev compose와 prod compose가 병합된 최종 설정을 확인합니다.
+실행 전 base compose와 prod compose가 병합된 최종 설정을 확인합니다.
 
 ```bash
 export ECR_REGISTRY=<AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com
