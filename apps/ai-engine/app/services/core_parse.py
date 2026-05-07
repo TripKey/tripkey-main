@@ -248,6 +248,16 @@ def _format_flight_time_constraint(value: str) -> str | None:
     return f"{parsed.strftime('%H:%M')} 출발"
 
 
+def _normalize_flight_datetime(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return value
+
+
 def _matches_flight_card(card: ParsedCard, flight: FlightInput) -> bool:
     if card.flight_number and flight.flight_number:
         return card.flight_number.strip().lower() == flight.flight_number.strip().lower()
@@ -267,28 +277,30 @@ def _apply_flight_constraints(cards: list[ParsedCard], req: ParseRequest) -> lis
         (req.return_flight, FlightRole.INBOUND),
     ]
     flights = [(flight, role) for flight, role in flights if flight and flight.datetime]
-    if not flights:
-        return cards
 
     updated_cards: list[ParsedCard] = []
     for card in cards:
         updated = card
         if card.category == Category.TRANSPORT:
+            if card.flight_datetime:
+                updated = card.model_copy(
+                    update={"flight_datetime": _normalize_flight_datetime(card.flight_datetime)}
+                )
             matched = False
             for flight, role in flights:
-                if _matches_flight_card(card, flight):
+                if _matches_flight_card(updated, flight):
                     matched = True
                     updates = {
-                        "flight_datetime": flight.datetime,
+                        "flight_datetime": _normalize_flight_datetime(flight.datetime),
                         "flight_role": role,
                     }
                     formatted = _format_flight_time_constraint(flight.datetime or "")
-                    if formatted and not card.time_constraint:
+                    if formatted and not updated.time_constraint:
                         updates["time_constraint"] = formatted
-                    updated = card.model_copy(update=updates)
+                    updated = updated.model_copy(update=updates)
                     break
-            if not matched and card.flight_role:
-                updated = card.model_copy(update={"flight_role": None})
+            if not matched and updated.flight_role:
+                updated = updated.model_copy(update={"flight_role": None})
         updated_cards.append(updated)
     return updated_cards
 
