@@ -3,7 +3,7 @@ name: Deploy to EC2
 on:
   push:
     branches:
-      - fix/cd-remove-build-flag
+      - develop
 
 jobs:
   build-and-push:
