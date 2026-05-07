@@ -63,10 +63,7 @@ jobs:
             --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
             --document-name "AWS-RunShellScript" \
             --parameters commands='[
-              "sudo -u ec2-user -H bash -lc '\''aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com'\''",
-              "sudo -u ec2-user -H bash -lc '\''cd /home/ec2-user/tripkey-main && git pull origin fix/cd-remove-build-flag'\''",
-              "sudo -u ec2-user -H bash -lc '\''cd /home/ec2-user/tripkey-main && ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com docker compose -f docker-compose.yml -f docker-compose.prod.yml pull'\''",
-              "sudo -u ec2-user -H bash -lc '\''cd /home/ec2-user/tripkey-main && ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d'\''"
+              "sudo -u ec2-user -H bash /home/ec2-user/tripkey-main/infra/deploy.sh"
             ]' \
             --query "Command.CommandId" \
             --output text)
