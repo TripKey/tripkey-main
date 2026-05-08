@@ -70,6 +70,8 @@ create table place_cards (
   check_in               text,
   check_out              text,
   flight_number          text,
+  flight_datetime        text,
+  flight_role            text,
   geom                   geometry(Point, 4326)
     generated always as (
       case
