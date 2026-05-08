@@ -28,6 +28,7 @@ public class DumpAsyncProcessor {
     private final TripDestinationRepository tripDestinationRepository;
     private final PlaceCardRepository placeCardRepository;
     private final AiEngineClient aiEngineClient;
+    private final NonBlockingEnrichmentProcessor nonBlockingEnrichmentProcessor;
 
     @Async("dumpTaskExecutor")
     @Transactional
@@ -78,7 +79,7 @@ public class DumpAsyncProcessor {
                 return;
             }
 
-            placeCardRepository.saveAll(cards);
+            List<PlaceCard> savedCards = placeCardRepository.saveAll(cards);
 
             if (response.alertCards() != null && !response.alertCards().isEmpty()) {
                 log.info("Received {} alert cards for trip={} (parse_version={})",
@@ -88,10 +89,19 @@ public class DumpAsyncProcessor {
 
             job.complete(response.contextSummary());
             dumpJobRepository.save(job);
+            triggerNonBlockingEnrichment(savedCards, destinations, trip);
         } catch (Exception e) {
             log.error("Failed to parse dump job. jobId={}", jobId, e);
             job.fail("PARSE_FAILED");
             dumpJobRepository.save(job);
+        }
+    }
+
+    private void triggerNonBlockingEnrichment(List<PlaceCard> cards, List<String> destinations, Trip trip) {
+        try {
+            nonBlockingEnrichmentProcessor.trigger(cards, destinations, trip);
+        } catch (Exception e) {
+            log.warn("Failed to submit non-blocking enrichment. trip={}", trip.getTripId(), e);
         }
     }
 }
