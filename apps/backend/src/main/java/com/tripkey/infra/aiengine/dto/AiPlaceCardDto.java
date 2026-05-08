@@ -1,9 +1,13 @@
 package com.tripkey.infra.aiengine.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 
+// AI Engine may return v3.3 flight fields before the BE flight DTO/entity work lands.
+// Keep unknown fields non-breaking here; the owning BE flight change will map them explicitly.
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record AiPlaceCardDto(
         @JsonProperty("place_id")
         String placeId,
