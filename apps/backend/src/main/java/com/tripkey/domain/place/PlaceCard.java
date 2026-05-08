@@ -137,6 +137,12 @@ public class PlaceCard {
     @Column(name = "flight_number")
     private String flightNumber;
 
+    @Column(name = "flight_datetime")
+    private String flightDatetime;
+
+    @Column(name = "flight_role")
+    private String flightRole;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -276,6 +282,8 @@ public class PlaceCard {
         card.checkIn = trimToNull(dto.checkIn());
         card.checkOut = trimToNull(dto.checkOut());
         card.flightNumber = trimToNull(dto.flightNumber());
+        card.flightDatetime = normalizeFlightDatetime(dto.flightDatetime());
+        card.flightRole = normalizeFlightRole(dto.flightRole());
         return card;
     }
 
@@ -348,6 +356,30 @@ public class PlaceCard {
             case "unassigned" -> "blocked".equals(placementStatus) ? "fix_required" : "review_only";
             default -> "review_only";
         };
+    }
+
+    private static String normalizeFlightRole(String flightRole) {
+        if (flightRole == null || flightRole.isBlank()) {
+            return null;
+        }
+        String normalized = flightRole.trim().toLowerCase(Locale.ROOT);
+        if ("outbound".equals(normalized) || "inbound".equals(normalized)) {
+            return normalized;
+        }
+        return null;
+    }
+
+    private static String normalizeFlightDatetime(String flightDatetime) {
+        String normalized = trimToNull(flightDatetime);
+        if (normalized == null) {
+            return null;
+        }
+        try {
+            OffsetDateTime.parse(normalized);
+            return normalized;
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
+        }
     }
 
     private static String trimToNull(String value) {

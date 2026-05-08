@@ -37,7 +37,9 @@ public record CardDto(
         String memo,
         String checkIn,
         String checkOut,
-        String flightNumber
+        String flightNumber,
+        String flightDatetime,
+        String flightRole
 ) {
 
     public record Coordinates(Double lat, Double lng) {
@@ -78,7 +80,9 @@ public record CardDto(
                 card.getMemo(),
                 card.getCheckIn(),
                 card.getCheckOut(),
-                card.getFlightNumber()
+                card.getFlightNumber(),
+                card.getFlightDatetime(),
+                card.getFlightRole()
         );
     }
 }

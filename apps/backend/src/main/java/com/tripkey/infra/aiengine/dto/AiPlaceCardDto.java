@@ -5,8 +5,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 
-// AI Engine may return v3.3 flight fields before the BE flight DTO/entity work lands.
-// Keep unknown fields non-breaking here; the owning BE flight change will map them explicitly.
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AiPlaceCardDto(
         @JsonProperty("place_id")
@@ -61,8 +59,64 @@ public record AiPlaceCardDto(
         String checkOut,
 
         @JsonProperty("flight_number")
-        String flightNumber
+        String flightNumber,
+
+        @JsonProperty("flight_datetime")
+        String flightDatetime,
+
+        @JsonProperty("flight_role")
+        String flightRole
 ) {
+
+    public AiPlaceCardDto(
+            String placeId,
+            String name,
+            String category,
+            String classification,
+            String placementStatus,
+            Boolean isAiGenerated,
+            Boolean allowDuplicate,
+            Short estimatedDurationMin,
+            Coordinates coordinates,
+            String location,
+            String address,
+            String timeConstraint,
+            String userContext,
+            String tips,
+            String questionText,
+            List<String> options,
+            String blockedReason,
+            List<String> tags,
+            String checkIn,
+            String checkOut,
+            String flightNumber
+    ) {
+        this(
+                placeId,
+                name,
+                category,
+                classification,
+                placementStatus,
+                isAiGenerated,
+                allowDuplicate,
+                estimatedDurationMin,
+                coordinates,
+                location,
+                address,
+                timeConstraint,
+                userContext,
+                tips,
+                questionText,
+                options,
+                blockedReason,
+                tags,
+                checkIn,
+                checkOut,
+                flightNumber,
+                null,
+                null
+        );
+    }
 
     public record Coordinates(
             Double lat,
