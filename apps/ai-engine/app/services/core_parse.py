@@ -51,6 +51,15 @@ PLACES_ELIGIBLE_CATEGORIES = {
     Category.FOOD,
     Category.TRANSPORT,
 }
+DESTINATION_ADDRESS_HINTS = {
+    "도쿄": {"도쿄", "tokyo", "japan", "日本", "東京都"},
+    "동경": {"동경", "tokyo", "japan", "日本", "東京都"},
+    "오사카": {"오사카", "osaka", "japan", "日本", "大阪"},
+    "교토": {"교토", "kyoto", "japan", "日本", "京都"},
+    "삿포로": {"삿포로", "sapporo", "japan", "日本", "札幌"},
+    "후쿠오카": {"후쿠오카", "fukuoka", "japan", "日本", "福岡"},
+    "나고야": {"나고야", "nagoya", "japan", "日本", "名古屋"},
+}
 
 gemini_blocked_until = 0.0
 
@@ -313,10 +322,11 @@ def _query_candidates(card: ParsedCard, req: ParseRequest) -> list[str]:
     name = card.name.strip()
 
     candidates = [
-        f"{name} {location}".strip(),
+        f"{name} {location}".strip() if location else "",
         f"{name} {primary_destination}".strip(),
         f"{alias} {location}".strip() if alias else "",
         f"{alias} {primary_destination}".strip() if alias else "",
+        name,
     ]
 
     deduped: list[str] = []
@@ -329,6 +339,33 @@ def _query_candidates(card: ParsedCard, req: ParseRequest) -> list[str]:
         deduped.append(candidate)
         seen.add(candidate)
     return deduped
+
+
+def _destination_hints(destinations: list[str]) -> set[str]:
+    hints: set[str] = set()
+    for destination in destinations:
+        normalized = destination.strip().lower()
+        if not normalized:
+            continue
+        hints.add(normalized)
+        hints.update(hint.lower() for hint in DESTINATION_ADDRESS_HINTS.get(destination.strip(), set()))
+    return hints
+
+
+def _place_matches_destination_context(place: dict, req: ParseRequest) -> bool:
+    hints = _destination_hints(req.destinations)
+    if not hints:
+        return True
+
+    address_parts = [
+        place.get("formattedAddress"),
+        place.get("shortFormattedAddress"),
+    ]
+    address_text = " ".join(part for part in address_parts if isinstance(part, str)).lower()
+    if not address_text:
+        return True
+
+    return any(hint in address_text for hint in hints)
 
 
 def _uses_search_alias(card: ParsedCard, query: str) -> bool:
@@ -414,20 +451,24 @@ async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> Par
             display_name = ((place.get("displayName") or {}).get("text") or "").strip()
             formatted_address = (place.get("formattedAddress") or "").strip()
             name_matched = _is_name_match(card, display_name)
+            destination_matched = _place_matches_destination_context(place, req)
             logger.info(
-                "Places candidate | card=%s | query=%s | idx=%d | name=%s | address=%s | name_matched=%s | destinations=%s",
+                "Places candidate | card=%s | query=%s | idx=%d | name=%s | address=%s | name_matched=%s | destination_matched=%s | destinations=%s",
                 card.name,
                 query,
                 index,
                 display_name,
                 formatted_address,
                 name_matched,
+                destination_matched,
                 req.destinations,
             )
-            if name_matched:
+            if name_matched and destination_matched:
                 return _apply_place_match(card, place)
 
-        if _can_accept_single_result_without_name_match(card, query, places):
+        if _can_accept_single_result_without_name_match(card, query, places) and _place_matches_destination_context(
+            places[0], req
+        ):
             logger.info(
                 "Places relaxed match accepted | card=%s | query=%s | reason=%s",
                 card.name,

@@ -43,7 +43,31 @@ def test_query_candidates_include_alias_fallbacks() -> None:
         "도쿄타워 도쿄",
         "東京タワー 미나토구",
         "東京タワー 도쿄",
+        "도쿄타워",
     ]
+
+
+def test_query_candidates_prioritize_destination_when_location_is_missing() -> None:
+    card = ParsedCard(
+        name="이치란 라멘",
+        category=Category.FOOD,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="오사카 여행",
+        destinations=["오사카"],
+        travel_days=3,
+        companion_count=2,
+    )
+
+    queries = core_parse._query_candidates(card, req)
+
+    assert queries[0] == "이치란 라멘 오사카"
+    assert queries[-1] == "이치란 라멘"
 
 
 def test_name_match_accepts_search_alias() -> None:
@@ -351,6 +375,22 @@ def test_apply_place_match_keeps_original_name() -> None:
     assert updated.place_id == "place-1"
 
 
+def test_place_matches_destination_context_rejects_wrong_country_result() -> None:
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="오사카 여행",
+        destinations=["오사카"],
+        travel_days=3,
+        companion_count=2,
+    )
+    place = {
+        "displayName": {"text": "이치란 라멘"},
+        "formattedAddress": "271 Gangseo-ro, Gangseo-gu, Seoul, South Korea",
+    }
+
+    assert core_parse._place_matches_destination_context(place, req) is False
+
+
 @pytest.mark.asyncio
 async def test_enrich_card_skips_undecided_lookup() -> None:
     called = False
@@ -378,5 +418,48 @@ async def test_enrich_card_skips_undecided_lookup() -> None:
 
         assert updated == card
         assert called is False
+    finally:
+        core_parse._search_place = original
+
+
+@pytest.mark.asyncio
+async def test_enrich_card_rejects_name_match_when_destination_mismatches() -> None:
+    async def fake_search_place(query: str, api_key: str) -> dict | None:
+        return {
+            "places": [
+                {
+                    "id": "wrong-country-place",
+                    "displayName": {"text": "이치란 라멘"},
+                    "formattedAddress": "271 Gangseo-ro, Gangseo-gu, Seoul, South Korea",
+                    "location": {"latitude": 37.5499564, "longitude": 126.8359413},
+                }
+            ]
+        }
+
+    original = core_parse._search_place
+    core_parse._search_place = fake_search_place
+    try:
+        card = ParsedCard(
+            name="이치란 라멘",
+            category=Category.FOOD,
+            classification=Classification.CONFIRMED,
+            placement_status=PlacementStatus.READY_PARTIAL,
+            is_ai_generated=False,
+            allow_duplicate=False,
+            user_context="이치란 라멘을 먹고 싶다고 언급하셨어요.",
+        )
+        req = ParseRequest(
+            trip_id="trip-1",
+            dump_text="오사카 3박 4일 여행",
+            destinations=["오사카"],
+            travel_days=3,
+            companion_count=2,
+        )
+
+        updated = await core_parse._enrich_card(card, req, "test-key")
+
+        assert updated.place_id is None
+        assert updated.coordinates is None
+        assert "장소 정보를 확인해주세요." in (updated.user_context or "")
     finally:
         core_parse._search_place = original
