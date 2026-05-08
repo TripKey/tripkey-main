@@ -41,8 +41,10 @@ def test_query_candidates_include_alias_fallbacks() -> None:
     assert queries == [
         "도쿄타워 미나토구",
         "도쿄타워 도쿄",
+        "도쿄타워 도쿄 japan",
         "東京タワー 미나토구",
         "東京タワー 도쿄",
+        "東京タワー 도쿄 japan",
         "도쿄타워",
     ]
 
@@ -67,7 +69,13 @@ def test_query_candidates_prioritize_destination_when_location_is_missing() -> N
     queries = core_parse._query_candidates(card, req)
 
     assert queries[0] == "이치란 라멘 오사카"
+    assert queries[1] == "이치란 라멘 오사카 japan"
     assert queries[-1] == "이치란 라멘"
+
+
+def test_destination_region_codes_maps_supported_destinations() -> None:
+    assert core_parse._destination_region_codes(["오사카"]) == ["jp"]
+    assert core_parse._destination_region_codes(["오사카", "교토"]) == ["jp"]
 
 
 def test_name_match_accepts_search_alias() -> None:
@@ -395,7 +403,9 @@ def test_place_matches_destination_context_rejects_wrong_country_result() -> Non
 async def test_enrich_card_skips_undecided_lookup() -> None:
     called = False
 
-    async def fake_search_place(query: str, api_key: str) -> dict | None:
+    async def fake_search_place(
+        query: str, api_key: str, included_region_codes: list[str] | None = None
+    ) -> dict | None:
         nonlocal called
         called = True
         return {"places": []}
@@ -424,7 +434,12 @@ async def test_enrich_card_skips_undecided_lookup() -> None:
 
 @pytest.mark.asyncio
 async def test_enrich_card_rejects_name_match_when_destination_mismatches() -> None:
-    async def fake_search_place(query: str, api_key: str) -> dict | None:
+    seen_region_codes: list[list[str] | None] = []
+
+    async def fake_search_place(
+        query: str, api_key: str, included_region_codes: list[str] | None = None
+    ) -> dict | None:
+        seen_region_codes.append(included_region_codes)
         return {
             "places": [
                 {
@@ -461,5 +476,7 @@ async def test_enrich_card_rejects_name_match_when_destination_mismatches() -> N
         assert updated.place_id is None
         assert updated.coordinates is None
         assert "장소 정보를 확인해주세요." in (updated.user_context or "")
+        assert seen_region_codes
+        assert all(region_codes == ["jp"] for region_codes in seen_region_codes)
     finally:
         core_parse._search_place = original
