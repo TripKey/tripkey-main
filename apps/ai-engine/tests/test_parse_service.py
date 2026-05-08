@@ -6,6 +6,7 @@ from app.schemas.parse import (
     Category,
     Classification,
     FlightInput,
+    FlightRole,
     ParseRequest,
     PlacementStatus,
 )
@@ -179,6 +180,136 @@ def test_apply_flight_constraints_sets_time_constraint() -> None:
     updated = core_parse._apply_flight_constraints(cards, req)
 
     assert updated[0].time_constraint == "09:00 출발"
+    assert updated[0].flight_datetime == "2026-07-01T09:00:00+09:00"
+    assert updated[0].flight_role == FlightRole.OUTBOUND
+
+
+def test_apply_flight_constraints_sets_inbound_role_for_return_flight() -> None:
+    cards = [
+        ParsedCard(
+            name="NRT → ICN",
+            category=Category.TRANSPORT,
+            classification=Classification.CONFIRMED,
+            placement_status=PlacementStatus.READY_PARTIAL,
+            is_ai_generated=False,
+            allow_duplicate=True,
+            flight_number="KE704",
+        )
+    ]
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="도쿄 여행",
+        destinations=["도쿄"],
+        travel_days=3,
+        companion_count=2,
+        return_flight=FlightInput(
+            departure_airport="NRT",
+            arrival_airport="ICN",
+            flight_number="KE704",
+            datetime="2026-07-03T18:30:00+09:00",
+        ),
+    )
+
+    updated = core_parse._apply_flight_constraints(cards, req)
+
+    assert updated[0].time_constraint == "18:30 출발"
+    assert updated[0].flight_datetime == "2026-07-03T18:30:00+09:00"
+    assert updated[0].flight_role == FlightRole.INBOUND
+
+
+def test_apply_flight_constraints_preserves_existing_time_constraint() -> None:
+    cards = [
+        ParsedCard(
+            name="ICN → NRT",
+            category=Category.TRANSPORT,
+            classification=Classification.CONFIRMED,
+            placement_status=PlacementStatus.READY_PARTIAL,
+            is_ai_generated=False,
+            allow_duplicate=True,
+            time_constraint="오전 출발",
+            flight_number="KE703",
+        )
+    ]
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="도쿄 여행",
+        destinations=["도쿄"],
+        travel_days=3,
+        companion_count=2,
+        departure_flight=FlightInput(
+            departure_airport="ICN",
+            arrival_airport="NRT",
+            flight_number="KE703",
+            datetime="2026-07-01T09:00:00+09:00",
+        ),
+    )
+
+    updated = core_parse._apply_flight_constraints(cards, req)
+
+    assert updated[0].time_constraint == "오전 출발"
+    assert updated[0].flight_datetime == "2026-07-01T09:00:00+09:00"
+    assert updated[0].flight_role == FlightRole.OUTBOUND
+
+
+def test_apply_flight_constraints_leaves_middle_flight_without_role_when_unmatched() -> None:
+    cards = [
+        ParsedCard(
+            name="ITM → CTS",
+            category=Category.TRANSPORT,
+            classification=Classification.CONFIRMED,
+            placement_status=PlacementStatus.READY_PARTIAL,
+            is_ai_generated=False,
+            allow_duplicate=True,
+            flight_number="JL200",
+            flight_datetime="2026-07-03T14:20:00+09:00",
+            flight_role=FlightRole.OUTBOUND,
+        )
+    ]
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="도쿄와 삿포로 여행",
+        destinations=["도쿄", "삿포로"],
+        travel_days=5,
+        companion_count=2,
+        departure_flight=FlightInput(
+            departure_airport="ICN",
+            arrival_airport="NRT",
+            flight_number="KE703",
+            datetime="2026-07-01T09:00:00+09:00",
+        ),
+        return_flight=FlightInput(
+            departure_airport="CTS",
+            arrival_airport="ICN",
+            flight_number="KE766",
+            datetime="2026-07-05T20:00:00+09:00",
+        ),
+    )
+
+    updated = core_parse._apply_flight_constraints(cards, req)
+
+    assert updated[0].time_constraint is None
+    assert updated[0].flight_datetime == "2026-07-03T14:20:00+09:00"
+    assert updated[0].flight_role is None
+
+
+def test_apply_flight_constraints_nulls_non_iso_flight_datetime() -> None:
+    cards = [
+        ParsedCard(
+            name="KE703",
+            category=Category.TRANSPORT,
+            classification=Classification.CONFIRMED,
+            placement_status=PlacementStatus.READY_PARTIAL,
+            is_ai_generated=False,
+            allow_duplicate=True,
+            flight_number="KE703",
+            flight_datetime="7월 1일 오전 9시",
+        )
+    ]
+    req = _request()
+
+    updated = core_parse._apply_flight_constraints(cards, req)
+
+    assert updated[0].flight_datetime is None
 
 
 def test_ensure_card_name_infers_from_question_text() -> None:

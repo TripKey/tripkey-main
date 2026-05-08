@@ -78,6 +78,8 @@ def build_core_parse_prompt(req: ParseRequest) -> str:
 - If recommendation cards are generated, classification must be open_question and question_text/options must stay null.
 - Accommodation cards must be generated from the structured accommodation inputs above, not inferred from dump_text.
 - Flight cards must be generated from the structured flight inputs above, not inferred from dump_text.
+- Set flight_role to null unless it comes from the structured departure_flight or return_flight input.
+- For other transport flight cards mentioned in dump_text, preserve flight_datetime only when a clear datetime is explicitly present.
 - For each accommodation input, create exactly one accommodation card.
 - For each flight input provided, create exactly one transport card.
 
@@ -184,7 +186,9 @@ def build_core_parse_prompt(req: ParseRequest) -> str:
       "search_alias": "string | null",
       "check_in": "string | null",
       "check_out": "string | null",
-      "flight_number": "string | null"
+      "flight_number": "string | null",
+      "flight_datetime": "string | null",
+      "flight_role": "outbound" | "inbound" | null
     }}
   ],
   "alert_cards": [
