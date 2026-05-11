@@ -7,7 +7,6 @@ import com.tripkey.domain.trip.TripRepository;
 import com.tripkey.infra.aiengine.AiEngineClient;
 import com.tripkey.infra.aiengine.dto.AiCardParseRequest;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
-import com.tripkey.infra.google.GooglePlacesClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -15,7 +14,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -27,7 +25,6 @@ public class CardInputParsingProcessor {
     private final TripDestinationRepository tripDestinationRepository;
     private final PlaceCardRepository placeCardRepository;
     private final AiEngineClient aiEngineClient;
-    private final GooglePlacesClient googlePlacesClient;
 
     @Async("dumpTaskExecutor")
     @Transactional
@@ -64,9 +61,7 @@ public class CardInputParsingProcessor {
             }
 
             card.applyCardLevelParseResult(parsed);
-            Optional<GooglePlacesClient.PlaceLookupResult> lookupResult = googlePlacesClient.lookup(card, destinations);
-            if (lookupResult.isPresent()) {
-                card.applyPlaceLookupResult(lookupResult.get());
+            if (parsed.placeId() != null && !parsed.placeId().isBlank()) {
                 card.markProcessingCompleted();
             } else {
                 card.markProcessingFailed();

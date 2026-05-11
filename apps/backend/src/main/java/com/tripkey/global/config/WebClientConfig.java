@@ -28,18 +28,4 @@ public class WebClientConfig {
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .build();
     }
-
-    @Bean
-    public WebClient googlePlacesWebClient(
-            @Value("${app.google.places.base-url:https://maps.googleapis.com/maps/api}") String googlePlacesBaseUrl,
-            @Value("${app.google.places.timeout-seconds:10}") long googlePlacesTimeoutSeconds
-    ) {
-        HttpClient httpClient = HttpClient.create()
-                .responseTimeout(Duration.ofSeconds(googlePlacesTimeoutSeconds));
-
-        return WebClient.builder()
-                .baseUrl(googlePlacesBaseUrl)
-                .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .build();
-    }
 }

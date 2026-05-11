@@ -1,7 +1,6 @@
 package com.tripkey.domain.place;
 
 import com.tripkey.common.converter.StringListConverter;
-import com.tripkey.infra.google.GooglePlacesClient;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -269,10 +268,15 @@ public class PlaceCard {
     }
 
     public void applyCardLevelParseResult(AiPlaceCardDto dto) {
-        this.placeId = null;
-        this.lat = null;
-        this.lng = null;
-        this.address = null;
+        this.placeId = trimToNull(dto.placeId());
+        if (dto.coordinates() != null) {
+            this.lat = dto.coordinates().lat();
+            this.lng = dto.coordinates().lng();
+        } else {
+            this.lat = null;
+            this.lng = null;
+        }
+        this.address = trimToNull(dto.address());
 
         this.name = defaultString(dto.name(), this.name);
         this.category = normalizeCategory(dto.category() != null ? dto.category() : this.category);
@@ -309,15 +313,6 @@ public class PlaceCard {
 
     public boolean isConfirmedParseResult(AiPlaceCardDto dto) {
         return "confirmed".equals(normalizeClassification(dto.classification()));
-    }
-
-    public void applyPlaceLookupResult(GooglePlacesClient.PlaceLookupResult result) {
-        this.placeId = trimToNull(result.placeId());
-        this.lat = result.lat();
-        this.lng = result.lng();
-        this.address = trimToNull(result.address());
-        this.placementStatus = "ready_partial";
-        recomputeActionType();
     }
 
     public void markProcessingCompleted() {

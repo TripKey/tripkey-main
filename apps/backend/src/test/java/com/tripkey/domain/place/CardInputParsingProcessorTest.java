@@ -6,7 +6,6 @@ import com.tripkey.domain.trip.TripRepository;
 import com.tripkey.infra.aiengine.AiEngineClient;
 import com.tripkey.infra.aiengine.dto.AiCardParseRequest;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
-import com.tripkey.infra.google.GooglePlacesClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -38,9 +37,6 @@ class CardInputParsingProcessorTest {
     @Mock
     private AiEngineClient aiEngineClient;
 
-    @Mock
-    private GooglePlacesClient googlePlacesClient;
-
     @InjectMocks
     private CardInputParsingProcessor processor;
 
@@ -55,9 +51,6 @@ class CardInputParsingProcessorTest {
         when(tripRepository.findById(tripId)).thenReturn(Optional.of(trip));
         when(tripDestinationRepository.findByTripTripIdOrderBySortOrder(tripId)).thenReturn(List.of());
         when(aiEngineClient.parseCard(any(AiCardParseRequest.class))).thenReturn(parsedCard());
-        when(googlePlacesClient.lookup(card, List.of())).thenReturn(Optional.of(
-                new GooglePlacesClient.PlaceLookupResult("place-1", 34.6687, 135.5011, "1 Chome Dotonbori, Osaka")
-        ));
 
         processor.parseAndEnrich(tripId, instanceId, "도톤보리 글리코 사인으로 가자");
 
@@ -84,8 +77,7 @@ class CardInputParsingProcessorTest {
         when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId)).thenReturn(Optional.of(card));
         when(tripRepository.findById(tripId)).thenReturn(Optional.of(trip));
         when(tripDestinationRepository.findByTripTripIdOrderBySortOrder(tripId)).thenReturn(List.of());
-        when(aiEngineClient.parseCard(any(AiCardParseRequest.class))).thenReturn(parsedCard());
-        when(googlePlacesClient.lookup(card, List.of())).thenReturn(Optional.empty());
+        when(aiEngineClient.parseCard(any(AiCardParseRequest.class))).thenReturn(parsedCardWithoutPlaceLookup());
 
         processor.parseAndEnrich(tripId, instanceId, "도톤보리 글리코 사인으로 가자");
 
@@ -152,8 +144,7 @@ class CardInputParsingProcessorTest {
         when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId)).thenReturn(Optional.of(card));
         when(tripRepository.findById(tripId)).thenReturn(Optional.of(trip));
         when(tripDestinationRepository.findByTripTripIdOrderBySortOrder(tripId)).thenReturn(List.of());
-        when(aiEngineClient.parseCard(any(AiCardParseRequest.class))).thenReturn(parsedCard());
-        when(googlePlacesClient.lookup(card, List.of())).thenReturn(Optional.empty());
+        when(aiEngineClient.parseCard(any(AiCardParseRequest.class))).thenReturn(parsedCardWithoutPlaceLookup());
 
         processor.parseAndEnrich(tripId, instanceId, "난바역 근처 친구 집이야");
 
@@ -175,6 +166,35 @@ class CardInputParsingProcessorTest {
 
     private AiPlaceCardDto parsedCard() {
         return new AiPlaceCardDto(
+                "place-1",
+                "도톤보리 글리코 사인",
+                "place",
+                "confirmed",
+                "ready_partial",
+                false,
+                false,
+                (short) 60,
+                new AiPlaceCardDto.Coordinates(34.6687, 135.5011),
+                "오사카 난바",
+                "1 Chome Dotonbori, Osaka",
+                null,
+                "사용자가 직접 입력한 도톤보리 방문지",
+                "저녁 시간대에 사진 찍기 좋아요",
+                null,
+                null,
+                null,
+                List.of("landmark"),
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Dotonbori Glico Sign"
+        );
+    }
+
+    private AiPlaceCardDto parsedCardWithoutPlaceLookup() {
+        return new AiPlaceCardDto(
                 null,
                 "도톤보리 글리코 사인",
                 "place",
@@ -187,7 +207,7 @@ class CardInputParsingProcessorTest {
                 "오사카 난바",
                 null,
                 null,
-                "사용자가 직접 입력한 도톤보리 방문지",
+                "사용자가 직접 입력한 도톤보리 방문지 장소 정보를 확인해주세요.",
                 "저녁 시간대에 사진 찍기 좋아요",
                 null,
                 null,

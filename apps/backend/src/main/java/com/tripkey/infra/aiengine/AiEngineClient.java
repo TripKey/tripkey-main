@@ -74,8 +74,7 @@ public class AiEngineClient {
             throw new IllegalStateException(
                     "Failed to call ai-engine card parse endpoint. status=%s body=%s"
                             .formatted(e.getStatusCode(), e.getResponseBodyAsString()),
-                    e
-            );
+                    e);
         } catch (WebClientRequestException e) {
             throw new IllegalStateException("Failed to call ai-engine card parse endpoint", e);
         }
