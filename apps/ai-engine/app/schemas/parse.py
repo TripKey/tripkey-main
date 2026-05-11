@@ -111,6 +111,7 @@ class CardResponse(BaseModel):
     flight_number: Optional[str] = None
     flight_datetime: Optional[str] = None
     flight_role: Optional[FlightRole] = None
+    search_alias: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_question_fields(self) -> "CardResponse":
