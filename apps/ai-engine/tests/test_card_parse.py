@@ -43,6 +43,7 @@ async def test_card_parse_endpoint_returns_confirmed_card(monkeypatch: pytest.Mo
         )
 
     monkeypatch.setattr(core_parse, "_call_gemini", fake_call_gemini)
+    monkeypatch.setattr(core_parse, "_places_api_key", lambda: None)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
@@ -76,6 +77,87 @@ async def test_card_parse_endpoint_returns_confirmed_card(monkeypatch: pytest.Mo
     assert body["question_text"] is None
     assert body["options"] is None
     assert body["search_alias"] == "Kiji Okonomiyaki Osaka"
+
+
+@pytest.mark.asyncio
+async def test_card_parse_endpoint_runs_places_enrichment(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_call_gemini(prompt: str, model_name: str = "gemini-2.5-flash") -> str:
+        return json.dumps(
+            {
+                "name": "키지",
+                "category": "food",
+                "classification": "confirmed",
+                "placement_status": "ready_partial",
+                "is_ai_generated": False,
+                "allow_duplicate": False,
+                "estimated_duration_min": 60,
+                "place_id": None,
+                "coordinates": None,
+                "location": "오사카",
+                "address": None,
+                "time_constraint": None,
+                "question_text": None,
+                "options": None,
+                "blocked_reason": None,
+                "user_context": "오사카의 키지 오코노미야끼 방문을 확정했어요.",
+                "tips": "대기 시간이 있을 수 있어요.",
+                "tags": ["오코노미야끼"],
+                "source": "ai_parse",
+                "check_in": None,
+                "check_out": None,
+                "flight_number": None,
+                "flight_datetime": None,
+                "flight_role": None,
+                "search_alias": "Kiji Okonomiyaki Osaka",
+            },
+            ensure_ascii=False,
+        )
+
+    async def fake_search_place(
+        query: str, api_key: str, region_code: str | None = None
+    ) -> dict | None:
+        if query == "Kiji Okonomiyaki Osaka 오사카 japan":
+            return {
+                "places": [
+                    {
+                        "id": "kiji-place",
+                        "displayName": {"text": "Kiji"},
+                        "formattedAddress": "Japan, Osaka, Kita Ward",
+                        "shortFormattedAddress": "Osaka, Japan",
+                        "location": {"latitude": 34.7011, "longitude": 135.4959},
+                    }
+                ]
+            }
+        return {"places": []}
+
+    monkeypatch.setattr(core_parse, "_call_gemini", fake_call_gemini)
+    monkeypatch.setattr(core_parse, "_places_api_key", lambda: "test-key")
+    monkeypatch.setattr(core_parse, "_search_place", fake_search_place)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/internal/ai/parse/card",
+            json={
+                "trip_id": "trip-1",
+                "destinations": ["오사카"],
+                "travel_days": 3,
+                "companion_count": 2,
+                "natural_language_input": "오사카에 있는 키지 오코노미야끼 집으로 갈거야",
+                "card": {
+                    "instance_id": "card-1",
+                    "name": "오코노미야끼 맛집",
+                    "category": "food",
+                    "classification": "undecided",
+                    "placement_status": "ready_partial",
+                },
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["place_id"] == "kiji-place"
+    assert body["coordinates"] == {"lat": 34.7011, "lng": 135.4959}
+    assert body["address"] == "Japan, Osaka, Kita Ward"
 
 
 @pytest.mark.asyncio

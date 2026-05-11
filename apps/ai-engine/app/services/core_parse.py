@@ -685,7 +685,20 @@ async def parse_card_level(req: CardParseRequest) -> ParsedCard:
     raw_card.setdefault("is_ai_generated", False)
     raw_card.setdefault("allow_duplicate", req.card.category in {Category.ACCOMMODATION, Category.TRANSPORT})
 
-    return ParsedCard.model_validate(_ensure_card_name(raw_card))
+    card = ParsedCard.model_validate(_ensure_card_name(raw_card))
+    api_key = _places_api_key()
+    if not api_key:
+        logger.info("Skipping card-level Places enrichment because API key is not configured.")
+        return card
+
+    enrichment_req = ParseRequest(
+        trip_id=req.trip_id,
+        dump_text=req.natural_language_input,
+        destinations=req.destinations if req.destinations else [""],
+        travel_days=req.travel_days or 1,
+        companion_count=req.companion_count or 1,
+    )
+    return await _enrich_card(card, enrichment_req, api_key)
 
 
 async def parse_with_blocking_enrichment(req: ParseRequest) -> CoreParseResult:

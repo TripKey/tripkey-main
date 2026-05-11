@@ -6,10 +6,14 @@ from app.schemas.card_parse import CardParseRequest
 
 
 def build_card_parse_prompt(req: CardParseRequest) -> str:
-    card_snapshot = json.dumps(req.card.model_dump(mode="json"), ensure_ascii=False, indent=2)
+    card_snapshot = json.dumps(
+        req.card.model_dump(mode="json"), ensure_ascii=False, indent=2
+    )
     destinations = ", ".join(req.destinations) if req.destinations else "unknown"
     travel_days = req.travel_days if req.travel_days is not None else "unknown"
-    companion_count = req.companion_count if req.companion_count is not None else "unknown"
+    companion_count = (
+        req.companion_count if req.companion_count is not None else "unknown"
+    )
 
     return f"""You are a travel planning AI. Re-parse one existing place card using the user's latest natural-language input.
 
@@ -31,7 +35,8 @@ Return one updated card JSON object only. No markdown, no code fences, no explan
 - If the user input clearly identifies a concrete venue/place and intent to visit/use it, return classification="confirmed" and placement_status="ready_partial".
 - If the input is meaningless, too vague, or cannot identify a concrete place, return classification="undecided".
 - Do not return confirmed unless the concrete venue/place is clear from the input.
-- This endpoint does not perform Google Places lookup. Always set place_id, coordinates, and address to null.
+- The parser response must not invent Google Places data.
+- For confirmed cards, place_id / coordinates / address are populated by Places lookup performed within this request. Do not set these fields manually.
 - For confirmed cards, question_text and options must be null.
 - For undecided cards, question_text is required.
 - If undecided + ready_partial, options must contain 2~4 concrete candidate venue names.
@@ -50,10 +55,10 @@ Return one updated card JSON object only. No markdown, no code fences, no explan
   "is_ai_generated": false,
   "allow_duplicate": true | false,
   "estimated_duration_min": number | null,
-  "place_id": null,
-  "coordinates": null,
+  "place_id": "string | null",
+  "coordinates": {{"lat": number, "lng": number}} | null,
   "location": "string | null",
-  "address": null,
+  "address": "string | null",
   "time_constraint": "string | null",
   "question_text": "string | null",
   "options": ["string"] | null,
