@@ -1,5 +1,8 @@
+import { format } from 'date-fns';
 import { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+import { useCalendarStore } from '@/utils/calendar-store';
 
 import ActionBar from './ActionBar';
 import './TripSummary.css';
@@ -15,6 +18,15 @@ type TripSummaryProps = {
 };
 
 const TripSummary = ({ items }: TripSummaryProps) => {
+  const { type, exactDate, flexDate } = useCalendarStore();
+
+  const scheduleValue =
+    type === 'exact' && exactDate
+      ? `${format(exactDate.from, 'M월d일')} - ${format(exactDate.to, 'M월d일')} (${exactDate.nights}박 ${exactDate.nights + 1}일)`
+      : type === 'flexible' && flexDate
+        ? `${flexDate.year}년 ${flexDate.month}월 / ${flexDate.nights}박 ${flexDate.nights + 1}일`
+        : '-';
+
   const navigate = useNavigate();
 
   const handleClickNext = () => {
@@ -32,7 +44,9 @@ const TripSummary = ({ items }: TripSummaryProps) => {
 
             <div className="trip-summary__content">
               <p className="trip-summary__label">{item.label}</p>
-              <span className="trip-summary__value">{item.value}</span>
+              <span className="trip-summary__value">
+                {item.label === '일정' ? scheduleValue : item.value}
+              </span>
             </div>
           </li>
         ))}

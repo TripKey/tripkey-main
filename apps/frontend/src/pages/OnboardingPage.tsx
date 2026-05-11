@@ -1,3 +1,4 @@
+import TripCalendar from '../components/onboarding/calendar/TripCalendar';
 import OnboardingForm from '../components/onboarding/OnboardingForm';
 import TravelerCount from '../components/onboarding/TravelerCount';
 import TravelerReservation from '../components/onboarding/TravelerReservation';
@@ -37,12 +38,9 @@ const OnboardingPage = () => {
           <section className="onboarding-page__card onboarding-page__calendar">
             <h2 className="onboarding-page__section-title">여행 일정</h2>
 
-            <div className="onboarding-page__date-toggle">
-              <button type="button">정확한 날짜</button>
-              <button type="button">유연한 날짜</button>
+            <div className="onboarding-page__calendar-area">
+              <TripCalendar />
             </div>
-
-            <div className="onboarding-page__calendar-area">캘린더 위치</div>
           </section>
 
           <section className="onboarding-page__card onboarding-page__traveler">
