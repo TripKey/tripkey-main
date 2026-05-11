@@ -122,6 +122,9 @@ public class PlaceCard {
     @Column(name = "day")
     private Integer day;
 
+    @Column(name = "day_order")
+    private Short dayOrder;
+
     @Column(name = "notes", columnDefinition = "text")
     private String notes;
 
@@ -209,6 +212,14 @@ public class PlaceCard {
 
     public void updateMemo(String memo) {
         this.memo = trimToNull(memo);
+    }
+
+    public void applyDayPlacement(int day, int order, Short estimatedDurationMin) {
+        this.day = day;
+        this.dayOrder = (short) order;
+        if (estimatedDurationMin != null) {
+            this.estimatedDurationMin = estimatedDurationMin;
+        }
     }
 
     public void applyAccommodationEdit(String location, String checkIn, String checkOut) {

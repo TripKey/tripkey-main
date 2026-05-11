@@ -67,6 +67,7 @@ create table place_cards (
   notes                  text,
   memo                   text,
   day                    integer,
+  day_order              smallint,
   check_in               text,
   check_out              text,
   flight_number          text,
