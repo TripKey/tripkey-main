@@ -90,6 +90,8 @@ create table if not exists public.place_cards (
 
   -- 교통 전용
   flight_number          text,                                     -- 항공편 번호
+  flight_datetime        text,                                     -- 항공편 출발 ISO datetime
+  flight_role            text,                                     -- outbound / inbound / null
 
   -- 공간 (lat/lng 기반 generated column, SRID 4326)
   geom                   geometry(Point, 4326)

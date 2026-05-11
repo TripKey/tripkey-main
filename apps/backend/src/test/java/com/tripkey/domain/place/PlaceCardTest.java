@@ -1,5 +1,6 @@
 package com.tripkey.domain.place;
 
+import com.tripkey.dto.card.CardDto;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import org.junit.jupiter.api.Test;
 
@@ -175,7 +176,9 @@ class PlaceCardTest {
                 null,
                 null,
                 null,
-                "KE723"
+                "KE723",
+                "2026-07-01T08:30:00+09:00",
+                "outbound"
         );
 
         PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
@@ -184,6 +187,81 @@ class PlaceCardTest {
         assertThat(card.getCanExclude()).isFalse();
         assertThat(card.getAllowDuplicate()).isTrue();
         assertThat(card.getFlightNumber()).isEqualTo("KE723");
+        assertThat(card.getFlightDatetime()).isEqualTo("2026-07-01T08:30:00+09:00");
+        assertThat(card.getFlightRole()).isEqualTo("outbound");
+
+        CardDto cardDto = CardDto.from(card);
+        assertThat(cardDto.flightNumber()).isEqualTo("KE723");
+        assertThat(cardDto.flightDatetime()).isEqualTo("2026-07-01T08:30:00+09:00");
+        assertThat(cardDto.flightRole()).isEqualTo("outbound");
+    }
+
+    @Test
+    void createFromAiResponseNullsInvalidFlightRole() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                null,
+                "김포-오사카 항공편",
+                "transport",
+                "confirmed",
+                "ready",
+                false,
+                true,
+                null,
+                null,
+                null,
+                null,
+                "08:30 출발",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "KE723",
+                "2026-07-01T08:30:00+09:00",
+                "middle"
+        );
+
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
+
+        assertThat(card.getFlightDatetime()).isEqualTo("2026-07-01T08:30:00+09:00");
+        assertThat(card.getFlightRole()).isNull();
+    }
+
+    @Test
+    void createFromAiResponseNullsNonIsoFlightDatetime() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                null,
+                "김포-오사카 항공편",
+                "transport",
+                "confirmed",
+                "ready",
+                false,
+                true,
+                null,
+                null,
+                null,
+                null,
+                "08:30 출발",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "KE723",
+                "7월 1일 오전 8시 30분",
+                "outbound"
+        );
+
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
+
+        assertThat(card.getFlightDatetime()).isNull();
+        assertThat(card.getFlightRole()).isEqualTo("outbound");
     }
 
     @Test

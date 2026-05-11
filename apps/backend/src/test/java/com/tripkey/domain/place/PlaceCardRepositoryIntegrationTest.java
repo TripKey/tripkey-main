@@ -2,6 +2,7 @@ package com.tripkey.domain.place;
 
 import com.tripkey.domain.trip.Trip;
 import com.tripkey.domain.trip.TripRepository;
+import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -78,6 +79,51 @@ class PlaceCardRepositoryIntegrationTest {
         assertThat(clusterIdByInstance.get(farId))
                 .as("1.5km 밖 카드는 다른 cluster_id 를 가져야 함")
                 .isNotEqualTo(clusterIdByInstance.get(nearAId));
+    }
+
+    @Test
+    void storesFlightDatetimeAndRole() {
+        Trip trip = new Trip((short) 3, (short) 1);
+        tripRepository.saveAndFlush(trip);
+
+        PlaceCard card = PlaceCard.createFromAiResponse(
+                trip.getTripId(),
+                new AiPlaceCardDto(
+                        null,
+                        "ICN-NRT",
+                        "transport",
+                        "confirmed",
+                        "ready",
+                        false,
+                        true,
+                        null,
+                        null,
+                        null,
+                        null,
+                        "09:00 출발",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        "KE703",
+                        "2026-07-01T09:00:00+09:00",
+                        "outbound"
+                ),
+                "ai_parse"
+        );
+
+        PlaceCard saved = placeCardRepository.saveAndFlush(card);
+        placeCardRepository.flush();
+
+        PlaceCard reloaded = placeCardRepository.findById(saved.getInstanceId()).orElseThrow();
+
+        assertThat(reloaded.getFlightNumber()).isEqualTo("KE703");
+        assertThat(reloaded.getFlightDatetime()).isEqualTo("2026-07-01T09:00:00+09:00");
+        assertThat(reloaded.getFlightRole()).isEqualTo("outbound");
     }
 
     private UUID saveReadyCard(UUID tripId, String name, double lng, double lat) {

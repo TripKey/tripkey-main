@@ -80,9 +80,14 @@ public record AiNonBlockingEnrichmentRequest(
             @JsonProperty("check_out")
             String checkOut,
 
-            // TODO[#flight-fields]: Add flight_datetime and flight_role after the BE flight schema/DTO change lands.
             @JsonProperty("flight_number")
-            String flightNumber
+            String flightNumber,
+
+            @JsonProperty("flight_datetime")
+            String flightDatetime,
+
+            @JsonProperty("flight_role")
+            String flightRole
     ) {
         public static CardSnapshot from(PlaceCard card) {
             Coordinates coordinates = (card.getLat() != null && card.getLng() != null)
@@ -106,7 +111,9 @@ public record AiNonBlockingEnrichmentRequest(
                     card.getTags(),
                     card.getCheckIn(),
                     card.getCheckOut(),
-                    card.getFlightNumber()
+                    card.getFlightNumber(),
+                    card.getFlightDatetime(),
+                    card.getFlightRole()
             );
         }
     }

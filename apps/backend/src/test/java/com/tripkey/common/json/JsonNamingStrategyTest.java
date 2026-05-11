@@ -65,7 +65,9 @@ class JsonNamingStrategyTest {
                 List.of("야경"),
                 null,
                 null,
-                null
+                "KE723",
+                "2026-07-01T08:30:00+09:00",
+                "outbound"
         );
 
         AiParseResponse response = new AiParseResponse(
@@ -95,6 +97,9 @@ class JsonNamingStrategyTest {
                 .contains("allow_duplicate")
                 .contains("estimated_duration_min")
                 .contains("time_constraint")
+                .contains("flight_number")
+                .contains("flight_datetime")
+                .contains("flight_role")
                 .contains("user_context")
                 .contains("blocked_reason")
                 .contains("related_instance_ids")
@@ -107,6 +112,9 @@ class JsonNamingStrategyTest {
                 .doesNotContain("allowDuplicate")
                 .doesNotContain("estimatedDurationMin")
                 .doesNotContain("timeConstraint")
+                .doesNotContain("flightNumber")
+                .doesNotContain("flightDatetime")
+                .doesNotContain("flightRole")
                 .doesNotContain("userContext")
                 .doesNotContain("blockedReason")
                 .doesNotContain("relatedInstanceIds");
