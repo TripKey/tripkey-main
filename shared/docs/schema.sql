@@ -78,7 +78,7 @@ create table if not exists public.place_cards (
 
   tags                   text,                                     -- 태그 (CSV)
   source                 text,                                     -- 출처: ai_parse / manual / ai_recommend
-  notes                  text,                                     -- open_question 답변 입력 (사용자 작성)
+  notes                  text,                                     -- 사용자 자연어 입력/답변 (eligible 카드에서는 card-level parsing trigger)
   memo                   text,                                     -- 사용자 자유 메모 (SCR-05 활용)
 
   -- Day 배치 (FE 로컬 관리, verify/confirm 시 일괄 저장)
@@ -93,6 +93,7 @@ create table if not exists public.place_cards (
   flight_number          text,                                     -- 항공편 번호
   flight_datetime        text,                                     -- 항공편 출발 ISO datetime
   flight_role            text,                                     -- outbound / inbound / null
+  search_alias           text,                                     -- Places API 검색용 내부 별칭 (외부 응답 비노출)
 
   -- 공간 (lat/lng 기반 generated column, SRID 4326)
   geom                   geometry(Point, 4326)

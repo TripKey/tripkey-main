@@ -65,8 +65,64 @@ public record AiPlaceCardDto(
         String flightDatetime,
 
         @JsonProperty("flight_role")
-        String flightRole
+        String flightRole,
+
+        @JsonProperty("search_alias")
+        String searchAlias
 ) {
+
+    public AiPlaceCardDto(
+            String placeId,
+            String name,
+            String category,
+            String classification,
+            String placementStatus,
+            Boolean isAiGenerated,
+            Boolean allowDuplicate,
+            Short estimatedDurationMin,
+            Coordinates coordinates,
+            String location,
+            String address,
+            String timeConstraint,
+            String userContext,
+            String tips,
+            String questionText,
+            List<String> options,
+            String blockedReason,
+            List<String> tags,
+            String checkIn,
+            String checkOut,
+            String flightNumber,
+            String flightDatetime,
+            String flightRole
+    ) {
+        this(
+                placeId,
+                name,
+                category,
+                classification,
+                placementStatus,
+                isAiGenerated,
+                allowDuplicate,
+                estimatedDurationMin,
+                coordinates,
+                location,
+                address,
+                timeConstraint,
+                userContext,
+                tips,
+                questionText,
+                options,
+                blockedReason,
+                tags,
+                checkIn,
+                checkOut,
+                flightNumber,
+                flightDatetime,
+                flightRole,
+                null
+        );
+    }
 
     public AiPlaceCardDto(
             String placeId,
@@ -113,6 +169,7 @@ public record AiPlaceCardDto(
                 checkIn,
                 checkOut,
                 flightNumber,
+                null,
                 null,
                 null
         );
