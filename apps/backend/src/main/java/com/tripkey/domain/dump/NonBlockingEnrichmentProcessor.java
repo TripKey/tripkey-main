@@ -1,5 +1,7 @@
 package com.tripkey.domain.dump;
 
+import com.tripkey.domain.alert.AlertCard;
+import com.tripkey.domain.alert.AlertCardRepository;
 import com.tripkey.domain.place.PlaceCard;
 import com.tripkey.domain.trip.Trip;
 import com.tripkey.infra.aiengine.AiEngineClient;
@@ -11,6 +13,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -18,6 +21,7 @@ import java.util.List;
 public class NonBlockingEnrichmentProcessor {
 
     private final AiEngineClient aiEngineClient;
+    private final AlertCardRepository alertCardRepository;
 
     @Async("dumpTaskExecutor")
     public void trigger(List<PlaceCard> cards, List<String> destinations, Trip trip) {
@@ -36,10 +40,20 @@ public class NonBlockingEnrichmentProcessor {
                     log.info("Non-blocking enrichment completed. trip={} card={} alerts={} patches={}",
                             card.getTripId(), card.getInstanceId(), alertCount, patchCount);
                 }
+                if (alertCount > 0) {
+                    persistAlertCards(card.getTripId(), response);
+                }
             } catch (Exception e) {
                 log.warn("Non-blocking enrichment failed. trip={} card={}",
                         card.getTripId(), card.getInstanceId(), e);
             }
         }
+    }
+
+    private void persistAlertCards(UUID tripId, AiNonBlockingEnrichmentResponse response) {
+        List<AlertCard> entities = response.alertCards().stream()
+                .map(dto -> AlertCard.fromAiResponse(dto, tripId, null))
+                .toList();
+        alertCardRepository.saveAll(entities);
     }
 }
