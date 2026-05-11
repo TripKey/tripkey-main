@@ -1,6 +1,7 @@
 package com.tripkey.domain.place;
 
 import com.tripkey.common.converter.StringListConverter;
+import com.tripkey.infra.google.GooglePlacesClient;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -143,6 +144,9 @@ public class PlaceCard {
     @Column(name = "flight_role")
     private String flightRole;
 
+    @Column(name = "search_alias", columnDefinition = "text")
+    private String searchAlias;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -237,6 +241,79 @@ public class PlaceCard {
         markReprocessing();
     }
 
+    public boolean canStartNaturalLanguageParsingFromNotes() {
+        return ("undecided".equals(this.classification)
+                && ("needs_input".equals(this.placementStatus) || "ready_partial".equals(this.placementStatus)))
+                || "failed".equals(this.processingStatus);
+    }
+
+    public void markCardLevelParsingStarted() {
+        this.processingStatus = "processing";
+        recomputeActionType();
+    }
+
+    public void applyCardLevelParseResult(AiPlaceCardDto dto) {
+        this.placeId = null;
+        this.lat = null;
+        this.lng = null;
+        this.address = null;
+
+        this.name = defaultString(dto.name(), this.name);
+        this.category = normalizeCategory(dto.category() != null ? dto.category() : this.category);
+        this.classification = "confirmed";
+        this.placementStatus = "ready_partial";
+        this.processingStatus = "completed";
+        this.actionType = computeActionType(this.classification, this.placementStatus);
+        this.canExclude = !NON_EXCLUDABLE_CATEGORIES.contains(this.category);
+        this.allowDuplicate = dto.allowDuplicate() != null
+                ? dto.allowDuplicate()
+                : DUPLICATE_DEFAULT_CATEGORIES.contains(this.category);
+        this.isAiGenerated = dto.isAiGenerated() != null ? dto.isAiGenerated() : this.isAiGenerated;
+
+        this.estimatedDurationMin = dto.estimatedDurationMin() != null
+                ? dto.estimatedDurationMin()
+                : this.estimatedDurationMin;
+        this.location = dto.location() != null ? trimToNull(dto.location()) : this.location;
+        this.timeConstraint = dto.timeConstraint() != null ? trimToNull(dto.timeConstraint()) : this.timeConstraint;
+        this.userContext = trimToNull(dto.userContext());
+        this.tips = trimToNull(dto.tips());
+        this.searchAlias = trimToNull(dto.searchAlias());
+        this.questionText = null;
+        this.options = null;
+        this.blockedReason = null;
+        this.tags = dto.tags();
+        this.checkIn = dto.checkIn() != null ? trimToNull(dto.checkIn()) : this.checkIn;
+        this.checkOut = dto.checkOut() != null ? trimToNull(dto.checkOut()) : this.checkOut;
+        this.flightNumber = dto.flightNumber() != null ? trimToNull(dto.flightNumber()) : this.flightNumber;
+        this.flightDatetime = dto.flightDatetime() != null
+                ? normalizeFlightDatetime(dto.flightDatetime())
+                : this.flightDatetime;
+        this.flightRole = dto.flightRole() != null ? normalizeFlightRole(dto.flightRole()) : this.flightRole;
+    }
+
+    public boolean isConfirmedParseResult(AiPlaceCardDto dto) {
+        return "confirmed".equals(normalizeClassification(dto.classification()));
+    }
+
+    public void applyPlaceLookupResult(GooglePlacesClient.PlaceLookupResult result) {
+        this.placeId = trimToNull(result.placeId());
+        this.lat = result.lat();
+        this.lng = result.lng();
+        this.address = trimToNull(result.address());
+        this.placementStatus = "ready_partial";
+        recomputeActionType();
+    }
+
+    public void markProcessingCompleted() {
+        this.processingStatus = "completed";
+        recomputeActionType();
+    }
+
+    public void markProcessingFailed() {
+        this.processingStatus = "failed";
+        recomputeActionType();
+    }
+
     private void markReprocessing() {
         this.processingStatus = "processing";
         recomputeActionType();
@@ -284,6 +361,7 @@ public class PlaceCard {
         card.flightNumber = trimToNull(dto.flightNumber());
         card.flightDatetime = normalizeFlightDatetime(dto.flightDatetime());
         card.flightRole = normalizeFlightRole(dto.flightRole());
+        card.searchAlias = trimToNull(dto.searchAlias());
         return card;
     }
 
