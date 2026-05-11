@@ -83,6 +83,7 @@ create table if not exists public.place_cards (
 
   -- Day 배치 (FE 로컬 관리, verify/confirm 시 일괄 저장)
   day                    integer,                                  -- 배치된 Day 번호 (미배치 시 null)
+  day_order              smallint,                                 -- 같은 day 안의 카드 순서 (1-base, 미배치 시 null)
 
   -- 숙소 전용
   check_in               text,                                     -- YYYY-MM-DD
