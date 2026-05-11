@@ -51,6 +51,24 @@ PLACES_ELIGIBLE_CATEGORIES = {
     Category.FOOD,
     Category.TRANSPORT,
 }
+DESTINATION_ADDRESS_HINTS = {
+    "도쿄": {"도쿄", "tokyo", "japan", "日本", "東京都"},
+    "동경": {"동경", "tokyo", "japan", "日本", "東京都"},
+    "오사카": {"오사카", "osaka", "japan", "日本", "大阪"},
+    "교토": {"교토", "kyoto", "japan", "日本", "京都"},
+    "삿포로": {"삿포로", "sapporo", "japan", "日本", "札幌"},
+    "후쿠오카": {"후쿠오카", "fukuoka", "japan", "日本", "福岡"},
+    "나고야": {"나고야", "nagoya", "japan", "日本", "名古屋"},
+}
+DESTINATION_REGION_CODES = {
+    "도쿄": "jp",
+    "동경": "jp",
+    "오사카": "jp",
+    "교토": "jp",
+    "삿포로": "jp",
+    "후쿠오카": "jp",
+    "나고야": "jp",
+}
 
 gemini_blocked_until = 0.0
 
@@ -308,15 +326,20 @@ def _apply_flight_constraints(cards: list[ParsedCard], req: ParseRequest) -> lis
 def _query_candidates(card: ParsedCard, req: ParseRequest) -> list[str]:
     destinations = [destination.strip() for destination in req.destinations if destination.strip()]
     primary_destination = destinations[0] if destinations else ""
+    primary_destination_hints = DESTINATION_ADDRESS_HINTS.get(primary_destination, set())
+    country_hint = "japan" if "japan" in {hint.lower() for hint in primary_destination_hints} else ""
     location = (card.location or "").strip()
     alias = (card.search_alias or "").strip()
     name = card.name.strip()
 
     candidates = [
-        f"{name} {location}".strip(),
+        f"{name} {location}".strip() if location else "",
         f"{name} {primary_destination}".strip(),
+        f"{name} {primary_destination} {country_hint}".strip() if country_hint else "",
         f"{alias} {location}".strip() if alias else "",
         f"{alias} {primary_destination}".strip() if alias else "",
+        f"{alias} {primary_destination} {country_hint}".strip() if alias and country_hint else "",
+        name,
     ]
 
     deduped: list[str] = []
@@ -329,6 +352,45 @@ def _query_candidates(card: ParsedCard, req: ParseRequest) -> list[str]:
         deduped.append(candidate)
         seen.add(candidate)
     return deduped
+
+
+def _destination_hints(destinations: list[str]) -> set[str]:
+    hints: set[str] = set()
+    for destination in destinations:
+        normalized = destination.strip().lower()
+        if not normalized:
+            continue
+        hints.add(normalized)
+        hints.update(hint.lower() for hint in DESTINATION_ADDRESS_HINTS.get(destination.strip(), set()))
+    return hints
+
+
+def _destination_region_codes(destinations: list[str]) -> list[str]:
+    codes: list[str] = []
+    seen: set[str] = set()
+    for destination in destinations:
+        code = DESTINATION_REGION_CODES.get(destination.strip())
+        if not code or code in seen:
+            continue
+        codes.append(code)
+        seen.add(code)
+    return codes
+
+
+def _place_matches_destination_context(place: dict, req: ParseRequest) -> bool:
+    hints = _destination_hints(req.destinations)
+    if not hints:
+        return True
+
+    address_parts = [
+        place.get("formattedAddress"),
+        place.get("shortFormattedAddress"),
+    ]
+    address_text = " ".join(part for part in address_parts if isinstance(part, str)).lower()
+    if not address_text:
+        return True
+
+    return any(hint in address_text for hint in hints)
 
 
 def _uses_search_alias(card: ParsedCard, query: str) -> bool:
@@ -346,11 +408,13 @@ def _can_accept_single_result_without_name_match(card: ParsedCard, query: str, p
     return False
 
 
-async def _search_place(query: str, api_key: str) -> dict | None:
+async def _search_place(query: str, api_key: str, included_region_codes: list[str] | None = None) -> dict | None:
     payload = {
         "textQuery": query,
         "pageSize": 5,
     }
+    if included_region_codes:
+        payload["includedRegionCodes"] = included_region_codes
     headers = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": api_key,
@@ -393,9 +457,10 @@ async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> Par
     if not card.name.strip():
         return card
 
+    included_region_codes = _destination_region_codes(req.destinations)
     for query in _query_candidates(card, req):
         try:
-            payload = await _search_place(query, api_key)
+            payload = await _search_place(query, api_key, included_region_codes)
         except httpx.HTTPError as exc:
             logger.warning("Places lookup failed for query=%s | error=%s", query, exc)
             return card
@@ -414,20 +479,24 @@ async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> Par
             display_name = ((place.get("displayName") or {}).get("text") or "").strip()
             formatted_address = (place.get("formattedAddress") or "").strip()
             name_matched = _is_name_match(card, display_name)
+            destination_matched = _place_matches_destination_context(place, req)
             logger.info(
-                "Places candidate | card=%s | query=%s | idx=%d | name=%s | address=%s | name_matched=%s | destinations=%s",
+                "Places candidate | card=%s | query=%s | idx=%d | name=%s | address=%s | name_matched=%s | destination_matched=%s | destinations=%s",
                 card.name,
                 query,
                 index,
                 display_name,
                 formatted_address,
                 name_matched,
+                destination_matched,
                 req.destinations,
             )
-            if name_matched:
+            if name_matched and destination_matched:
                 return _apply_place_match(card, place)
 
-        if _can_accept_single_result_without_name_match(card, query, places):
+        if _can_accept_single_result_without_name_match(card, query, places) and _place_matches_destination_context(
+            places[0], req
+        ):
             logger.info(
                 "Places relaxed match accepted | card=%s | query=%s | reason=%s",
                 card.name,

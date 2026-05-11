@@ -36,4 +36,8 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./apps/ai-engine:/app
+    networks:
+      default:
+        aliases:
+          - tripkey-ai-engine
     restart: unless-stopped
