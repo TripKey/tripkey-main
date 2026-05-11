@@ -32,6 +32,10 @@ public class Trip {
         this.companionCount = companionCount;
     }
 
+    public void confirm() {
+        this.confirmedAt = OffsetDateTime.now();
+    }
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
