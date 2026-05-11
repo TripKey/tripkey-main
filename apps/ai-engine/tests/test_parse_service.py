@@ -10,6 +10,7 @@ from app.schemas.parse import (
     ParseRequest,
     PlacementStatus,
 )
+from app.prompts.core_parse import build_core_parse_prompt
 from app.services import core_parse
 from app.services.core_parse import ParsedCard, to_public_card
 
@@ -73,9 +74,81 @@ def test_query_candidates_prioritize_destination_when_location_is_missing() -> N
     assert queries[-1] == "이치란 라멘"
 
 
+def test_query_candidates_use_destination_specific_country_hint() -> None:
+    card = ParsedCard(
+        name="루브르 박물관",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="파리 여행",
+        destinations=["파리"],
+        travel_days=3,
+        companion_count=2,
+    )
+
+    queries = core_parse._query_candidates(card, req)
+
+    assert "루브르 박물관 파리 france" in queries
+    assert all("japan" not in query.lower() for query in queries)
+
+
+def test_query_candidates_for_bangkok_landmark_are_not_japan_biased() -> None:
+    card = ParsedCard(
+        name="방콕 왕궁",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+        search_alias="พระบรมมหาราชวัง",
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="방콕 왕궁은 꼭 가고 싶어",
+        destinations=["방콕"],
+        travel_days=3,
+        companion_count=2,
+    )
+
+    queries = core_parse._query_candidates(card, req)
+
+    assert "방콕 왕궁 방콕 thailand" in queries
+    assert "พระบรมมหาราชวัง 방콕 thailand" in queries
+    assert all("japan" not in query.lower() for query in queries)
+
+
 def test_destination_region_codes_maps_supported_destinations() -> None:
     assert core_parse._destination_region_codes(["오사카"]) == ["jp"]
     assert core_parse._destination_region_codes(["오사카", "교토"]) == ["jp"]
+    assert core_parse._destination_region_codes(["방콕", "파리", "제주"]) == ["th", "fr", "kr"]
+
+
+def test_core_parse_prompt_requires_destination_aware_responses() -> None:
+    prompt = build_core_parse_prompt(
+        ParseRequest(
+            trip_id="trip-1",
+            dump_text="방콕 여행인데 야시장과 루프탑바 추천도 있으면 좋겠어",
+            destinations=["방콕"],
+            travel_days=3,
+            companion_count=2,
+        )
+    )
+
+    assert "Do not assume Japan" in prompt
+    assert "unless the destinations or dump_text clearly indicate Japan" in prompt
+    assert "not just \"{landmark}\"" in prompt
+    assert "create one undecided card for that requested type" in prompt
+    assert "Treat requested recommendation types as user intent" in prompt
+    assert "Do not satisfy a requested recommendation type by choosing only one concrete venue" in prompt
+    assert "classification Decision Tree" in prompt
+    assert "Day placement alone must not promote it to confirmed" in prompt
+    assert "Do not invent aliases for generic category cards or undecided cards" in prompt
+    assert "Leave search_alias null when the card name is already the best searchable venue name" in prompt
 
 
 def test_name_match_accepts_search_alias() -> None:
@@ -400,11 +473,62 @@ def test_place_matches_destination_context_rejects_wrong_country_result() -> Non
 
 
 @pytest.mark.asyncio
+async def test_enrich_card_accepts_single_destination_scoped_landmark_result() -> None:
+    seen_queries: list[str] = []
+
+    async def fake_search_place(
+        query: str, api_key: str, region_code: str | None = None
+    ) -> dict | None:
+        seen_queries.append(query)
+        if query == "루브르 박물관 파리 france":
+            return {
+                "places": [
+                    {
+                        "id": "louvre-place",
+                        "displayName": {"text": "Louvre Museum"},
+                        "formattedAddress": "Rue de Rivoli, 75001 Paris, France",
+                        "shortFormattedAddress": "Paris, France",
+                        "location": {"latitude": 48.8606, "longitude": 2.3376},
+                    }
+                ]
+            }
+        return {"places": []}
+
+    original = core_parse._search_place
+    core_parse._search_place = fake_search_place
+    try:
+        card = ParsedCard(
+            name="루브르 박물관",
+            category=Category.PLACE,
+            classification=Classification.CONFIRMED,
+            placement_status=PlacementStatus.READY_PARTIAL,
+            is_ai_generated=False,
+            allow_duplicate=False,
+        )
+        req = ParseRequest(
+            trip_id="trip-1",
+            dump_text="파리 여행에서 루브르 박물관은 예약했어",
+            destinations=["파리"],
+            travel_days=5,
+            companion_count=2,
+        )
+
+        updated = await core_parse._enrich_card(card, req, "test-key")
+
+        assert "루브르 박물관 파리 france" in seen_queries
+        assert updated.place_id == "louvre-place"
+        assert updated.address == "Rue de Rivoli, 75001 Paris, France"
+        assert updated.coordinates is not None
+    finally:
+        core_parse._search_place = original
+
+
+@pytest.mark.asyncio
 async def test_enrich_card_skips_undecided_lookup() -> None:
     called = False
 
     async def fake_search_place(
-        query: str, api_key: str, included_region_codes: list[str] | None = None
+        query: str, api_key: str, region_code: str | None = None
     ) -> dict | None:
         nonlocal called
         called = True
@@ -434,12 +558,12 @@ async def test_enrich_card_skips_undecided_lookup() -> None:
 
 @pytest.mark.asyncio
 async def test_enrich_card_rejects_name_match_when_destination_mismatches() -> None:
-    seen_region_codes: list[list[str] | None] = []
+    seen_region_codes: list[str | None] = []
 
     async def fake_search_place(
-        query: str, api_key: str, included_region_codes: list[str] | None = None
+        query: str, api_key: str, region_code: str | None = None
     ) -> dict | None:
-        seen_region_codes.append(included_region_codes)
+        seen_region_codes.append(region_code)
         return {
             "places": [
                 {
@@ -477,6 +601,6 @@ async def test_enrich_card_rejects_name_match_when_destination_mismatches() -> N
         assert updated.coordinates is None
         assert "장소 정보를 확인해주세요." in (updated.user_context or "")
         assert seen_region_codes
-        assert all(region_codes == ["jp"] for region_codes in seen_region_codes)
+        assert all(region_code == "jp" for region_code in seen_region_codes)
     finally:
         core_parse._search_place = original
