@@ -222,6 +222,11 @@ public class PlaceCard {
         }
     }
 
+    public void clearDayPlacement() {
+        this.day = null;
+        this.dayOrder = null;
+    }
+
     public void applyAccommodationEdit(String location, String checkIn, String checkOut) {
         if (location != null) {
             this.location = trimToNull(location);

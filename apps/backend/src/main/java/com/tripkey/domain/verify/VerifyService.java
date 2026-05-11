@@ -12,9 +12,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -24,6 +27,11 @@ public class VerifyService {
     private final TripRepository tripRepository;
     private final PlaceCardRepository placeCardRepository;
 
+    /**
+     * Snapshot semantics — request 는 trip 의 Day 배치 전체 상태를 나타낸다.
+     * request 에 포함된 카드는 갱신되고, 포함되지 않은 카드는 day/day_order 가 null 로 초기화된다.
+     * stale instance_id (request 에 있지만 DB 에 없는) 는 응답의 skipped_instance_ids 에 기록되고 저장은 무시한다.
+     */
     @Transactional
     public PlacementSaveResponse verifyAndSave(UUID tripId, PlacementSaveRequest request) {
         if (!tripRepository.existsById(tripId)) {
@@ -31,20 +39,21 @@ public class VerifyService {
         }
 
         List<PlacementDay> days = request.days() == null ? List.of() : request.days();
-        if (days.isEmpty()) {
-            return PlacementSaveResponse.of(tripId);
-        }
 
         Map<UUID, PlaceCard> cardsByInstanceId = new HashMap<>();
         for (PlaceCard card : placeCardRepository.findAllByTripId(tripId)) {
             cardsByInstanceId.put(card.getInstanceId(), card);
         }
 
+        Set<UUID> placedInRequest = new HashSet<>();
+        List<UUID> skippedInstanceIds = new ArrayList<>();
+
         for (PlacementDay day : days) {
             for (PlacementDayItem item : day.cards()) {
+                placedInRequest.add(item.instanceId());
                 PlaceCard card = cardsByInstanceId.get(item.instanceId());
                 if (card == null) {
-                    // stale instance_id (FE 가 보낸 카드가 DB 에 없음) → 조용히 무시
+                    skippedInstanceIds.add(item.instanceId());
                     continue;
                 }
                 Short estimated = item.estimatedDurationMin() == null
@@ -54,6 +63,12 @@ public class VerifyService {
             }
         }
 
-        return PlacementSaveResponse.of(tripId);
+        for (PlaceCard card : cardsByInstanceId.values()) {
+            if (!placedInRequest.contains(card.getInstanceId()) && card.getDay() != null) {
+                card.clearDayPlacement();
+            }
+        }
+
+        return PlacementSaveResponse.of(tripId, skippedInstanceIds);
     }
 }

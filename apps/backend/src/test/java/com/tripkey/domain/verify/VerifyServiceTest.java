@@ -46,16 +46,16 @@ class VerifyServiceTest {
     }
 
     @Test
-    void verifyAndSaveReturnsSavedWithEmptyDaysWithoutModifyingCards() {
+    void verifyAndSaveReturnsSavedWithEmptyDaysAndNoPlacedCards() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
 
-        PlacementSaveRequest request = new PlacementSaveRequest(List.of());
-
-        PlacementSaveResponse response = verifyService.verifyAndSave(tripId, request);
+        PlacementSaveResponse response = verifyService.verifyAndSave(tripId, new PlacementSaveRequest(List.of()));
 
         assertThat(response.saved()).isTrue();
         assertThat(response.tripId()).isEqualTo(tripId);
+        assertThat(response.skippedInstanceIds()).isEmpty();
     }
 
     @Test
@@ -75,6 +75,7 @@ class VerifyServiceTest {
         PlacementSaveResponse response = verifyService.verifyAndSave(tripId, request);
 
         assertThat(response.saved()).isTrue();
+        assertThat(response.skippedInstanceIds()).isEmpty();
         assertThat(card.getDay()).isEqualTo(2);
         assertThat(card.getDayOrder()).isEqualTo((short) 1);
         assertThat(card.getEstimatedDurationMin()).isEqualTo((short) 90);
@@ -132,7 +133,7 @@ class VerifyServiceTest {
     }
 
     @Test
-    void verifyAndSaveSilentlyIgnoresStaleInstanceIdsNotInDb() {
+    void verifyAndSaveReturnsStaleInstanceIdsInSkippedList() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
 
@@ -150,16 +151,19 @@ class VerifyServiceTest {
         PlacementSaveResponse response = verifyService.verifyAndSave(tripId, request);
 
         assertThat(response.saved()).isTrue();
+        assertThat(response.skippedInstanceIds()).containsExactly(staleInstanceId);
+        // 알려진 카드는 정상 갱신, stale 은 무시 (DB 영향 없음)
         assertThat(knownCard.getDay()).isEqualTo(1);
         assertThat(knownCard.getDayOrder()).isEqualTo((short) 1);
-        // stale instance_id 는 DB 에 없으므로 영향 없음 (예외도 안 던짐)
     }
 
     @Test
-    void verifyAndSaveLeavesCardsNotInRequestUnchanged() {
+    void verifyAndSaveClearsCardsNotInRequest() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
 
+        // 사용자가 SCR-04 에서 untouched 카드를 Day 보드에서 빼서 Stock 으로 되돌린 상황 시뮬레이션.
+        // 이전엔 day=5, day_order=3 으로 저장돼 있었지만, 이번 verify request 에는 포함되지 않음.
         PlaceCard updated = placeCard(tripId);
         PlaceCard untouched = placeCard(tripId);
         setField(untouched, "day", 5);
@@ -174,9 +178,52 @@ class VerifyServiceTest {
 
         verifyService.verifyAndSave(tripId, request);
 
+        // request 에 포함된 카드는 새 day 로 갱신
         assertThat(updated.getDay()).isEqualTo(1);
-        assertThat(untouched.getDay()).isEqualTo(5);
-        assertThat(untouched.getDayOrder()).isEqualTo((short) 3);
+        assertThat(updated.getDayOrder()).isEqualTo((short) 1);
+        // request 에 없는 카드는 day / day_order 모두 null 로 초기화 (스냅샷 의미론)
+        assertThat(untouched.getDay()).isNull();
+        assertThat(untouched.getDayOrder()).isNull();
+    }
+
+    @Test
+    void verifyAndSaveClearsAllPlacedCardsWhenRequestIsEmpty() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        // 사용자가 모든 카드를 Stock 으로 되돌리고 verify 호출하는 시나리오
+        PlaceCard previouslyPlaced = placeCard(tripId);
+        setField(previouslyPlaced, "day", 2);
+        setField(previouslyPlaced, "dayOrder", (short) 1);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(previouslyPlaced));
+
+        verifyService.verifyAndSave(tripId, new PlacementSaveRequest(List.of()));
+
+        assertThat(previouslyPlaced.getDay()).isNull();
+        assertThat(previouslyPlaced.getDayOrder()).isNull();
+    }
+
+    @Test
+    void verifyAndSaveLeavesUnplacedCardsUntouchedWhenAbsentFromRequest() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        // 처음부터 미배치(day=null) 인 카드는 request 에 없어도 변경 안 됨 — clearDayPlacement 가 no-op
+        PlaceCard updated = placeCard(tripId);
+        PlaceCard neverPlaced = placeCard(tripId);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(updated, neverPlaced));
+
+        PlacementSaveRequest request = new PlacementSaveRequest(List.of(
+                new PlacementDay(1, List.of(
+                        new PlacementDayItem(updated.getInstanceId(), 1, null)
+                ))
+        ));
+
+        verifyService.verifyAndSave(tripId, request);
+
+        assertThat(updated.getDay()).isEqualTo(1);
+        assertThat(neverPlaced.getDay()).isNull();
+        assertThat(neverPlaced.getDayOrder()).isNull();
     }
 
     @Test
