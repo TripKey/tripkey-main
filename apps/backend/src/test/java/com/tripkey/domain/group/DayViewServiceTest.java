@@ -61,7 +61,6 @@ class DayViewServiceTest {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
         when(placeCardRepository.findAllByTripIdAndDay(tripId, 3)).thenReturn(List.of());
-        when(placeCardRepository.findMaxDayByTripId(tripId)).thenReturn(0);
 
         DayViewModel response = dayViewService.getDayViewModel(tripId, 3);
 
@@ -72,16 +71,15 @@ class DayViewServiceTest {
     }
 
     @Test
-    void getDayViewModelAssignsArrivalFlightToStartTimeCardOnDayOne() {
+    void getDayViewModelAssignsOutboundFlightToStartTimeCard() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
 
-        PlaceCard arrivalFlight = dayCard(tripId, "transport", "KE723", 1, at(8, 0));
-        PlaceCard restaurant = dayCard(tripId, "food", null, 1, at(12, 0));
+        PlaceCard arrivalFlight = flightCard(tripId, "KE723", "outbound", 1, at(8, 0));
+        PlaceCard restaurant = nonFlightCard(tripId, "food", 1, at(12, 0));
 
         when(placeCardRepository.findAllByTripIdAndDay(tripId, 1))
                 .thenReturn(List.of(restaurant, arrivalFlight));
-        when(placeCardRepository.findMaxDayByTripId(tripId)).thenReturn(5);
 
         DayViewModel response = dayViewService.getDayViewModel(tripId, 1);
 
@@ -95,16 +93,15 @@ class DayViewServiceTest {
     }
 
     @Test
-    void getDayViewModelAssignsDepartureFlightToEndTimeCardOnMaxDay() {
+    void getDayViewModelAssignsInboundFlightToEndTimeCard() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
 
-        PlaceCard hotelCheckout = dayCard(tripId, "accommodation", null, 5, at(10, 0));
-        PlaceCard departureFlight = dayCard(tripId, "transport", "KE726", 5, at(20, 0));
+        PlaceCard hotelCheckout = nonFlightCard(tripId, "accommodation", 5, at(10, 0));
+        PlaceCard departureFlight = flightCard(tripId, "KE726", "inbound", 5, at(20, 0));
 
         when(placeCardRepository.findAllByTripIdAndDay(tripId, 5))
                 .thenReturn(List.of(hotelCheckout, departureFlight));
-        when(placeCardRepository.findMaxDayByTripId(tripId)).thenReturn(5);
 
         DayViewModel response = dayViewService.getDayViewModel(tripId, 5);
 
@@ -122,13 +119,13 @@ class DayViewServiceTest {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
 
-        PlaceCard arrivalFlight = dayCard(tripId, "transport", "KE723", 1, at(8, 0));
-        PlaceCard lunch = dayCard(tripId, "food", null, 1, at(12, 0));
-        PlaceCard departureFlight = dayCard(tripId, "transport", "KE726", 1, at(20, 0));
+        // 단일 day 여행 — outbound / inbound 가 같은 day=1 에 배치되어도 flight_role 로 정확히 분배.
+        PlaceCard arrivalFlight = flightCard(tripId, "KE723", "outbound", 1, at(8, 0));
+        PlaceCard lunch = nonFlightCard(tripId, "food", 1, at(12, 0));
+        PlaceCard departureFlight = flightCard(tripId, "KE726", "inbound", 1, at(20, 0));
 
         when(placeCardRepository.findAllByTripIdAndDay(tripId, 1))
                 .thenReturn(List.of(arrivalFlight, lunch, departureFlight));
-        when(placeCardRepository.findMaxDayByTripId(tripId)).thenReturn(1);
 
         DayViewModel response = dayViewService.getDayViewModel(tripId, 1);
 
@@ -142,16 +139,34 @@ class DayViewServiceTest {
     }
 
     @Test
-    void getDayViewModelKeepsMiddleDayFlightInCardsArray() {
+    void getDayViewModelAssignsFlightToSlotRegardlessOfDayNumber() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
 
-        // 3일차 국내선 환승편 — start/end 슬롯에 들어가지 않고 cards[] 에 표시
-        PlaceCard middleFlight = dayCard(tripId, "transport", "JL101", 3, at(14, 0));
+        // 사용자가 outbound 항공편을 day=3 에 배치한 케이스 — flight_role 만으로 슬롯 결정.
+        PlaceCard misplacedFlight = flightCard(tripId, "KE703", "outbound", 3, at(9, 0));
+
+        when(placeCardRepository.findAllByTripIdAndDay(tripId, 3))
+                .thenReturn(List.of(misplacedFlight));
+
+        DayViewModel response = dayViewService.getDayViewModel(tripId, 3);
+
+        assertThat(response.startTimeCard()).isNotNull();
+        assertThat(response.startTimeCard().instanceId()).isEqualTo(misplacedFlight.getInstanceId());
+        assertThat(response.endTimeCard()).isNull();
+        assertThat(response.cards()).isEmpty();
+    }
+
+    @Test
+    void getDayViewModelKeepsMiddleDayFlightWithoutRoleInCardsArray() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        // 환승편 — flight_number 는 있지만 flight_role 이 null → cards[] 로 유지
+        PlaceCard middleFlight = flightCard(tripId, "JL101", null, 3, at(14, 0));
 
         when(placeCardRepository.findAllByTripIdAndDay(tripId, 3))
                 .thenReturn(List.of(middleFlight));
-        when(placeCardRepository.findMaxDayByTripId(tripId)).thenReturn(5);
 
         DayViewModel response = dayViewService.getDayViewModel(tripId, 3);
 
@@ -163,16 +178,15 @@ class DayViewServiceTest {
     }
 
     @Test
-    void getDayViewModelTreatsTransportWithoutFlightNumberAsRegularCard() {
+    void getDayViewModelTreatsTransportWithoutFlightRoleAsRegularCard() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
 
-        // transport 카테고리지만 flight_number 없음 (예: 지하철 / 버스)
-        PlaceCard subway = dayCard(tripId, "transport", null, 1, at(9, 0));
+        // 일반 transport — 지하철 / 버스 등. flight_role null
+        PlaceCard subway = nonFlightCard(tripId, "transport", 1, at(9, 0));
 
         when(placeCardRepository.findAllByTripIdAndDay(tripId, 1))
                 .thenReturn(List.of(subway));
-        when(placeCardRepository.findMaxDayByTripId(tripId)).thenReturn(3);
 
         DayViewModel response = dayViewService.getDayViewModel(tripId, 1);
 
@@ -184,16 +198,37 @@ class DayViewServiceTest {
     }
 
     @Test
+    void getDayViewModelKeepsExtraOutboundFlightsInCardsArray() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        // 같은 day 에 outbound 카드 2장 — createdAt ASC 정렬에 따라 첫 카드만 슬롯, 나머지는 cards[]
+        PlaceCard firstOutbound = flightCard(tripId, "KE703", "outbound", 1, at(8, 0));
+        PlaceCard duplicateOutbound = flightCard(tripId, "KE705", "outbound", 1, at(10, 0));
+
+        when(placeCardRepository.findAllByTripIdAndDay(tripId, 1))
+                .thenReturn(List.of(firstOutbound, duplicateOutbound));
+
+        DayViewModel response = dayViewService.getDayViewModel(tripId, 1);
+
+        assertThat(response.startTimeCard()).isNotNull();
+        assertThat(response.startTimeCard().instanceId()).isEqualTo(firstOutbound.getInstanceId());
+        assertThat(response.endTimeCard()).isNull();
+        assertThat(response.cards())
+                .extracting(CardDto::instanceId)
+                .containsExactly(duplicateOutbound.getInstanceId());
+    }
+
+    @Test
     void getDayViewModelSortsCardsByCreatedAtAsc() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
 
-        PlaceCard later = dayCard(tripId, "place", null, 2, at(14, 0));
-        PlaceCard earlier = dayCard(tripId, "place", null, 2, at(10, 0));
+        PlaceCard later = nonFlightCard(tripId, "place", 2, at(14, 0));
+        PlaceCard earlier = nonFlightCard(tripId, "place", 2, at(10, 0));
 
         when(placeCardRepository.findAllByTripIdAndDay(tripId, 2))
                 .thenReturn(List.of(later, earlier));
-        when(placeCardRepository.findMaxDayByTripId(tripId)).thenReturn(5);
 
         DayViewModel response = dayViewService.getDayViewModel(tripId, 2);
 
@@ -202,9 +237,20 @@ class DayViewServiceTest {
                 .containsExactly(earlier.getInstanceId(), later.getInstanceId());
     }
 
-    private PlaceCard dayCard(UUID tripId, String category, String flightNumber, int day, OffsetDateTime createdAt) {
+    private PlaceCard flightCard(UUID tripId, String flightNumber, String flightRole, int day, OffsetDateTime createdAt) {
         PlaceCard card = PlaceCard.createUserCard(
-                tripId, "테스트 카드", category, null, null, null, null, null, null, flightNumber
+                tripId, "테스트 항공편", "transport", null, null, null, null, null, null, flightNumber
+        );
+        setField(card, "instanceId", UUID.randomUUID());
+        setField(card, "day", day);
+        setField(card, "createdAt", createdAt);
+        setField(card, "flightRole", flightRole);
+        return card;
+    }
+
+    private PlaceCard nonFlightCard(UUID tripId, String category, int day, OffsetDateTime createdAt) {
+        PlaceCard card = PlaceCard.createUserCard(
+                tripId, "테스트 카드", category, null, null, null, null, null, null, null
         );
         setField(card, "instanceId", UUID.randomUUID());
         setField(card, "day", day);

@@ -36,26 +36,19 @@ public class DayViewService {
                 .sorted(Comparator.comparing(PlaceCard::getCreatedAt))
                 .toList();
 
-        int maxDay = placeCardRepository.findMaxDayByTripId(tripId);
-
         PlaceCard startTimeCard = null;
         PlaceCard endTimeCard = null;
         List<PlaceCard> otherCards = new ArrayList<>();
 
         for (PlaceCard card : cardsForDay) {
-            boolean isFlightCard = "transport".equals(card.getCategory())
-                    && card.getFlightNumber() != null
-                    && !card.getFlightNumber().isBlank();
-
-            if (isFlightCard) {
-                if (dayNumber == 1 && startTimeCard == null) {
-                    startTimeCard = card;
-                    continue;
-                }
-                if (dayNumber == maxDay && endTimeCard == null) {
-                    endTimeCard = card;
-                    continue;
-                }
+            String role = card.getFlightRole();
+            if ("outbound".equals(role) && startTimeCard == null) {
+                startTimeCard = card;
+                continue;
+            }
+            if ("inbound".equals(role) && endTimeCard == null) {
+                endTimeCard = card;
+                continue;
             }
             otherCards.add(card);
         }

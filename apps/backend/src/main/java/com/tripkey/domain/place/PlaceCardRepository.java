@@ -20,9 +20,6 @@ public interface PlaceCardRepository extends JpaRepository<PlaceCard, UUID> {
 
     boolean existsByTripIdAndCategoryAndFlightNumber(UUID tripId, String category, String flightNumber);
 
-    @Query("select coalesce(max(p.day), 0) from PlaceCard p where p.tripId = :tripId")
-    int findMaxDayByTripId(@Param("tripId") UUID tripId);
-
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional
     @Query("delete from PlaceCard p where p.tripId = :tripId")
