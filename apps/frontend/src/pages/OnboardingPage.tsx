@@ -41,10 +41,10 @@ const OnboardingPage = () => {
 
           <section className="onboarding-page__card">
             <OnboardingForm
-              title="여행 기간"
-              name="tripDuration"
-              placeholder="여행 기간을 입력하세요"
-              subtitle="복수 선택 가능."
+              title="여행지"
+              placeholder="도시명을 검색하세요"
+              subtitle="복수 선택 가능. 1개 이상 필수"
+              type="destination"
             />
           </section>
 
@@ -69,7 +69,10 @@ const OnboardingPage = () => {
             {
               icon: '✈️',
               label: '여행지',
-              value: form.destinations.length > 0 ? form.destinations.join(', ') : '-',
+              value:
+                form.destinations.length > 0
+                  ? form.destinations.join(', ')
+                  : '-',
             },
             {
               icon: '📅',
@@ -79,7 +82,8 @@ const OnboardingPage = () => {
             {
               icon: '👥',
               label: '동행자',
-              value: form.companion_count > 0 ? `${form.companion_count}명` : '-',
+              value:
+                form.companion_count > 0 ? `${form.companion_count}명` : '-',
             },
             {
               icon: '👥',

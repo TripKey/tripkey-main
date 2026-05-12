@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import type { OnboardingRequest } from '../types/onboarding';
+
 import { createTrip, parseOnboardingApiError } from './onboarding-api';
 
 type RequestStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -45,7 +46,8 @@ export const useOnboardingStore = create<OnboardingStore>()((set, get) => ({
         set({
           requestStatus: 'error',
           errorMessage:
-            parseOnboardingApiError(error)?.message ?? '서버 통신 오류가 발생했습니다.',
+            parseOnboardingApiError(error)?.message ??
+            '서버 통신 오류가 발생했습니다.',
         });
         return false;
       }

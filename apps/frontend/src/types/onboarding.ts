@@ -15,3 +15,13 @@ export type OnboardingErrorResponse = {
   code: 'VALIDATION_ERROR';
   message: string;
 };
+
+export type Destination = {
+  name: string;
+  country: string;
+  place_id: string;
+};
+
+export type DestinationSearchResponse = {
+  results: Destination[];
+};
