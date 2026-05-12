@@ -1,0 +1,185 @@
+.rdp-root {
+  width: 100%;
+  font-size: 14px;
+  color: #111827;
+
+  position: relative;
+}
+
+.rdp-month {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.rdp-months {
+  width: 100%;
+}
+
+.rdp-month_grid {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* 월 헤더 - MonthCaption을 CalendarNav로 완전 교체했으므로 비움 */
+.rdp-month_caption {
+  padding: 0;
+}
+
+
+/* 요일 헤더 */
+.rdp-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+
+.rdp-weekday {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: #9ca3af;
+  padding: 6px 0;
+}
+
+.rdp-weekday:first-child {
+  color: #ef4444;
+}
+
+.rdp-weekday:last-child {
+  color: #3b82f6;
+}
+
+/* 날짜 그리드 */
+.rdp-weeks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.rdp-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  width: 100%;
+}
+
+.rdp-day {
+  text-align: center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 0;
+}
+
+.rdp-day_button {
+  width: 38px;
+  height: 38px;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 13px;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+}
+
+.rdp-day_button:hover {
+  background: #f3f4f6;
+}
+
+/* 일요일 */
+.rdp-week .rdp-day:first-child .rdp-day_button {
+  color: #ef4444;
+}
+
+/* 토요일 */
+.rdp-week .rdp-day:last-child .rdp-day_button {
+  color: #3b82f6;
+}
+
+/* 범위 중간 배경 (셀 전체) */
+.rdp-range_middle {
+  background: #eef2ff;
+}
+
+.rdp-range_start {
+  background: linear-gradient(to right, transparent 50%, #eef2ff 50%);
+}
+
+.rdp-range_end {
+  background: linear-gradient(to left, transparent 50%, #eef2ff 50%);
+}
+
+.rdp-range_start.rdp-range_end {
+  background: none;
+}
+
+/* 선택 원형 */
+.rdp-range_start .rdp-day_button,
+.rdp-range_end .rdp-day_button,
+.rdp-selected .rdp-day_button {
+  background: #6366f1;
+  color: #fff !important;
+  font-weight: 600;
+  border-radius: 50%;
+}
+
+.rdp-range_middle .rdp-day_button {
+  background: none;
+  color: #4338ca;
+  border-radius: 50%;
+}
+
+/* 비활성화 / 외부 날짜 */
+.rdp-outside .rdp-day_button {
+  color: #d1d5db;
+}
+
+.rdp-disabled .rdp-day_button {
+  color: #d1d5db;
+  cursor: default;
+}
+
+.rdp-disabled .rdp-day_button:hover {
+  background: none;
+}
+
+/* footer */
+.exact-calendar__footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.exact-calendar__footer-dates {
+  display: flex;
+  gap: 16px;
+}
+
+.exact-calendar__footer-dates span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.exact-calendar__footer-dates p {
+  font-size: 11px;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.exact-calendar__footer-nights {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6366f1;
+}

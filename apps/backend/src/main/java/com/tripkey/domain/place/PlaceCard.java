@@ -122,6 +122,9 @@ public class PlaceCard {
     @Column(name = "day")
     private Integer day;
 
+    @Column(name = "day_order")
+    private Short dayOrder;
+
     @Column(name = "notes", columnDefinition = "text")
     private String notes;
 
@@ -142,6 +145,9 @@ public class PlaceCard {
 
     @Column(name = "flight_role")
     private String flightRole;
+
+    @Column(name = "search_alias", columnDefinition = "text")
+    private String searchAlias;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -211,6 +217,19 @@ public class PlaceCard {
         this.memo = trimToNull(memo);
     }
 
+    public void applyDayPlacement(int day, int order, Short estimatedDurationMin) {
+        this.day = day;
+        this.dayOrder = (short) order;
+        if (estimatedDurationMin != null) {
+            this.estimatedDurationMin = estimatedDurationMin;
+        }
+    }
+
+    public void clearDayPlacement() {
+        this.day = null;
+        this.dayOrder = null;
+    }
+
     public void applyAccommodationEdit(String location, String checkIn, String checkOut) {
         if (location != null) {
             this.location = trimToNull(location);
@@ -235,6 +254,75 @@ public class PlaceCard {
             this.flightNumber = trimToNull(flightNumber);
         }
         markReprocessing();
+    }
+
+    public boolean canStartNaturalLanguageParsingFromNotes() {
+        return ("undecided".equals(this.classification)
+                && ("needs_input".equals(this.placementStatus) || "ready_partial".equals(this.placementStatus)))
+                || ("failed".equals(this.processingStatus) && !"open_question".equals(this.classification));
+    }
+
+    public void markCardLevelParsingStarted() {
+        this.processingStatus = "processing";
+        recomputeActionType();
+    }
+
+    public void applyCardLevelParseResult(AiPlaceCardDto dto) {
+        this.placeId = trimToNull(dto.placeId());
+        if (dto.coordinates() != null) {
+            this.lat = dto.coordinates().lat();
+            this.lng = dto.coordinates().lng();
+        } else {
+            this.lat = null;
+            this.lng = null;
+        }
+        this.address = trimToNull(dto.address());
+
+        this.name = defaultString(dto.name(), this.name);
+        this.category = normalizeCategory(dto.category() != null ? dto.category() : this.category);
+        this.classification = "confirmed";
+        this.placementStatus = "ready_partial";
+        this.processingStatus = "completed";
+        this.actionType = computeActionType(this.classification, this.placementStatus);
+        this.canExclude = !NON_EXCLUDABLE_CATEGORIES.contains(this.category);
+        this.allowDuplicate = dto.allowDuplicate() != null
+                ? dto.allowDuplicate()
+                : DUPLICATE_DEFAULT_CATEGORIES.contains(this.category);
+        this.isAiGenerated = dto.isAiGenerated() != null ? dto.isAiGenerated() : this.isAiGenerated;
+
+        this.estimatedDurationMin = dto.estimatedDurationMin() != null
+                ? dto.estimatedDurationMin()
+                : this.estimatedDurationMin;
+        this.location = dto.location() != null ? trimToNull(dto.location()) : this.location;
+        this.timeConstraint = dto.timeConstraint() != null ? trimToNull(dto.timeConstraint()) : this.timeConstraint;
+        this.userContext = trimToNull(dto.userContext());
+        this.tips = trimToNull(dto.tips());
+        this.searchAlias = trimToNull(dto.searchAlias());
+        this.questionText = null;
+        this.options = null;
+        this.blockedReason = null;
+        this.tags = dto.tags();
+        this.checkIn = dto.checkIn() != null ? trimToNull(dto.checkIn()) : this.checkIn;
+        this.checkOut = dto.checkOut() != null ? trimToNull(dto.checkOut()) : this.checkOut;
+        this.flightNumber = dto.flightNumber() != null ? trimToNull(dto.flightNumber()) : this.flightNumber;
+        this.flightDatetime = dto.flightDatetime() != null
+                ? normalizeFlightDatetime(dto.flightDatetime())
+                : this.flightDatetime;
+        this.flightRole = dto.flightRole() != null ? normalizeFlightRole(dto.flightRole()) : this.flightRole;
+    }
+
+    public boolean isConfirmedParseResult(AiPlaceCardDto dto) {
+        return "confirmed".equals(normalizeClassification(dto.classification()));
+    }
+
+    public void markProcessingCompleted() {
+        this.processingStatus = "completed";
+        recomputeActionType();
+    }
+
+    public void markProcessingFailed() {
+        this.processingStatus = "failed";
+        recomputeActionType();
     }
 
     private void markReprocessing() {
@@ -284,6 +372,7 @@ public class PlaceCard {
         card.flightNumber = trimToNull(dto.flightNumber());
         card.flightDatetime = normalizeFlightDatetime(dto.flightDatetime());
         card.flightRole = normalizeFlightRole(dto.flightRole());
+        card.searchAlias = trimToNull(dto.searchAlias());
         return card;
     }
 

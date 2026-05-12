@@ -126,6 +126,102 @@ class PlaceCardRepositoryIntegrationTest {
         assertThat(reloaded.getFlightRole()).isEqualTo("outbound");
     }
 
+    @Test
+    void findAdjacentCardDistancesReturnsConsecutiveDayPairsWithDistance() {
+        Trip trip = new Trip((short) 3, (short) 1);
+        tripRepository.saveAndFlush(trip);
+        UUID tripId = trip.getTripId();
+
+        // Day 1: 도톈보리→우메다 → 거리는 약 5km. day_order=1,2,3 으로 두 페어 발생.
+        UUID a = savePlacedCard(tripId, "Card A", 135.5023, 34.6687, 1, (short) 1);
+        UUID b = savePlacedCard(tripId, "Card B", 135.4960, 34.7025, 1, (short) 2);
+        savePlacedCard(tripId, "Card C", 135.5500, 34.7000, 1, (short) 3);
+        // Day 2: 1개만 — 페어 없음
+        savePlacedCard(tripId, "Card D", 135.0000, 34.0000, 2, (short) 1);
+        // Excluded — 페어 계산 제외
+        UUID excluded = savePlacedCard(tripId, "Excluded", 135.5025, 34.6688, 1, (short) 4);
+        markExcluded(excluded);
+        // 미배치 카드 — day=null 이라 페어 없음
+        savePlacedCard(tripId, "Unplaced", 135.5026, 34.6689, null, null);
+        // geom null — 페어 계산 제외
+        saveNoGeomCard(tripId, "No Geom", 1, (short) 5);
+
+        List<Object[]> rows = placeCardRepository.findAdjacentCardDistances(tripId);
+
+        // Day 1 페어 2건만 반환 (A-B, B-C). Day 2 단일, excluded, unplaced, no-geom 제외.
+        assertThat(rows).hasSize(2);
+        Map<UUID, Double> distanceByFirstId = rows.stream()
+                .collect(Collectors.toMap(
+                        row -> (UUID) row[0],
+                        row -> ((Number) row[3]).doubleValue()));
+        assertThat(distanceByFirstId)
+                .as("Day 1 의 인접 페어 두 건만 조회되어야 함")
+                .containsKeys(a, b);
+        assertThat(distanceByFirstId.get(a))
+                .as("도톈보리→우메다 거리 약 5km 이상")
+                .isGreaterThan(3000.0);
+    }
+
+    private UUID savePlacedCard(UUID tripId, String name, double lng, double lat, Integer day, Short dayOrder) {
+        PlaceCard card = new PlaceCard();
+        UUID id = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.now();
+        setField(card, "instanceId", id);
+        setField(card, "tripId", tripId);
+        setField(card, "name", name);
+        setField(card, "category", "place");
+        setField(card, "classification", "confirmed");
+        setField(card, "placementStatus", "ready");
+        setField(card, "processingStatus", "completed");
+        setField(card, "actionType", "review_only");
+        setField(card, "canExclude", true);
+        setField(card, "allowDuplicate", false);
+        setField(card, "isExcluded", false);
+        setField(card, "isAiGenerated", false);
+        setField(card, "pendingReorder", false);
+        setField(card, "lat", lat);
+        setField(card, "lng", lng);
+        if (day != null) {
+            setField(card, "day", day);
+            setField(card, "dayOrder", dayOrder);
+        }
+        setField(card, "createdAt", now);
+        setField(card, "updatedAt", now);
+        placeCardRepository.saveAndFlush(card);
+        return id;
+    }
+
+    private void saveNoGeomCard(UUID tripId, String name, Integer day, Short dayOrder) {
+        PlaceCard card = new PlaceCard();
+        UUID id = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.now();
+        setField(card, "instanceId", id);
+        setField(card, "tripId", tripId);
+        setField(card, "name", name);
+        setField(card, "category", "place");
+        setField(card, "classification", "confirmed");
+        setField(card, "placementStatus", "ready");
+        setField(card, "processingStatus", "completed");
+        setField(card, "actionType", "review_only");
+        setField(card, "canExclude", true);
+        setField(card, "allowDuplicate", false);
+        setField(card, "isExcluded", false);
+        setField(card, "isAiGenerated", false);
+        setField(card, "pendingReorder", false);
+        // lat/lng null → geom null
+        setField(card, "day", day);
+        setField(card, "dayOrder", dayOrder);
+        setField(card, "createdAt", now);
+        setField(card, "updatedAt", now);
+        placeCardRepository.saveAndFlush(card);
+    }
+
+    private void markExcluded(UUID instanceId) {
+        PlaceCard card = placeCardRepository.findById(instanceId).orElseThrow();
+        setField(card, "isExcluded", true);
+        placeCardRepository.saveAndFlush(card);
+    }
+
     private UUID saveReadyCard(UUID tripId, String name, double lng, double lat) {
         PlaceCard card = new PlaceCard();
         UUID id = UUID.randomUUID();
