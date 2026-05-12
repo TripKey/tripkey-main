@@ -22,7 +22,10 @@ const TravelerReservation = ({ title }: TravelerReservationProps) => {
             예약했다면 일정에 반영돼요
           </p>
         </div>
-        <ToggleSwitch isChecked={has_flight} onChange={(checked) => setForm({ has_flight: checked })} />
+        <ToggleSwitch
+          isChecked={has_flight}
+          onChange={(checked) => setForm({ has_flight: checked })}
+        />
       </div>
 
       <div className="traveler-reservation__row">
@@ -32,7 +35,10 @@ const TravelerReservation = ({ title }: TravelerReservationProps) => {
             예약했다면 일정에 반영돼요
           </p>
         </div>
-        <ToggleSwitch isChecked={has_accommodation} onChange={(checked) => setForm({ has_accommodation: checked })} />
+        <ToggleSwitch
+          isChecked={has_accommodation}
+          onChange={(checked) => setForm({ has_accommodation: checked })}
+        />
       </div>
     </section>
   );

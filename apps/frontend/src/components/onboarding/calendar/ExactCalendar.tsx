@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { type DateRange, DayPicker } from 'react-day-picker';
 
 import { useCalendarStore } from '@/utils/calendar-store';
+import { useOnboardingStore } from '@/utils/onboarding-store';
 
 import { CalendarNav } from './CalendarNav';
 import './ExactCalendar.css';
@@ -14,8 +15,8 @@ export const ExactCalendar = () => {
   });
 
   const setExactDate = useCalendarStore((s) => s.setExactDate);
-
   const clearExactDate = useCalendarStore((s) => s.clearExactDate);
+  const setForm = useOnboardingStore((s) => s.actions.setForm);
 
   const handleSelect = (newRange: DateRange | undefined) => {
     const from = newRange?.from;
@@ -27,8 +28,10 @@ export const ExactCalendar = () => {
     if (from && to) {
       const nights = differenceInDays(to, from);
       setExactDate({ from, to, nights });
+      setForm({ travel_days: nights });
     } else {
       clearExactDate();
+      setForm({ travel_days: 0 });
     }
   };
 

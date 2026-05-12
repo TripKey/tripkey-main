@@ -2,6 +2,7 @@ import './FlexCalendar.css';
 import { useState } from 'react';
 
 import { useCalendarStore } from '@/utils/calendar-store';
+import { useOnboardingStore } from '@/utils/onboarding-store';
 
 const FlexCalendar = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -9,6 +10,7 @@ const FlexCalendar = () => {
   const [durationNights, setDurationNights] = useState(3);
 
   const setFlexDate = useCalendarStore((s) => s.setFlexDate);
+  const setForm = useOnboardingStore((s) => s.actions.setForm);
 
   const currentYear = new Date().getFullYear();
 
@@ -18,22 +20,16 @@ const FlexCalendar = () => {
 
   const handleMonthClick = (month: number) => {
     setSelectedMonth(month);
-    setFlexDate({
-      year: selectedYear,
-      month,
-      nights: durationNights,
-    });
+    setFlexDate({ year: selectedYear, month, nights: durationNights });
+    setForm({ travel_days: durationNights });
   };
 
   const handleDurationClick = (nights: number) => {
     setDurationNights(nights);
 
     if (selectedMonth) {
-      setFlexDate({
-        year: selectedYear,
-        month: selectedMonth,
-        nights,
-      });
+      setFlexDate({ year: selectedYear, month: selectedMonth, nights });
+      setForm({ travel_days: nights });
     }
   };
 

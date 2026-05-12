@@ -11,7 +11,6 @@ import './OnboardingPage.css';
 const OnboardingPage = () => {
   const navigate = useNavigate();
   const { submitOnboarding } = useOnboardingStore((s) => s.actions);
-  const form = useOnboardingStore((s) => s.form);
   const errorMessage = useOnboardingStore((s) => s.errorMessage);
 
   const handleNext = async () => {
@@ -66,29 +65,12 @@ const OnboardingPage = () => {
       <aside className="onboarding-page__sidebar">
         <TripSummary
           items={[
-            {
-              icon: '✈️',
-              label: '여행지',
-              value: '-',
-            },
-            {
-              icon: '📅',
-              label: '일정',
-              value: '-',
-            },
-            {
-              icon: '👥',
-              label: '동행자',
-              value: '-',
-            },
-            {
-              icon: '✅',
-              label: '예약완료',
-              value: '-',
-            },
+            { icon: '✈️', label: '여행지', isNextDisabled: true },
+            { icon: '📅', label: '일정', isNextDisabled: true },
+            { icon: '👥', label: '동행자' },
+            { icon: '✅', label: '예약완료' },
           ]}
           onNext={handleNext}
-          isNextDisabled={form.destinations.length === 0}
           errorMessage={errorMessage}
           stateMessage="여행지와 일정을 입력하면 다음 단계로 진행할 수 있어요"
         />

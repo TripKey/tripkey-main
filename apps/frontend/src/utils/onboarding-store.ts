@@ -22,7 +22,7 @@ export const useOnboardingStore = create<OnboardingStore>()((set, get) => ({
   form: {
     destinations: [],
     travel_days: 0,
-    companion_count: 0,
+    companion_count: 1,
     has_flight: false,
     has_accommodation: false,
   },

@@ -35,16 +35,19 @@
 }
 
 .onboarding-page__main {
-  width: 640px;
-  padding: 40px 24px;
+  width: 720px;
+  padding: 40px 32px;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
 .onboarding-page__sidebar {
-  width: 320px;
+  width: 380px;
   padding: 40px 24px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
 }
 
 .onboarding-page__card {
