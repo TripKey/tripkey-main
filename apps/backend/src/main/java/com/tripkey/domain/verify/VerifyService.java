@@ -8,6 +8,7 @@ import com.tripkey.dto.placement.PlacementDay;
 import com.tripkey.dto.placement.PlacementDayItem;
 import com.tripkey.dto.placement.PlacementSaveRequest;
 import com.tripkey.dto.placement.PlacementSaveResponse;
+import com.tripkey.dto.placement.RouteWarning;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ public class VerifyService {
 
     private final TripRepository tripRepository;
     private final PlaceCardRepository placeCardRepository;
+    private final RouteValidator routeValidator;
 
     /**
      * Snapshot semantics — request 는 trip 의 Day 배치 전체 상태를 나타낸다.
@@ -69,6 +71,9 @@ public class VerifyService {
             }
         }
 
-        return PlacementSaveResponse.of(tripId, skippedInstanceIds);
+        placeCardRepository.flush();
+        List<RouteWarning> routeWarnings = routeValidator.validate(tripId);
+
+        return PlacementSaveResponse.of(tripId, skippedInstanceIds, routeWarnings);
     }
 }

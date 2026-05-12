@@ -8,6 +8,7 @@ import com.tripkey.dto.placement.PlacementDay;
 import com.tripkey.dto.placement.PlacementDayItem;
 import com.tripkey.dto.placement.PlacementSaveRequest;
 import com.tripkey.dto.placement.PlacementSaveResponse;
+import com.tripkey.dto.placement.RouteWarning;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -30,6 +31,9 @@ class VerifyServiceTest {
 
     @Mock
     private PlaceCardRepository placeCardRepository;
+
+    @Mock
+    private RouteValidator routeValidator;
 
     @InjectMocks
     private VerifyService verifyService;
@@ -248,6 +252,35 @@ class VerifyServiceTest {
         assertThat(card.getDay()).isEqualTo(2);
         assertThat(card.getDayOrder()).isEqualTo((short) 1);
         assertThat(card.getEstimatedDurationMin()).isEqualTo((short) 60);
+    }
+
+    @Test
+    void verifyAndSaveIncludesRouteWarningsFromValidator() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
+        RouteWarning warning = RouteWarning.duration(1, List.of(UUID.randomUUID()), 700);
+        when(routeValidator.validate(tripId)).thenReturn(List.of(warning));
+
+        PlacementSaveResponse response = verifyService.verifyAndSave(
+                tripId, new PlacementSaveRequest(List.of())
+        );
+
+        assertThat(response.routeWarnings()).containsExactly(warning);
+    }
+
+    @Test
+    void verifyAndSaveReturnsEmptyRouteWarningsWhenValidatorReturnsEmpty() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
+        when(routeValidator.validate(tripId)).thenReturn(List.of());
+
+        PlacementSaveResponse response = verifyService.verifyAndSave(
+                tripId, new PlacementSaveRequest(List.of())
+        );
+
+        assertThat(response.routeWarnings()).isEmpty();
     }
 
     private PlaceCard placeCard(UUID tripId) {
