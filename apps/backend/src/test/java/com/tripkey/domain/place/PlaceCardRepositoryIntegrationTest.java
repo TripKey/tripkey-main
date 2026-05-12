@@ -132,10 +132,10 @@ class PlaceCardRepositoryIntegrationTest {
         tripRepository.saveAndFlush(trip);
         UUID tripId = trip.getTripId();
 
-        // Day 1: 도톄→우메다 → 거리는 약 5km. day_order=1,2,3 으로 두 페어 발생.
+        // Day 1: 도톈보리→우메다 → 거리는 약 5km. day_order=1,2,3 으로 두 페어 발생.
         UUID a = savePlacedCard(tripId, "Card A", 135.5023, 34.6687, 1, (short) 1);
         UUID b = savePlacedCard(tripId, "Card B", 135.4960, 34.7025, 1, (short) 2);
-        UUID c = savePlacedCard(tripId, "Card C", 135.5500, 34.7000, 1, (short) 3);
+        savePlacedCard(tripId, "Card C", 135.5500, 34.7000, 1, (short) 3);
         // Day 2: 1개만 — 페어 없음
         savePlacedCard(tripId, "Card D", 135.0000, 34.0000, 2, (short) 1);
         // Excluded — 페어 계산 제외
@@ -158,7 +158,7 @@ class PlaceCardRepositoryIntegrationTest {
                 .as("Day 1 의 인접 페어 두 건만 조회되어야 함")
                 .containsKeys(a, b);
         assertThat(distanceByFirstId.get(a))
-                .as("도톈리→우메다 거리 약 5km 이상")
+                .as("도톈보리→우메다 거리 약 5km 이상")
                 .isGreaterThan(3000.0);
     }
 
