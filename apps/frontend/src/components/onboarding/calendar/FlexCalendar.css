@@ -1,0 +1,81 @@
+.flex-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 월 그리드 */
+.flex-calendar__month-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.flex-calendar__month-btn {
+  padding: 12px 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 14px;
+  color: #111827;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.flex-calendar__month-btn:hover:not(:disabled) {
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+.flex-calendar__month-btn--active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.flex-calendar__month-btn--disabled {
+  background: #f9fafb;
+  border-color: #f3f4f6;
+  color: #d1d5db;
+  cursor: default;
+}
+
+/* 박수 레이블 */
+.flex-calendar__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+/* 박수 선택 */
+.flex-calendar__duration {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.flex-calendar__duration-btn {
+  padding: 8px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.flex-calendar__duration-btn:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+.flex-calendar__duration-btn--active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #ffffff;
+  font-weight: 600;
+}

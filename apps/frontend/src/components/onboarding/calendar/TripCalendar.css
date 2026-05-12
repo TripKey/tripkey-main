@@ -1,0 +1,66 @@
+.trip-calendar__tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.trip-calendar__tab {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+  cursor: pointer;
+  background-color: #ffffff;
+  color: #6b7280;
+  transition: all 0.15s;
+}
+
+.trip-calendar__tab--active {
+  background-color: #6366f1;
+  border-color: #6366f1;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* 공통 네비게이션 */
+.calendar-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+}
+
+.calendar-nav__label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.calendar-nav__btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #6b7280;
+  transition: background 0.15s;
+}
+
+.calendar-nav__btn:hover {
+  background: #f3f4f6;
+}
+
+.calendar-nav__btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.rdp-month_caption {
+  padding: 8px 40px 16px;
+}
