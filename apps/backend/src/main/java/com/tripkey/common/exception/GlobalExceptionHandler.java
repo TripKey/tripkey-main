@@ -60,6 +60,18 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("INVALID_DAY_PARAM", e.getMessage()));
     }
 
+    @ExceptionHandler(ConfirmEmptyDaysException.class)
+    public ResponseEntity<ErrorResponse> handleConfirmEmptyDays(ConfirmEmptyDaysException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("CONFIRM_EMPTY_DAYS", e.getMessage()));
+    }
+
+    @ExceptionHandler(ConfirmAllExcludedException.class)
+    public ResponseEntity<ErrorResponse> handleConfirmAllExcluded(ConfirmAllExcludedException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("CONFIRM_ALL_EXCLUDED", e.getMessage()));
+    }
+
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException e) {
         if ("view".equals(e.getParameterName())) {
