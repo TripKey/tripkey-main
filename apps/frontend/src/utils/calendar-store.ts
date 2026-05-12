@@ -9,6 +9,7 @@ type CalendarStore = {
   flexDate: FlexDate | null;
   setExactDate: (value: ExactDate) => void;
   setFlexDate: (value: FlexDate) => void;
+  clearExactDate: () => void;
 };
 
 export const useCalendarStore = create<CalendarStore>((set) => ({
@@ -17,4 +18,5 @@ export const useCalendarStore = create<CalendarStore>((set) => ({
   flexDate: null,
   setExactDate: (value) => set({ type: 'exact', exactDate: value }),
   setFlexDate: (value) => set({ type: 'flexible', flexDate: value }),
+  clearExactDate: () => set({ type: null, exactDate: null }),
 }));

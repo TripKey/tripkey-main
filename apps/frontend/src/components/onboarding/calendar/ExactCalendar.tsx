@@ -15,6 +15,8 @@ export const ExactCalendar = () => {
 
   const setExactDate = useCalendarStore((s) => s.setExactDate);
 
+  const clearExactDate = useCalendarStore((s) => s.clearExactDate);
+
   const handleSelect = (newRange: DateRange | undefined) => {
     const from = newRange?.from;
     const to =
@@ -25,6 +27,8 @@ export const ExactCalendar = () => {
     if (from && to) {
       const nights = differenceInDays(to, from);
       setExactDate({ from, to, nights });
+    } else {
+      clearExactDate();
     }
   };
 
