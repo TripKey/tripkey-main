@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import ProgressStat from '@/components/common/ProgressStat';
 import ActionGroupSection from '@/components/grouping/ActionGroupSection';
+import AddCardModal from '@/components/grouping/AddCardModal';
 import CardDetailPanel from '@/components/grouping/CardDetailPanel';
 import EditCardDetailPanel from '@/components/grouping/EditCardDetailPanel';
 import PlaceCard from '@/components/grouping/PlaceCard';
@@ -27,6 +28,7 @@ const GroupingPage = () => {
   const [selectOpen, setSelectOpen] = useState(false);
   const [editCard, setEditCard] = useState<PlaceCardViewModel | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [addCardOpen, setAddCardOpen] = useState(false);
 
   const openReviewDetail = (card: PlaceCardViewModel) => {
     setReviewCard(card);
@@ -48,7 +50,7 @@ const GroupingPage = () => {
         extraDestinations={2}
         travelers={2}
         dateRange="5월 10일 ~ 5월 14일"
-        onAddCard={logStub('add-card')}
+        onAddCard={() => setAddCardOpen(true)}
         onAlertDemo={logStub('alert-demo')}
         onAlertMergedDemo={logStub('alert-merged-demo')}
       />
@@ -185,6 +187,16 @@ const GroupingPage = () => {
             memo
           )
         }
+      />
+
+      {/* 헤더 "카드 추가하기" 버튼으로 여는 중앙 모달 */}
+      <AddCardModal
+        open={addCardOpen}
+        onOpenChange={setAddCardOpen}
+        onSubmit={(draft) => {
+          console.log('[GroupingPage] stub action: add-card', draft);
+          setAddCardOpen(false);
+        }}
       />
     </div>
   );
