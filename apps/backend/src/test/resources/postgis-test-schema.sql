@@ -87,3 +87,19 @@ create table place_cards (
 );
 
 create index idx_place_cards_geom on place_cards using gist (geom);
+
+create table alert_cards (
+  id                    bigserial   primary key,
+  trip_id               uuid        not null references trips(trip_id),
+  job_id                uuid        references dump_jobs(job_id),
+  alert_id              text        not null,
+  type                  text        not null,
+  category              text        not null,
+  scope                 text        not null default 'trip',
+  day                   smallint,
+  message               text        not null,
+  related_instance_ids  text,
+  created_at            timestamptz not null default now()
+);
+
+create index idx_alert_cards_trip_id on alert_cards (trip_id);

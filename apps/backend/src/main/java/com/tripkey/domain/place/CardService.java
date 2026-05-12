@@ -3,6 +3,8 @@ package com.tripkey.domain.place;
 import com.tripkey.common.exception.CardNotFoundException;
 import com.tripkey.common.exception.FlightCardDuplicateRoleException;
 import com.tripkey.common.exception.TripNotFoundException;
+import com.tripkey.domain.alert.AlertCard;
+import com.tripkey.domain.alert.AlertCardRepository;
 import com.tripkey.domain.dump.DumpJob;
 import com.tripkey.domain.dump.DumpJobRepository;
 import com.tripkey.domain.trip.TripRepository;
@@ -29,6 +31,7 @@ public class CardService {
     private final PlaceCardRepository placeCardRepository;
     private final DumpJobRepository dumpJobRepository;
     private final CardInputParsingProcessor cardInputParsingProcessor;
+    private final AlertCardRepository alertCardRepository;
 
     @Transactional(readOnly = true)
     public CardsResponse getCards(UUID tripId) {
@@ -46,8 +49,9 @@ public class CardService {
                 .map(DumpJob::getContextSummary)
                 .orElse(null);
 
-        // alert_cards 영속화는 후속 작업. 현재는 빈 배열 반환.
-        List<AlertCardDto> alertCards = List.of();
+        List<AlertCardDto> alertCards = alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId).stream()
+                .map(CardService::toAlertCardDto)
+                .toList();
 
         return new CardsResponse(cards, contextSummary, alertCards);
     }
@@ -151,5 +155,15 @@ public class CardService {
                 cardInputParsingProcessor.parseAndEnrich(tripId, instanceId, naturalLanguageInput);
             }
         });
+    private static AlertCardDto toAlertCardDto(AlertCard entity) {
+        return new AlertCardDto(
+                entity.getAlertId(),
+                entity.getType(),
+                entity.getCategory(),
+                entity.getScope(),
+                entity.getDay() == null ? null : entity.getDay().intValue(),
+                entity.getMessage(),
+                entity.relatedInstanceUuids()
+        );
     }
 }
