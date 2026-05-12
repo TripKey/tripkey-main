@@ -17,6 +17,11 @@ const pages = [
     title: 'Progress Page',
     description: '진행 상태 페이지 (mock 파라미터로 상태 전환 가능)',
   },
+  {
+    path: '/grouping',
+    title: 'Grouping (SCR-03)',
+    description: '정보 정리하기 — 그룹화 화면 UI (목데이터)',
+  },
 ];
 
 const DevIndexPage = () => {
