@@ -1,11 +1,10 @@
 //접기/펼치기 가능한 "해야 할 액션" 섹션
 
 // variant 4종(types/grouping.ts 의 ActionGroupVariant):
-//   - select :보라/파랑 물음표 아이콘 — "선택이 필요한 카드들" 
+//   - select :보라/파랑 물음표 아이콘 — "선택이 필요한 카드들"
 //   - edit :  빨강 x 아이콘 — "수정이 필요한 카드들"  (파싱 실패 / 오타 등)
 //   - review     초록 체크 아이콘 — "확인만 하면 되는 카드들"
-//   - unassigned 회색 제한 아이콘    — "제외된 카드들"       
-
+//   - unassigned 회색 제한 아이콘    — "제외된 카드들"
 
 import {
   CheckCircle,
