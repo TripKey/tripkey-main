@@ -5,14 +5,12 @@ import DumpForm from '../components/dump/DumpForm';
 import DumpGuideCard from '../components/dump/DumpGuideCard';
 import { DUMP_TEXT } from '../utils/constants';
 import { useDumpStore } from '../utils/dump-store';
+import { useOnboardingStore } from '../utils/onboarding-store';
 
 import './DumpPage.css';
 
-type DumpPageProps = {
-  tripId: string;
-};
-
-const DumpPage = ({ tripId }: DumpPageProps) => {
+const DumpPage = () => {
+  const tripId = useOnboardingStore((s) => s.tripId);
   const { dumpText, requestStatus, errorMessage, actions } = useDumpStore();
   const { setDumpText, submitDump } = actions;
 
@@ -34,7 +32,7 @@ const DumpPage = ({ tripId }: DumpPageProps) => {
   const handleClickNext = async () => {
     navigate('/progress');
 
-    const isSuccess = await submitDump(tripId);
+    const isSuccess = await submitDump(tripId!);
 
     if (!isSuccess) {
       navigate('/dump');
