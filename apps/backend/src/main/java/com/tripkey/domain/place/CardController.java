@@ -59,7 +59,8 @@ public class CardController {
 
                     3. notes 입력
                     - notes는 모든 카드에 저장됩니다.
-                    - 카드가 undecided + needs_input, undecided + ready_partial, 또는 processing_status=failed 상태이면
+                    - 카드가 undecided + needs_input, undecided + ready_partial, 또는 processing_status=failed 이면서
+                      classification != open_question 상태이면
                       card-level AI 파싱과 Places lookup을 비동기로 트리거합니다.
                     - 트리거된 경우 PATCH 응답은 즉시 processing_status=processing을 반환합니다.
                     - open_question 카드는 notes가 있어도 파싱을 트리거하지 않고 저장만 합니다.

@@ -110,6 +110,7 @@ public class CardService {
         if (request.memo() != null) {
             card.updateMemo(request.memo());
         }
+        boolean shouldTriggerNotesParsing = notesInput != null && card.canStartNaturalLanguageParsingFromNotes();
 
         boolean accommodationEdit = "accommodation".equals(card.getCategory())
                 && (request.location() != null || request.checkIn() != null || request.checkOut() != null);
@@ -123,7 +124,7 @@ public class CardService {
             card.applyTransportEdit(request.location(), request.timeConstraint(), request.flightNumber());
         }
 
-        if (notesInput != null && card.canStartNaturalLanguageParsingFromNotes()) {
+        if (shouldTriggerNotesParsing) {
             card.markCardLevelParsingStarted();
             placeCardRepository.save(card);
             triggerInputParsingAfterCommit(tripId, instanceId, notesInput);

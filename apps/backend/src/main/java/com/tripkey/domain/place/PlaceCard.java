@@ -259,7 +259,7 @@ public class PlaceCard {
     public boolean canStartNaturalLanguageParsingFromNotes() {
         return ("undecided".equals(this.classification)
                 && ("needs_input".equals(this.placementStatus) || "ready_partial".equals(this.placementStatus)))
-                || "failed".equals(this.processingStatus);
+                || ("failed".equals(this.processingStatus) && !"open_question".equals(this.classification));
     }
 
     public void markCardLevelParsingStarted() {

@@ -367,6 +367,57 @@ class CardServiceTest {
     }
 
     @Test
+    void patchCardNotesDoesNotRetryFailedOpenQuestionCard() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = openQuestionCard(tripId);
+        card.markProcessingFailed();
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, "여기 포함해줘", null, null, null, null, null, null
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.notes()).isEqualTo("여기 포함해줘");
+        assertThat(updated.processingStatus()).isEqualTo("failed");
+        verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
+    }
+
+    @Test
+    void patchCardFailedAccommodationWithLocationAndNotesStillTriggersRetry() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = userAccommodationCard(tripId);
+        card.markProcessingFailed();
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, "난바역 근처 호텔로 확정", null,
+                "2025-08-02", "2025-08-05", null, "오사카 난바", null
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.processingStatus()).isEqualTo("processing");
+        assertThat(updated.location()).isEqualTo("오사카 난바");
+        assertThat(updated.checkIn()).isEqualTo("2025-08-02");
+        assertThat(updated.checkOut()).isEqualTo("2025-08-05");
+        verify(cardInputParsingProcessor).parseAndEnrich(tripId, instanceId, "난바역 근처 호텔로 확정");
+    }
+
+    @Test
     void patchCardNotesOnConfirmedCardStoresWithoutParsing() {
         UUID tripId = UUID.randomUUID();
         UUID instanceId = UUID.randomUUID();
