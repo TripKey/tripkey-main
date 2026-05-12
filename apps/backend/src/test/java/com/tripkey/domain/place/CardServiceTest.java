@@ -45,6 +45,8 @@ class CardServiceTest {
 
     @Mock
     private CardInputParsingProcessor cardInputParsingProcessor;
+    
+    @Mock
     private AlertCardRepository alertCardRepository;
 
     @InjectMocks
