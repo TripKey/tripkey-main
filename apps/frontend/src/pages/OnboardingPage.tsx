@@ -1,10 +1,23 @@
+import { useNavigate } from 'react-router-dom';
+
 import OnboardingForm from '../components/onboarding/OnboardingForm';
 import TravelerCount from '../components/onboarding/TravelerCount';
 import TravelerReservation from '../components/onboarding/TravelerReservation';
 import TripSummary from '../components/summary/TripSummary';
+import { useOnboardingStore } from '../utils/onboarding-store';
 import './OnboardingPage.css';
 
 const OnboardingPage = () => {
+  const navigate = useNavigate();
+  const { submitOnboarding } = useOnboardingStore((s) => s.actions);
+  const form = useOnboardingStore((s) => s.form);
+  const errorMessage = useOnboardingStore((s) => s.errorMessage);
+
+  const handleNext = async () => {
+    const success = await submitOnboarding();
+    if (success) navigate('/dump');
+  };
+
   return (
     <div className="onboarding-page">
       <main className="onboarding-page__main">
@@ -58,7 +71,7 @@ const OnboardingPage = () => {
             {
               icon: '✈️',
               label: '여행지',
-              value: '-',
+              value: form.destinations.length > 0 ? form.destinations.join(', ') : '-',
             },
             {
               icon: '📅',
@@ -68,7 +81,7 @@ const OnboardingPage = () => {
             {
               icon: '👥',
               label: '동행자',
-              value: '-',
+              value: form.companion_count > 0 ? `${form.companion_count}명` : '-',
             },
             {
               icon: '👥',
@@ -76,6 +89,10 @@ const OnboardingPage = () => {
               value: '-',
             },
           ]}
+          onNext={handleNext}
+          isNextDisabled={form.destinations.length === 0}
+          errorMessage={errorMessage}
+          stateMessage="여행지와 일정을 입력하면 다음 단계로 진행할 수 있어요"
         />
       </aside>
     </div>

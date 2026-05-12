@@ -1,5 +1,4 @@
 import { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import ActionBar from './ActionBar';
 import './TripSummary.css';
@@ -12,14 +11,13 @@ type TripSummaryItem = {
 
 type TripSummaryProps = {
   items: TripSummaryItem[];
+  onNext: () => void;
+  isNextDisabled: boolean;
+  errorMessage: string | null;
+  stateMessage: string;
 };
 
-const TripSummary = ({ items }: TripSummaryProps) => {
-  const navigate = useNavigate();
-
-  const handleClickNext = () => {
-    navigate('/dump');
-  };
+const TripSummary = ({ items, onNext, isNextDisabled, errorMessage, stateMessage }: TripSummaryProps) => {
 
   return (
     <section className="trip-summary">
@@ -41,10 +39,10 @@ const TripSummary = ({ items }: TripSummaryProps) => {
       <div className="trip-summary__action">
         <div>progress</div>
         <ActionBar
-          onNext={handleClickNext}
-          isNextDisabled={true}
-          errorMessage={null}
-          stateMessage="여행지와 일정을 입력하면 다음 단계로 진행할 수 있어요"
+          onNext={onNext}
+          isNextDisabled={isNextDisabled}
+          errorMessage={errorMessage}
+          stateMessage={stateMessage}
         />
       </div>
     </section>
