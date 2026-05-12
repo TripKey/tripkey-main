@@ -1,27 +1,23 @@
-import { useState } from 'react';
+import { useOnboardingStore } from '../../utils/onboarding-store';
 
 import './TravelerCount.css';
 
 type TravelerCountProps = {
   title: string;
-  count: number;
-  onCountChange?: (count: number) => void;
 };
 
-const TravelerCount = ({ title, count, onCountChange }: TravelerCountProps) => {
-  const [current, setCurrent] = useState(count);
+const TravelerCount = ({ title }: TravelerCountProps) => {
+  const companion_count = useOnboardingStore((s) => s.form.companion_count);
+  const setForm = useOnboardingStore((s) => s.actions.setForm);
+  const current = companion_count === 0 ? 1 : companion_count;
 
   const handleDecrement = () => {
     if (current <= 1) return;
-    const next = current - 1;
-    setCurrent(next);
-    onCountChange?.(next);
+    setForm({ companion_count: current - 1 });
   };
 
   const handleIncrement = () => {
-    const next = current + 1;
-    setCurrent(next);
-    onCountChange?.(next);
+    setForm({ companion_count: current + 1 });
   };
 
   return (

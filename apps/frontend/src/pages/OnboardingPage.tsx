@@ -57,7 +57,7 @@ const OnboardingPage = () => {
           </section>
 
           <section className="onboarding-page__card onboarding-page__traveler">
-            <TravelerCount title="동행자 수" count={1} />
+            <TravelerCount title="동행자 수" />
             <TravelerReservation title="여행 예약 상태" />
           </section>
         </div>
@@ -69,10 +69,7 @@ const OnboardingPage = () => {
             {
               icon: '✈️',
               label: '여행지',
-              value:
-                form.destinations.length > 0
-                  ? form.destinations.join(', ')
-                  : '-',
+              value: '-',
             },
             {
               icon: '📅',
@@ -82,11 +79,10 @@ const OnboardingPage = () => {
             {
               icon: '👥',
               label: '동행자',
-              value:
-                form.companion_count > 0 ? `${form.companion_count}명` : '-',
+              value: '-',
             },
             {
-              icon: '👥',
+              icon: '✅',
               label: '예약완료',
               value: '-',
             },

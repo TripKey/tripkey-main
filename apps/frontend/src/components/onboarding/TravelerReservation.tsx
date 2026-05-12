@@ -1,5 +1,4 @@
-import { useState } from 'react';
-
+import { useOnboardingStore } from '../../utils/onboarding-store';
 import ToggleSwitch from '../common/ToggleSwitch';
 import './TravelerReservation.css';
 
@@ -8,8 +7,9 @@ type TravelerReservationProps = {
 };
 
 const TravelerReservation = ({ title }: TravelerReservationProps) => {
-  const [isFlightBooked, setIsFlightBooked] = useState(false);
-  const [isAccomBooked, setIsAccomBooked] = useState(false);
+  const has_flight = useOnboardingStore((s) => s.form.has_flight);
+  const has_accommodation = useOnboardingStore((s) => s.form.has_accommodation);
+  const setForm = useOnboardingStore((s) => s.actions.setForm);
 
   return (
     <section className="traveler-reservation">
@@ -22,7 +22,7 @@ const TravelerReservation = ({ title }: TravelerReservationProps) => {
             예약했다면 일정에 반영돼요
           </p>
         </div>
-        <ToggleSwitch isChecked={isFlightBooked} onChange={setIsFlightBooked} />
+        <ToggleSwitch isChecked={has_flight} onChange={(checked) => setForm({ has_flight: checked })} />
       </div>
 
       <div className="traveler-reservation__row">
@@ -32,7 +32,7 @@ const TravelerReservation = ({ title }: TravelerReservationProps) => {
             예약했다면 일정에 반영돼요
           </p>
         </div>
-        <ToggleSwitch isChecked={isAccomBooked} onChange={setIsAccomBooked} />
+        <ToggleSwitch isChecked={has_accommodation} onChange={(checked) => setForm({ has_accommodation: checked })} />
       </div>
     </section>
   );
