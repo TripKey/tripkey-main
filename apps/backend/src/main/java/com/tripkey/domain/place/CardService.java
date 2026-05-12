@@ -80,8 +80,7 @@ public class CardService {
                 request.memo(),
                 request.checkIn(),
                 request.checkOut(),
-                request.flightNumber()
-        );
+                request.flightNumber());
         placeCardRepository.save(card);
         return CardDto.from(card);
     }
@@ -155,6 +154,8 @@ public class CardService {
                 cardInputParsingProcessor.parseAndEnrich(tripId, instanceId, naturalLanguageInput);
             }
         });
+    }
+
     private static AlertCardDto toAlertCardDto(AlertCard entity) {
         return new AlertCardDto(
                 entity.getAlertId(),
@@ -163,7 +164,6 @@ public class CardService {
                 entity.getScope(),
                 entity.getDay() == null ? null : entity.getDay().intValue(),
                 entity.getMessage(),
-                entity.relatedInstanceUuids()
-        );
+                entity.relatedInstanceUuids());
     }
 }
