@@ -1,9 +1,11 @@
 package com.tripkey.infra.aiengine;
 
+import com.tripkey.infra.aiengine.dto.AiCardParseRequest;
 import com.tripkey.infra.aiengine.dto.AiParseRequest;
 import com.tripkey.infra.aiengine.dto.AiParseResponse;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentRequest;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentResponse;
+import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -51,6 +53,30 @@ public class AiEngineClient {
             return response;
         } catch (WebClientResponseException | WebClientRequestException e) {
             throw new IllegalStateException("Failed to call ai-engine non-blocking enrichment endpoint", e);
+        }
+    }
+
+    public AiPlaceCardDto parseCard(AiCardParseRequest request) {
+        try {
+            AiPlaceCardDto response = aiEngineWebClient.post()
+                    .uri("/internal/ai/parse/card")
+                    .bodyValue(request)
+                    .retrieve()
+                    .bodyToMono(AiPlaceCardDto.class)
+                    .block();
+
+            if (response == null) {
+                throw new IllegalStateException("ai-engine returned an empty card parse response body");
+            }
+
+            return response;
+        } catch (WebClientResponseException e) {
+            throw new IllegalStateException(
+                    "Failed to call ai-engine card parse endpoint. status=%s body=%s"
+                            .formatted(e.getStatusCode(), e.getResponseBodyAsString()),
+                    e);
+        } catch (WebClientRequestException e) {
+            throw new IllegalStateException("Failed to call ai-engine card parse endpoint", e);
         }
     }
 }

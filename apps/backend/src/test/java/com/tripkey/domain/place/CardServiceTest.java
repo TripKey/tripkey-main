@@ -27,6 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,6 +43,9 @@ class CardServiceTest {
     @Mock
     private DumpJobRepository dumpJobRepository;
 
+    @Mock
+    private CardInputParsingProcessor cardInputParsingProcessor;
+    
     @Mock
     private AlertCardRepository alertCardRepository;
 
@@ -293,6 +298,196 @@ class CardServiceTest {
         assertThat(updated.checkOut()).isEqualTo("2025-08-05");
     }
 
+    @Test
+    void patchCardNotesTriggersCardLevelParsingForNeedsInputCard() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = needsInputCard(tripId);
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, "친구 집은 오사카 난바역 근처야", null, null, null, null, null, null
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.processingStatus()).isEqualTo("processing");
+        assertThat(updated.notes()).isEqualTo("친구 집은 오사카 난바역 근처야");
+        verify(cardInputParsingProcessor).parseAndEnrich(tripId, instanceId, "친구 집은 오사카 난바역 근처야");
+    }
+
+    @Test
+    void patchCardNotesTriggersCardLevelParsingForReadyPartialUndecidedCard() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = undecidedReadyPartialCard(tripId);
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, "스시 옵션 말고 난바 라멘집으로 할게", null, null, null, null, null, null
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.processingStatus()).isEqualTo("processing");
+        verify(cardInputParsingProcessor).parseAndEnrich(tripId, instanceId, "스시 옵션 말고 난바 라멘집으로 할게");
+    }
+
+    @Test
+    void patchCardNotesCanRetryFailedCard() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = userPlaceCard(tripId);
+        card.markProcessingFailed();
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, "도톤보리 글리코 사인으로 확정", null, null, null, null, null, null
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.processingStatus()).isEqualTo("processing");
+        verify(cardInputParsingProcessor).parseAndEnrich(tripId, instanceId, "도톤보리 글리코 사인으로 확정");
+    }
+
+    @Test
+    void patchCardNotesDoesNotRetryFailedOpenQuestionCard() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = openQuestionCard(tripId);
+        card.markProcessingFailed();
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, "여기 포함해줘", null, null, null, null, null, null
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.notes()).isEqualTo("여기 포함해줘");
+        assertThat(updated.processingStatus()).isEqualTo("failed");
+        verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
+    }
+
+    @Test
+    void patchCardFailedAccommodationWithLocationAndNotesStillTriggersRetry() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = userAccommodationCard(tripId);
+        card.markProcessingFailed();
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, "난바역 근처 호텔로 확정", null,
+                "2025-08-02", "2025-08-05", null, "오사카 난바", null
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.processingStatus()).isEqualTo("processing");
+        assertThat(updated.location()).isEqualTo("오사카 난바");
+        assertThat(updated.checkIn()).isEqualTo("2025-08-02");
+        assertThat(updated.checkOut()).isEqualTo("2025-08-05");
+        verify(cardInputParsingProcessor).parseAndEnrich(tripId, instanceId, "난바역 근처 호텔로 확정");
+    }
+
+    @Test
+    void patchCardNotesOnConfirmedCardStoresWithoutParsing() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = userPlaceCard(tripId);
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, "여기 가자", null, null, null, null, null, null
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.notes()).isEqualTo("여기 가자");
+        assertThat(updated.processingStatus()).isEqualTo("processing");
+        verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
+    }
+
+    @Test
+    void patchCardNotesOnOpenQuestionCardStoresWithoutParsing() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = openQuestionCard(tripId);
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, "여기 포함해줘", null, null, null, null, null, null
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.notes()).isEqualTo("여기 포함해줘");
+        assertThat(updated.processingStatus()).isEqualTo("completed");
+        verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
+    }
+
+    @Test
+    void patchCardMemoDoesNotTriggerCardLevelParsing() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = needsInputCard(tripId);
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, null, "자유 메모만 저장", null, null, null, null, null
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.memo()).isEqualTo("자유 메모만 저장");
+        assertThat(updated.processingStatus()).isEqualTo("completed");
+        verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
+    }
+
     private PlaceCard userPlaceCard(UUID tripId) {
         return PlaceCard.createUserCard(
                 tripId, "도톤보리", "place", null, null, null, null, null, null, null
@@ -308,27 +503,27 @@ class CardServiceTest {
 
     private PlaceCard openQuestionCard(UUID tripId) {
         com.tripkey.infra.aiengine.dto.AiPlaceCardDto dto = new com.tripkey.infra.aiengine.dto.AiPlaceCardDto(
-                null,
-                "테라로사",
-                "food",
-                "open_question",
-                "ready_partial",
-                false,
-                false,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
+                null, "테라로사", "food", "open_question", "ready_partial",
+                false, false, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null
+        );
+        return PlaceCard.createFromAiResponse(tripId, dto, "ai_parse");
+    }
+
+    private PlaceCard needsInputCard(UUID tripId) {
+        com.tripkey.infra.aiengine.dto.AiPlaceCardDto dto = new com.tripkey.infra.aiengine.dto.AiPlaceCardDto(
+                null, "친구집", "place", "undecided", "needs_input",
+                false, false, null, null, null, null, null, null, null,
+                "친구집 위치를 알려주세요", null, null, null, null, null, null, null, null
+        );
+        return PlaceCard.createFromAiResponse(tripId, dto, "ai_parse");
+    }
+
+    private PlaceCard undecidedReadyPartialCard(UUID tripId) {
+        com.tripkey.infra.aiengine.dto.AiPlaceCardDto dto = new com.tripkey.infra.aiengine.dto.AiPlaceCardDto(
+                null, "저녁 식당", "food", "undecided", "ready_partial",
+                false, false, null, null, null, null, null, null, null,
+                "어떤 식당으로 할까요?", List.of("스시", "라멘"), null, null, null, null, null, null, null
         );
         return PlaceCard.createFromAiResponse(tripId, dto, "ai_parse");
     }

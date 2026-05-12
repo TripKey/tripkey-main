@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record AiNonBlockingEnrichmentRequest(
+public record AiCardParseRequest(
         @JsonProperty("trip_id")
         UUID tripId,
 
@@ -20,20 +20,25 @@ public record AiNonBlockingEnrichmentRequest(
         @JsonProperty("companion_count")
         Short companionCount,
 
+        @JsonProperty("natural_language_input")
+        String naturalLanguageInput,
+
         CardSnapshot card
 ) {
 
-    public static AiNonBlockingEnrichmentRequest from(
+    public static AiCardParseRequest from(
             PlaceCard card,
             List<String> destinations,
             Short travelDays,
-            Short companionCount
+            Short companionCount,
+            String naturalLanguageInput
     ) {
-        return new AiNonBlockingEnrichmentRequest(
+        return new AiCardParseRequest(
                 card.getTripId(),
                 destinations,
                 travelDays,
                 companionCount,
+                naturalLanguageInput,
                 CardSnapshot.from(card)
         );
     }
@@ -58,7 +63,7 @@ public record AiNonBlockingEnrichmentRequest(
             @JsonProperty("place_id")
             String placeId,
 
-            Coordinates coordinates,
+            AiNonBlockingEnrichmentRequest.Coordinates coordinates,
 
             String location,
 
@@ -67,12 +72,22 @@ public record AiNonBlockingEnrichmentRequest(
             @JsonProperty("time_constraint")
             String timeConstraint,
 
+            @JsonProperty("question_text")
+            String questionText,
+
+            List<String> options,
+
+            @JsonProperty("blocked_reason")
+            String blockedReason,
+
             @JsonProperty("user_context")
             String userContext,
 
             String tips,
 
             List<String> tags,
+
+            String source,
 
             @JsonProperty("check_in")
             String checkIn,
@@ -93,9 +108,10 @@ public record AiNonBlockingEnrichmentRequest(
             String searchAlias
     ) {
         public static CardSnapshot from(PlaceCard card) {
-            Coordinates coordinates = (card.getLat() != null && card.getLng() != null)
-                    ? new Coordinates(card.getLat(), card.getLng())
-                    : null;
+            AiNonBlockingEnrichmentRequest.Coordinates coordinates =
+                    (card.getLat() != null && card.getLng() != null)
+                            ? new AiNonBlockingEnrichmentRequest.Coordinates(card.getLat(), card.getLng())
+                            : null;
 
             return new CardSnapshot(
                     card.getInstanceId(),
@@ -109,9 +125,13 @@ public record AiNonBlockingEnrichmentRequest(
                     card.getLocation(),
                     card.getAddress(),
                     card.getTimeConstraint(),
+                    card.getQuestionText(),
+                    card.getOptions(),
+                    card.getBlockedReason(),
                     card.getUserContext(),
                     card.getTips(),
                     card.getTags(),
+                    card.getSource(),
                     card.getCheckIn(),
                     card.getCheckOut(),
                     card.getFlightNumber(),
@@ -120,11 +140,5 @@ public record AiNonBlockingEnrichmentRequest(
                     card.getSearchAlias()
             );
         }
-    }
-
-    public record Coordinates(
-            Double lat,
-            Double lng
-    ) {
     }
 }
