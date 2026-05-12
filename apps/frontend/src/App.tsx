@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import DevIndexPage from './pages/DevIndexPage';
 import DumpPage from './pages/DumpPage';
+import HeaderPreviewPage from './pages/HeaderPreviewPage';
 import OnboardingPage from './pages/OnboardingPage';
 import ProgressPageDev from './pages/ProgressPageDev';
 
@@ -15,6 +16,7 @@ const App = () => {
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/dump" element={<DumpPage tripId={tripId} />} />
         <Route path="/progress" element={<ProgressPageDev />} />
+        <Route path="/header-preview" element={<HeaderPreviewPage />} />
       </Routes>
     </BrowserRouter>
   );
