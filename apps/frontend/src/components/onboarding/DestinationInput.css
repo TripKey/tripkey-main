@@ -1,0 +1,53 @@
+.destination-input__wrapper {
+  position: relative;
+}
+
+.destination-input__box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 15px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.destination-input__box:focus-within {
+  border-color: #6c5ce7;
+}
+
+.destination-input__box input {
+  border: none;
+  outline: none;
+  flex: 1;
+  min-width: 80px;
+  font-size: 15px;
+  color: #333333;
+}
+
+.destination-input__box input::placeholder {
+  color: #aaaaaa;
+}
+
+.destination-input__tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #ededff;
+  border-radius: 20px;
+  font-size: 13px;
+}
+
+.destination-input__tag button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #888;
+  padding: 0;
+}

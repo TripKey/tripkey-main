@@ -3,6 +3,7 @@ export const API_BASE_URL =
 
 export const API_PATH = {
   DUMP: (tripId: string) => `/trips/${tripId}/dump`,
+  ONBOARDING: '/trips',
 } as const;
 
 export const DUMP_TEXT = {
