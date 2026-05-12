@@ -4,12 +4,15 @@ import com.tripkey.common.exception.CardNotFoundException;
 import com.tripkey.common.exception.FlightCardDuplicateRoleException;
 import com.tripkey.common.exception.InvalidClassificationTransitionException;
 import com.tripkey.common.exception.TripNotFoundException;
+import com.tripkey.domain.alert.AlertCard;
+import com.tripkey.domain.alert.AlertCardRepository;
 import com.tripkey.domain.dump.DumpJobRepository;
 import com.tripkey.domain.trip.TripRepository;
 import com.tripkey.dto.card.CardAddRequest;
 import com.tripkey.dto.card.CardDto;
 import com.tripkey.dto.card.CardPatchRequest;
 import com.tripkey.dto.card.CardsResponse;
+import com.tripkey.infra.aiengine.dto.AiParseResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -38,6 +41,9 @@ class CardServiceTest {
     @Mock
     private DumpJobRepository dumpJobRepository;
 
+    @Mock
+    private AlertCardRepository alertCardRepository;
+
     @InjectMocks
     private CardService cardService;
 
@@ -47,12 +53,75 @@ class CardServiceTest {
         when(tripRepository.existsById(tripId)).thenReturn(true);
         when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
         when(dumpJobRepository.findFirstByTripIdOrderByCreatedAtDesc(tripId)).thenReturn(Optional.empty());
+        when(alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId)).thenReturn(List.of());
 
         CardsResponse response = cardService.getCards(tripId);
 
         assertThat(response.cards()).isEmpty();
         assertThat(response.contextSummary()).isNull();
         assertThat(response.alertCards()).isEmpty();
+    }
+
+    @Test
+    void getCardsReturnsAlertCardsInCreatedAtAscOrder() {
+        UUID tripId = UUID.randomUUID();
+        UUID relatedId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
+        when(dumpJobRepository.findFirstByTripIdOrderByCreatedAtDesc(tripId)).thenReturn(Optional.empty());
+
+        AlertCard alert = AlertCard.fromAiResponse(
+                new AiParseResponse.AlertCard(
+                        "alert-1",
+                        "timing_conflict",
+                        "practical",
+                        "trip",
+                        null,
+                        "체크인이 항공편보다 빨라요",
+                        List.of(relatedId)
+                ),
+                tripId,
+                UUID.randomUUID()
+        );
+        when(alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId)).thenReturn(List.of(alert));
+
+        CardsResponse response = cardService.getCards(tripId);
+
+        assertThat(response.alertCards()).hasSize(1);
+        assertThat(response.alertCards().get(0).id()).isEqualTo("alert-1");
+        assertThat(response.alertCards().get(0).type()).isEqualTo("timing_conflict");
+        assertThat(response.alertCards().get(0).category()).isEqualTo("practical");
+        assertThat(response.alertCards().get(0).scope()).isEqualTo("trip");
+        assertThat(response.alertCards().get(0).day()).isNull();
+        assertThat(response.alertCards().get(0).relatedInstanceIds()).containsExactly(relatedId);
+    }
+
+    @Test
+    void getCardsAlertCardWithNullRelatedInstancesReturnsEmptyList() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
+        when(dumpJobRepository.findFirstByTripIdOrderByCreatedAtDesc(tripId)).thenReturn(Optional.empty());
+
+        AlertCard alert = AlertCard.fromAiResponse(
+                new AiParseResponse.AlertCard(
+                        "alert-2",
+                        "festival",
+                        "insight",
+                        "trip",
+                        null,
+                        "축제 기간입니다",
+                        null
+                ),
+                tripId,
+                null
+        );
+        when(alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId)).thenReturn(List.of(alert));
+
+        CardsResponse response = cardService.getCards(tripId);
+
+        assertThat(response.alertCards()).hasSize(1);
+        assertThat(response.alertCards().get(0).relatedInstanceIds()).isEmpty();
     }
 
     @Test
