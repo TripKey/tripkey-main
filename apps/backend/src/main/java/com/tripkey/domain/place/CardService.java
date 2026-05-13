@@ -3,6 +3,8 @@ package com.tripkey.domain.place;
 import com.tripkey.common.exception.CardNotFoundException;
 import com.tripkey.common.exception.FlightCardDuplicateRoleException;
 import com.tripkey.common.exception.TripNotFoundException;
+import com.tripkey.domain.alert.AlertCard;
+import com.tripkey.domain.alert.AlertCardRepository;
 import com.tripkey.domain.dump.DumpJob;
 import com.tripkey.domain.dump.DumpJobRepository;
 import com.tripkey.domain.trip.TripRepository;
@@ -14,6 +16,8 @@ import com.tripkey.dto.card.CardsResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Comparator;
 import java.util.List;
@@ -26,6 +30,8 @@ public class CardService {
     private final TripRepository tripRepository;
     private final PlaceCardRepository placeCardRepository;
     private final DumpJobRepository dumpJobRepository;
+    private final CardInputParsingProcessor cardInputParsingProcessor;
+    private final AlertCardRepository alertCardRepository;
 
     @Transactional(readOnly = true)
     public CardsResponse getCards(UUID tripId) {
@@ -43,8 +49,9 @@ public class CardService {
                 .map(DumpJob::getContextSummary)
                 .orElse(null);
 
-        // alert_cards 영속화는 후속 작업. 현재는 빈 배열 반환.
-        List<AlertCardDto> alertCards = List.of();
+        List<AlertCardDto> alertCards = alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId).stream()
+                .map(CardService::toAlertCardDto)
+                .toList();
 
         return new CardsResponse(cards, contextSummary, alertCards);
     }
@@ -73,8 +80,7 @@ public class CardService {
                 request.memo(),
                 request.checkIn(),
                 request.checkOut(),
-                request.flightNumber()
-        );
+                request.flightNumber());
         placeCardRepository.save(card);
         return CardDto.from(card);
     }
@@ -97,12 +103,14 @@ public class CardService {
         if (request.allowDuplicate() != null) {
             card.setAllowDuplicate(request.allowDuplicate());
         }
+        String notesInput = trimToNull(request.notes());
         if (request.notes() != null) {
             card.updateNotes(request.notes());
         }
         if (request.memo() != null) {
             card.updateMemo(request.memo());
         }
+        boolean shouldTriggerNotesParsing = notesInput != null && card.canStartNaturalLanguageParsingFromNotes();
 
         boolean accommodationEdit = "accommodation".equals(card.getCategory())
                 && (request.location() != null || request.checkIn() != null || request.checkOut() != null);
@@ -116,7 +124,47 @@ public class CardService {
             card.applyTransportEdit(request.location(), request.timeConstraint(), request.flightNumber());
         }
 
+        if (shouldTriggerNotesParsing) {
+            card.markCardLevelParsingStarted();
+            placeCardRepository.save(card);
+            triggerInputParsingAfterCommit(tripId, instanceId, notesInput);
+            return CardDto.from(card);
+        }
+
         placeCardRepository.save(card);
         return CardDto.from(card);
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private void triggerInputParsingAfterCommit(UUID tripId, UUID instanceId, String naturalLanguageInput) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            cardInputParsingProcessor.parseAndEnrich(tripId, instanceId, naturalLanguageInput);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                cardInputParsingProcessor.parseAndEnrich(tripId, instanceId, naturalLanguageInput);
+            }
+        });
+    }
+
+    private static AlertCardDto toAlertCardDto(AlertCard entity) {
+        return new AlertCardDto(
+                entity.getAlertId(),
+                entity.getType(),
+                entity.getCategory(),
+                entity.getScope(),
+                entity.getDay() == null ? null : entity.getDay().intValue(),
+                entity.getMessage(),
+                entity.relatedInstanceUuids());
     }
 }

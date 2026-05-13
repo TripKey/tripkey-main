@@ -179,7 +179,7 @@ def test_name_match_rejects_unrelated_result() -> None:
     assert not core_parse._is_name_match(card, "도쿄 디즈니랜드")
 
 
-def test_to_public_card_drops_search_alias() -> None:
+def test_to_public_card_keeps_search_alias_for_backend_storage() -> None:
     card = ParsedCard(
         name="도쿄타워",
         category=Category.PLACE,
@@ -192,7 +192,7 @@ def test_to_public_card_drops_search_alias() -> None:
 
     public_card = to_public_card(card)
 
-    assert "search_alias" not in public_card.model_dump()
+    assert public_card.model_dump()["search_alias"] == "東京タワー"
 
 
 def test_undecided_ready_partial_requires_options() -> None:

@@ -87,7 +87,10 @@ public record AiNonBlockingEnrichmentRequest(
             String flightDatetime,
 
             @JsonProperty("flight_role")
-            String flightRole
+            String flightRole,
+
+            @JsonProperty("search_alias")
+            String searchAlias
     ) {
         public static CardSnapshot from(PlaceCard card) {
             Coordinates coordinates = (card.getLat() != null && card.getLng() != null)
@@ -113,7 +116,8 @@ public record AiNonBlockingEnrichmentRequest(
                     card.getCheckOut(),
                     card.getFlightNumber(),
                     card.getFlightDatetime(),
-                    card.getFlightRole()
+                    card.getFlightRole(),
+                    card.getSearchAlias()
             );
         }
     }

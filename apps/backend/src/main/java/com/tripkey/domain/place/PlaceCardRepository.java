@@ -44,4 +44,24 @@ public interface PlaceCardRepository extends JpaRepository<PlaceCard, UUID> {
             @Param("tripId") UUID tripId,
             @Param("epsMeters") double epsMeters,
             @Param("minPts") int minPts);
+
+    @Query(value = """
+            select c1.instance_id as id_a,
+                   c2.instance_id as id_b,
+                   c1.day as day,
+                   st_distancesphere(c1.geom, c2.geom) as distance_meters
+              from place_cards c1
+              join place_cards c2
+                on c1.trip_id = c2.trip_id
+               and c1.day = c2.day
+               and c2.day_order = c1.day_order + 1
+             where c1.trip_id = :tripId
+               and c1.is_excluded = false
+               and c2.is_excluded = false
+               and c1.geom is not null
+               and c2.geom is not null
+               and c1.day is not null
+               and c1.day_order is not null
+            """, nativeQuery = true)
+    List<Object[]> findAdjacentCardDistances(@Param("tripId") UUID tripId);
 }

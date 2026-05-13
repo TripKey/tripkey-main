@@ -43,10 +43,14 @@ public class ConfirmService {
 
         validateAllPlacedNotExcluded(tripId, days);
 
-        verifyService.verifyAndSave(tripId, request);
+        PlacementSaveResponse verifyResponse = verifyService.verifyAndSave(tripId, request);
         trip.confirm();
 
-        return PlacementSaveResponse.of(tripId);
+        return PlacementSaveResponse.of(
+                tripId,
+                verifyResponse.skippedInstanceIds(),
+                verifyResponse.routeWarnings()
+        );
     }
 
     private void validateAllPlacedNotExcluded(UUID tripId, List<PlacementDay> days) {

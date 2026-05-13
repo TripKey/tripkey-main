@@ -1,10 +1,13 @@
 package com.tripkey.domain.dump;
 
+import com.tripkey.domain.alert.AlertCard;
+import com.tripkey.domain.alert.AlertCardRepository;
 import com.tripkey.domain.place.PlaceCard;
 import com.tripkey.domain.trip.Trip;
 import com.tripkey.infra.aiengine.AiEngineClient;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentRequest;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentResponse;
+import com.tripkey.infra.aiengine.dto.AiParseResponse;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +30,9 @@ class NonBlockingEnrichmentProcessorTest {
 
     @Mock
     private AiEngineClient aiEngineClient;
+
+    @Mock
+    private AlertCardRepository alertCardRepository;
 
     @InjectMocks
     private NonBlockingEnrichmentProcessor nonBlockingEnrichmentProcessor;
@@ -111,5 +117,36 @@ class NonBlockingEnrichmentProcessorTest {
         assertThat(snapshot.flightNumber()).isEqualTo("KE703");
         assertThat(snapshot.flightDatetime()).isEqualTo("2026-07-01T09:00:00+09:00");
         assertThat(snapshot.flightRole()).isEqualTo("outbound");
+    }
+
+    @Test
+    void triggerPersistsAlertsWithNullJobIdWhenEnrichmentReturnsAlerts() {
+        UUID tripId = UUID.randomUUID();
+        PlaceCard card = PlaceCard.createFromAiResponse(
+                tripId,
+                new AiPlaceCardDto(
+                        null, "도톤보리", "place", "confirmed", "ready_partial",
+                        false, false, (short) 90, null, "오사카",
+                        null, null, null, null, null, null, null, null, null, null, null
+                ),
+                "ai_parse"
+        );
+        Trip trip = new Trip((short) 3, (short) 2);
+        AiParseResponse.AlertCard insightAlert = new AiParseResponse.AlertCard(
+                "alert-insight-1", "festival", "insight", "trip", null, "축제 기간입니다", null
+        );
+        when(aiEngineClient.enrichCardNonBlocking(any()))
+                .thenReturn(new AiNonBlockingEnrichmentResponse(null, List.of(), List.of(insightAlert)));
+
+        nonBlockingEnrichmentProcessor.trigger(List.of(card), List.of("오사카"), trip);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<AlertCard>> captor = ArgumentCaptor.forClass(List.class);
+        verify(alertCardRepository).saveAll(captor.capture());
+        List<AlertCard> persisted = captor.getValue();
+        assertThat(persisted).hasSize(1);
+        assertThat(persisted.get(0).getAlertId()).isEqualTo("alert-insight-1");
+        assertThat(persisted.get(0).getTripId()).isEqualTo(tripId);
+        assertThat(persisted.get(0).getJobId()).isNull();
     }
 }

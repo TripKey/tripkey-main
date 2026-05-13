@@ -12,6 +12,8 @@ import com.tripkey.dto.placement.PlacementDay;
 import com.tripkey.dto.placement.PlacementDayItem;
 import com.tripkey.dto.placement.PlacementSaveRequest;
 import com.tripkey.dto.placement.PlacementSaveResponse;
+import com.tripkey.dto.placement.RouteWarning;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -27,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -46,6 +49,12 @@ class ConfirmServiceTest {
 
     @InjectMocks
     private ConfirmService confirmService;
+
+    @BeforeEach
+    void stubVerifyServiceDefaultResponse() {
+        lenient().when(verifyService.verifyAndSave(any(), any()))
+                .thenAnswer(invocation -> PlacementSaveResponse.of(invocation.getArgument(0)));
+    }
 
     @Test
     void confirmAndSaveThrowsTripNotFoundWhenTripMissing() {
@@ -180,6 +189,35 @@ class ConfirmServiceTest {
         assertThat(second.saved()).isTrue();
         assertThat(trip.getConfirmedAt()).isNotNull();
         verify(verifyService, times(2)).verifyAndSave(tripId, request);
+    }
+
+    @Test
+    void confirmAndSavePassesThroughVerifyServiceRouteWarnings() {
+        UUID tripId = UUID.randomUUID();
+        Trip trip = new Trip((short) 3, (short) 2);
+        when(tripRepository.findById(tripId)).thenReturn(Optional.of(trip));
+
+        PlaceCard card = placeCard(tripId);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(card));
+
+        RouteWarning warning = RouteWarning.distance(
+                1, UUID.randomUUID(), UUID.randomUUID(), 12_000
+        );
+        UUID stale = UUID.randomUUID();
+        when(verifyService.verifyAndSave(eq(tripId), any())).thenReturn(
+                PlacementSaveResponse.of(tripId, List.of(stale), List.of(warning))
+        );
+
+        PlacementSaveRequest request = new PlacementSaveRequest(List.of(
+                new PlacementDay(1, List.of(
+                        new PlacementDayItem(card.getInstanceId(), 1, null)
+                ))
+        ));
+
+        PlacementSaveResponse response = confirmService.confirmAndSave(tripId, request);
+
+        assertThat(response.skippedInstanceIds()).containsExactly(stale);
+        assertThat(response.routeWarnings()).containsExactly(warning);
     }
 
     private PlaceCard placeCard(UUID tripId) {

@@ -17,6 +17,8 @@ from google.api_core.exceptions import ResourceExhausted
 import google.genai as genai
 
 from app.prompts.core_parse import build_core_parse_prompt
+from app.prompts.card_parse import build_card_parse_prompt
+from app.schemas.card_parse import CardParseRequest
 from app.schemas.parse import (
     AlertCardResponse,
     CardResponse,
@@ -660,6 +662,45 @@ async def parse_core(req: ParseRequest) -> CoreParseResult:
     )
 
 
+async def parse_card_level(req: CardParseRequest) -> ParsedCard:
+    prompt = build_card_parse_prompt(req)
+    raw_text = await asyncio.to_thread(_call_gemini, prompt)
+    parsed = _extract_json(raw_text)
+
+    if "card" in parsed and isinstance(parsed["card"], dict):
+        raw_card = parsed["card"]
+    elif "cards" in parsed and isinstance(parsed["cards"], list) and parsed["cards"]:
+        raw_card = parsed["cards"][0]
+    else:
+        raw_card = parsed
+
+    if not isinstance(raw_card, dict):
+        raise ValueError("Gemini card parse response must be a JSON object.")
+
+    raw_card = dict(raw_card)
+    raw_card.pop("instance_id", None)
+    raw_card["place_id"] = None
+    raw_card["coordinates"] = None
+    raw_card["address"] = None
+    raw_card.setdefault("is_ai_generated", False)
+    raw_card.setdefault("allow_duplicate", req.card.category in {Category.ACCOMMODATION, Category.TRANSPORT})
+
+    card = ParsedCard.model_validate(_ensure_card_name(raw_card))
+    api_key = _places_api_key()
+    if not api_key:
+        logger.info("Skipping card-level Places enrichment because API key is not configured.")
+        return card
+
+    enrichment_req = ParseRequest(
+        trip_id=req.trip_id,
+        dump_text=req.natural_language_input,
+        destinations=req.destinations if req.destinations else [""],
+        travel_days=req.travel_days or 1,
+        companion_count=req.companion_count or 1,
+    )
+    return await _enrich_card(card, enrichment_req, api_key)
+
+
 async def parse_with_blocking_enrichment(req: ParseRequest) -> CoreParseResult:
     result = await parse_core(req)
     sanitized_cards = _sanitize_needs_input_cards(result.cards)
@@ -674,5 +715,5 @@ async def parse_with_blocking_enrichment(req: ParseRequest) -> CoreParseResult:
 
 
 def to_public_card(card: ParsedCard) -> CardResponse:
-    payload = card.model_dump(exclude={"search_alias"})
+    payload = card.model_dump()
     return CardResponse.model_validate(payload)

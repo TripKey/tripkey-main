@@ -1,5 +1,7 @@
 package com.tripkey.domain.dump;
 
+import com.tripkey.domain.alert.AlertCard;
+import com.tripkey.domain.alert.AlertCardRepository;
 import com.tripkey.domain.place.PlaceCard;
 import com.tripkey.domain.place.PlaceCardRepository;
 import com.tripkey.domain.trip.Trip;
@@ -27,6 +29,7 @@ public class DumpAsyncProcessor {
     private final TripRepository tripRepository;
     private final TripDestinationRepository tripDestinationRepository;
     private final PlaceCardRepository placeCardRepository;
+    private final AlertCardRepository alertCardRepository;
     private final AiEngineClient aiEngineClient;
     private final NonBlockingEnrichmentProcessor nonBlockingEnrichmentProcessor;
 
@@ -81,11 +84,7 @@ public class DumpAsyncProcessor {
 
             List<PlaceCard> savedCards = placeCardRepository.saveAll(cards);
 
-            if (response.alertCards() != null && !response.alertCards().isEmpty()) {
-                log.info("Received {} alert cards for trip={} (parse_version={})",
-                        response.alertCards().size(), job.getTripId(), response.parseVersion());
-                // TODO[SCR-03]: persist alert_cards alongside Cards SSOT (`GET /trips/{trip_id}/cards`).
-            }
+            persistAlertCards(job.getTripId(), job.getJobId(), response);
 
             job.complete(response.contextSummary());
             dumpJobRepository.save(job);
@@ -95,6 +94,19 @@ public class DumpAsyncProcessor {
             job.fail("PARSE_FAILED");
             dumpJobRepository.save(job);
         }
+    }
+
+    private void persistAlertCards(UUID tripId, UUID jobId, AiParseResponse response) {
+        if (response.alertCards() == null || response.alertCards().isEmpty()) {
+            return;
+        }
+        alertCardRepository.deleteAllByJobId(jobId);
+        List<AlertCard> entities = response.alertCards().stream()
+                .map(dto -> AlertCard.fromAiResponse(dto, tripId, jobId))
+                .toList();
+        alertCardRepository.saveAll(entities);
+        log.info("Persisted {} alert cards for trip={} (parse_version={})",
+                entities.size(), tripId, response.parseVersion());
     }
 
     private void triggerNonBlockingEnrichment(List<PlaceCard> cards, List<String> destinations, Trip trip) {

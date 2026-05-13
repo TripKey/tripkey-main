@@ -2,7 +2,11 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import DevIndexPage from './pages/DevIndexPage';
 import DumpPage from './pages/DumpPage';
+<<<<<<< feat/135-scr03-grouping-ui
 import GroupingPage from './pages/GroupingPage';
+=======
+import HeaderPreviewPage from './pages/HeaderPreviewPage';
+>>>>>>> develop
 import OnboardingPage from './pages/OnboardingPage';
 import ProgressPageDev from './pages/ProgressPageDev';
 
@@ -16,7 +20,11 @@ const App = () => {
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/dump" element={<DumpPage tripId={tripId} />} />
         <Route path="/progress" element={<ProgressPageDev />} />
+<<<<<<< feat/135-scr03-grouping-ui
         <Route path="/grouping" element={<GroupingPage />} />
+=======
+        <Route path="/header-preview" element={<HeaderPreviewPage />} />
+>>>>>>> develop
       </Routes>
     </BrowserRouter>
   );

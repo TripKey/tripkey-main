@@ -78,7 +78,7 @@ create table if not exists public.place_cards (
 
   tags                   text,                                     -- 태그 (CSV)
   source                 text,                                     -- 출처: ai_parse / manual / ai_recommend
-  notes                  text,                                     -- open_question 답변 입력 (사용자 작성)
+  notes                  text,                                     -- 사용자 자연어 입력/답변 (eligible 카드에서는 card-level parsing trigger)
   memo                   text,                                     -- 사용자 자유 메모 (SCR-05 활용)
 
   -- Day 배치 (FE 로컬 관리, verify/confirm 시 일괄 저장)
@@ -93,6 +93,7 @@ create table if not exists public.place_cards (
   flight_number          text,                                     -- 항공편 번호
   flight_datetime        text,                                     -- 항공편 출발 ISO datetime
   flight_role            text,                                     -- outbound / inbound / null
+  search_alias           text,                                     -- Places API 검색용 내부 별칭 (외부 응답 비노출)
 
   -- 공간 (lat/lng 기반 generated column, SRID 4326)
   geom                   geometry(Point, 4326)
@@ -110,3 +111,21 @@ create table if not exists public.place_cards (
 
 create index if not exists idx_place_cards_trip_id on public.place_cards (trip_id);
 create index if not exists idx_place_cards_geom    on public.place_cards using gist (geom);
+
+-- AI 엔진 (Core Parse / Non-blocking Enrichment) 이 생성하는 알림 카드
+-- (Cards SSOT 응답의 alert_cards 배열로 노출됨)
+create table if not exists public.alert_cards (
+  id                    bigserial   primary key,                                 -- BE 내부 식별자
+  trip_id               uuid        not null references public.trips(trip_id),   -- 소속 여행 세션
+  job_id                uuid        references public.dump_jobs(job_id),         -- 생성 시점 dump_job (후속 enrichment 는 NULL 가능)
+  alert_id              text        not null,                                    -- AI 엔진이 부여한 외부 노출 식별자
+  type                  text        not null,                                    -- 자유 문자열: timing_conflict / festival 등
+  category              text        not null,                                    -- practical | insight
+  scope                 text        not null default 'trip',                     -- trip | day (현재 trip 만 사용)
+  day                   smallint,                                                -- scope=day 일 때만, 현재 항상 NULL
+  message               text        not null,                                    -- 알림 본문
+  related_instance_ids  text,                                                    -- 관련 카드 instance_id CSV
+  created_at            timestamptz not null default now()
+);
+
+create index if not exists idx_alert_cards_trip_id on public.alert_cards (trip_id);
