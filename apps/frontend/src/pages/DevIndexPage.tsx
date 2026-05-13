@@ -18,9 +18,9 @@ const pages = [
     description: '진행 상태 페이지 (mock 파라미터로 상태 전환 가능)',
   },
   {
-    path: '/header-preview',
-    title: 'Header Preview',
-    description: 'SCR 공통 헤더 컴포넌트 variant 미리보기',
+    path: '/grouping',
+    title: 'Grouping (SCR-03)',
+    description: '정보 정리하기 — 그룹화 화면 UI (목데이터)',
   },
 ];
 
