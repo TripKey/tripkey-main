@@ -1,5 +1,6 @@
 // GroupingPage (SCR-03 그룹화 '정보 정리하기' 페이지)
 
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import ProgressStat from '@/components/common/ProgressStat';
@@ -11,6 +12,7 @@ import PlaceCard from '@/components/grouping/PlaceCard';
 import SelectCardDetailPanel from '@/components/grouping/SelectCardDetailPanel';
 import TripSummaryCard from '@/components/grouping/TripSummaryCard';
 import Header from '@/components/header/Header';
+import { Button } from '@/components/ui/button';
 import type { PlaceCardViewModel } from '@/types/grouping';
 
 import { GROUPING_MOCK } from './GroupingPage.mock';
@@ -46,13 +48,29 @@ const GroupingPage = () => {
   return (
     <div className="min-h-screen bg-muted">
       <Header
+        currentStepId="organize"
         destination="오사카"
         extraDestinations={2}
         travelers={2}
         dateRange="5월 10일 ~ 5월 14일"
-        onAddCard={() => setAddCardOpen(true)}
-        onAlertDemo={logStub('alert-demo')}
-        onAlertMergedDemo={logStub('alert-merged-demo')}
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={logStub('alert-demo')}>
+              Alert Demo
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={logStub('alert-merged-demo')}
+            >
+              Alert 합친 Demo
+            </Button>
+            <Button size="sm" onClick={() => setAddCardOpen(true)}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              카드 추가하기
+            </Button>
+          </>
+        }
       />
 
       <main className="mx-auto w-full max-w-[1180px] px-6 py-8">
