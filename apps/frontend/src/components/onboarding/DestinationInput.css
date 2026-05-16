@@ -51,3 +51,32 @@
   color: #888;
   padding: 0;
 }
+
+.destination-input__dev-notice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px dashed #e0b400;
+  background: #fff7d6;
+  color: #6b5a00;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.destination-input__dev-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #b25400;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.destination-input__dev-text {
+  word-break: keep-all;
+}

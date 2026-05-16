@@ -37,6 +37,15 @@ const DestinationDropdown = ({ placeholder }: { placeholder?: string }) => {
     setQuery('');
   };
 
+  const handleBlur = () => {
+    setTimeout(() => {
+      const current = useOnboardingStore.getState().form.destinations;
+      if (query.trim().length > 0 && current.length === 0) {
+        window.alert('검색 결과에서 도시를 클릭해 선택해 주세요.');
+      }
+    }, 150);
+  };
+
   return (
     <>
       <input
@@ -44,6 +53,7 @@ const DestinationDropdown = ({ placeholder }: { placeholder?: string }) => {
         placeholder={placeholder ?? '도시 추가...'}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
+        onBlur={handleBlur}
       />
       {results.length > 0 && (
         <ul className="destination-dropdown">
