@@ -1,7 +1,8 @@
 // GroupingPage (SCR-03 그룹화 '정보 정리하기' 페이지)
 
 import { Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import ProgressStat from '@/components/common/ProgressStat';
 import ActionGroupSection from '@/components/grouping/ActionGroupSection';
@@ -13,16 +14,34 @@ import SelectCardDetailPanel from '@/components/grouping/SelectCardDetailPanel';
 import TripSummaryCard from '@/components/grouping/TripSummaryCard';
 import Header from '@/components/header/Header';
 import { Button } from '@/components/ui/button';
-import type { PlaceCardViewModel } from '@/types/grouping';
+import type { GroupingViewModel, PlaceCardViewModel } from '@/types/grouping';
 
-import { GROUPING_MOCK } from './GroupingPage.mock';
+import {
+  addCard,
+  fetchCards,
+  fetchGroups03,
+  parseGroupingApiError,
+  patchCard,
+} from '../utils/grouping-api';
+import {
+  mapToGroupingViewModel,
+  toCardAddRequest,
+} from '../utils/grouping-mapper';
+import { useOnboardingStore } from '../utils/onboarding-store';
 
 const logStub = (action: string) => () => {
   console.log('[GroupingPage] stub action:', action);
 };
 
 const GroupingPage = () => {
-  const { heading, progress, groups, summary } = GROUPING_MOCK;
+  const [searchParams] = useSearchParams();
+  const storeTripId = useOnboardingStore((s) => s.tripId);
+  const tripId = searchParams.get('tripId') ?? storeTripId ?? '';
+
+  const [viewModel, setViewModel] = useState<GroupingViewModel | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const [reviewCard, setReviewCard] = useState<PlaceCardViewModel | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -31,6 +50,92 @@ const GroupingPage = () => {
   const [editCard, setEditCard] = useState<PlaceCardViewModel | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [addCardOpen, setAddCardOpen] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!tripId) {
+      setErrorMessage(
+        'tripId가 없습니다. /onboarding 으로 여행을 먼저 만들거나 URL에 ?tripId=… 를 추가하세요.'
+      );
+      setLoading(false);
+      return;
+    }
+    setErrorMessage(null);
+    try {
+      const [groupsRes, cardsRes] = await Promise.all([
+        fetchGroups03(tripId),
+        fetchCards(tripId),
+      ]);
+      setViewModel(mapToGroupingViewModel(groupsRes, cardsRes));
+    } catch (error) {
+      const apiBody = parseGroupingApiError(error);
+      setErrorMessage(
+        apiBody?.message ??
+          (error instanceof Error
+            ? error.message
+            : '서버 통신 오류가 발생했습니다.')
+      );
+    }
+  }, [tripId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    refresh().finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh]);
+
+  const runMutation = useCallback(
+    async (action: () => Promise<unknown>, failMessage: string) => {
+      if (busy || !tripId) return;
+      setBusy(true);
+      try {
+        await action();
+        await refresh();
+      } catch (error) {
+        const apiBody = parseGroupingApiError(error);
+        alert(apiBody?.message ?? failMessage);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, refresh, tripId]
+  );
+
+  const handleExclude = (card: PlaceCardViewModel | null) => {
+    if (!card) return;
+    runMutation(
+      () => patchCard(tripId, card.id, { is_excluded: true }),
+      '제외 처리에 실패했습니다.'
+    );
+  };
+
+  const handleInclude = (card: PlaceCardViewModel | null) => {
+    if (!card) return;
+    runMutation(
+      () => patchCard(tripId, card.id, { is_excluded: false }),
+      '복원 처리에 실패했습니다.'
+    );
+  };
+
+  const handleSaveMemo = (card: PlaceCardViewModel | null, memo: string) => {
+    if (!card) return;
+    runMutation(
+      () => patchCard(tripId, card.id, { memo }),
+      '메모 저장에 실패했습니다.'
+    );
+  };
+
+  const handleConfirmSelect = (card: PlaceCardViewModel | null) => {
+    if (!card) return;
+    runMutation(
+      () => patchCard(tripId, card.id, { classification: 'confirmed' }),
+      '확정 처리에 실패했습니다.'
+    );
+  };
 
   const openReviewDetail = (card: PlaceCardViewModel) => {
     setReviewCard(card);
@@ -45,27 +150,55 @@ const GroupingPage = () => {
     setEditOpen(true);
   };
 
+  const fallbackSummary = useMemo(
+    () => ({
+      destinations: [] as string[],
+      dateRange: '-',
+      nights: 0,
+      days: 0,
+      travelers: 0,
+      totalCards: 0,
+      cardStats: [],
+      completionPct: 0,
+    }),
+    []
+  );
+
+  const heading = viewModel?.heading ?? {
+    title: '정보 정리하기',
+    subtitle: loading ? '불러오는 중…' : '카드를 불러오지 못했어요',
+  };
+  const progress = viewModel?.progress ?? {
+    percent: 0,
+    activeCount: 0,
+    doneCount: 0,
+  };
+  const groups = viewModel?.groups ?? [];
+  const summary = viewModel?.summary ?? fallbackSummary;
+
   return (
     <div className="min-h-screen bg-muted">
       <Header
         currentStepId="organize"
-        destination="오사카"
-        extraDestinations={2}
-        travelers={2}
-        dateRange="5월 10일 ~ 5월 14일"
+        destination={summary.destinations[0] ?? '여행'}
+        extraDestinations={Math.max(summary.destinations.length - 1, 0)}
+        travelers={summary.travelers}
+        dateRange={summary.dateRange}
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={logStub('alert-demo')}>
-              Alert Demo
-            </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={logStub('alert-merged-demo')}
+              onClick={() => refresh()}
+              disabled={busy || loading}
             >
-              Alert 합친 Demo
+              새로고침
             </Button>
-            <Button size="sm" onClick={() => setAddCardOpen(true)}>
+            <Button
+              size="sm"
+              onClick={() => setAddCardOpen(true)}
+              disabled={busy || !tripId}
+            >
               <Plus className="h-4 w-4" aria-hidden="true" />
               카드 추가하기
             </Button>
@@ -85,7 +218,15 @@ const GroupingPage = () => {
               </p>
             </header>
 
-            {/* 정리 진행률 카드 */}
+            {errorMessage && (
+              <div
+                role="alert"
+                className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+              >
+                {errorMessage}
+              </div>
+            )}
+
             <ProgressStat
               label="정리 진행률"
               value={progress.percent}
@@ -93,36 +234,40 @@ const GroupingPage = () => {
               boxed
             />
 
-            {/* "해야 할 액션" */}
-            {groups.map((group) => (
-              <ActionGroupSection
-                key={group.variant}
-                variant={group.variant}
-                title={group.title}
-                countLabel={group.countLabel}
-                defaultOpen={group.defaultOpen}
-              >
-                {group.cards.map((card) => (
-                  <PlaceCard
-                    key={card.id}
-                    {...card}
-                    onClick={
-                      card.detail
-                        ? () => openReviewDetail(card)
-                        : card.editDetail
-                          ? () => openEditDetail(card)
-                          : card.selectDetail
-                            ? () => openSelectDetail(card)
-                            : logStub(`open-card:${card.id}`)
-                    }
-                    onAction={logStub(`card-action:${card.id}`)}
-                  />
-                ))}
-              </ActionGroupSection>
-            ))}
+            {loading && !viewModel ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">
+                불러오는 중…
+              </p>
+            ) : (
+              groups.map((group) => (
+                <ActionGroupSection
+                  key={group.variant}
+                  variant={group.variant}
+                  title={group.title}
+                  countLabel={group.countLabel}
+                  defaultOpen={group.defaultOpen}
+                >
+                  {group.cards.map((card) => (
+                    <PlaceCard
+                      key={card.id}
+                      {...card}
+                      onClick={
+                        card.detail
+                          ? () => openReviewDetail(card)
+                          : card.editDetail
+                            ? () => openEditDetail(card)
+                            : card.selectDetail
+                              ? () => openSelectDetail(card)
+                              : logStub(`open-card:${card.id}`)
+                      }
+                      onAction={logStub(`card-action:${card.id}`)}
+                    />
+                  ))}
+                </ActionGroupSection>
+              ))
+            )}
           </div>
 
-          {/*우측: 고정 사이드바(여행 요약)*/}
           <aside className="sticky top-34">
             <TripSummaryCard
               {...summary}
@@ -133,87 +278,57 @@ const GroupingPage = () => {
         </div>
       </main>
 
-      {/* "확인만 하면 되는 카드들"/ "제외된 항목" 상세보기 사이드 패널.*/}
       <CardDetailPanel
         open={reviewOpen}
         onOpenChange={setReviewOpen}
         card={reviewCard}
-        onExclude={() =>
-          console.log(
-            '[GroupingPage] stub action: exclude-card',
-            reviewCard?.id
-          )
-        }
-        onInclude={() =>
-          console.log(
-            '[GroupingPage] stub action: include-card',
-            reviewCard?.id
-          )
-        }
-        onSaveMemo={(memo) =>
-          console.log(
-            '[GroupingPage] stub action: save-memo',
-            reviewCard?.id,
-            memo
-          )
-        }
+        onExclude={() => {
+          handleExclude(reviewCard);
+          setReviewOpen(false);
+        }}
+        onInclude={() => {
+          handleInclude(reviewCard);
+          setReviewOpen(false);
+        }}
+        onSaveMemo={(memo) => handleSaveMemo(reviewCard, memo)}
       />
 
-      {/* "선택이 필요한 카드들"상세보기 사이드 패널.*/}
       <SelectCardDetailPanel
         open={selectOpen}
         onOpenChange={setSelectOpen}
         card={selectCard}
-        onConfirm={(payload) =>
-          console.log(
-            '[GroupingPage] stub action: confirm-select',
-            selectCard?.id,
-            payload
-          )
-        }
-        onExclude={() =>
-          console.log(
-            '[GroupingPage] stub action: exclude-card',
-            selectCard?.id
-          )
-        }
-        onSaveMemo={(memo) =>
-          console.log(
-            '[GroupingPage] stub action: save-memo',
-            selectCard?.id,
-            memo
-          )
-        }
+        onConfirm={(payload) => {
+          console.log('[GroupingPage] select payload', payload);
+          handleConfirmSelect(selectCard);
+          setSelectOpen(false);
+        }}
+        onExclude={() => {
+          handleExclude(selectCard);
+          setSelectOpen(false);
+        }}
+        onSaveMemo={(memo) => handleSaveMemo(selectCard, memo)}
       />
 
-      {/* "수정이 필요한 카드들" 상세보기 사이드 패널*/}
       <EditCardDetailPanel
         open={editOpen}
         onOpenChange={setEditOpen}
         card={editCard}
-        onConfirm={(payload) =>
-          console.log(
-            '[GroupingPage] stub action: confirm-edit',
-            editCard?.id,
-            payload
-          )
-        }
-        onSaveMemo={(memo) =>
-          console.log(
-            '[GroupingPage] stub action: save-memo',
-            editCard?.id,
-            memo
-          )
-        }
+        onConfirm={(payload) => {
+          console.log('[GroupingPage] edit payload (미구현)', payload);
+          alert('수정 재처리 API는 아직 연결되지 않았습니다.');
+        }}
+        onSaveMemo={(memo) => handleSaveMemo(editCard, memo)}
       />
 
-      {/* 헤더 "카드 추가하기" 버튼으로 여는 중앙 모달 */}
       <AddCardModal
         open={addCardOpen}
         onOpenChange={setAddCardOpen}
         onSubmit={(draft) => {
-          console.log('[GroupingPage] stub action: add-card', draft);
           setAddCardOpen(false);
+          runMutation(
+            () => addCard(tripId, toCardAddRequest(draft)),
+            '카드 추가에 실패했습니다.'
+          );
         }}
       />
     </div>
