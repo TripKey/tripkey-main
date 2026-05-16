@@ -15,6 +15,7 @@ type DumpStore = {
   actions: {
     setDumpText: (text: string) => void;
     resetDump: () => void;
+    clearJob: () => void;
     submitDump: (tripId: string) => Promise<boolean>;
   };
 };
@@ -35,6 +36,14 @@ export const useDumpStore = create<DumpStore>()(
         resetDump: () => {
           set({
             dumpText: '',
+            requestStatus: 'idle',
+            errorMessage: null,
+            jobId: null,
+          });
+        },
+
+        clearJob: () => {
+          set({
             requestStatus: 'idle',
             errorMessage: null,
             jobId: null,

@@ -1,18 +1,35 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import DumpActionBar from '../components/dump/DumpActionBar';
 import DumpForm from '../components/dump/DumpForm';
 import DumpGuideCard from '../components/dump/DumpGuideCard';
+import EmptyView from '../components/progress/EmptyView';
+import ErrorView from '../components/progress/ErrorView';
+import GroupFailView from '../components/progress/GroupFailView';
+import LoadingView from '../components/progress/LoadingView';
+import { useParseJobStatus } from '../hooks/useParseJobStatus';
 import { DUMP_TEXT } from '../utils/constants';
 import { useDumpStore } from '../utils/dump-store';
 import { useOnboardingStore } from '../utils/onboarding-store';
 
 import './DumpPage.css';
+import './ProgressPage.css';
 
 const DumpPage = () => {
+  const navigate = useNavigate();
   const tripId = useOnboardingStore((s) => s.tripId);
-  const { dumpText, requestStatus, errorMessage, actions } = useDumpStore();
-  const { setDumpText, submitDump } = actions;
+  const { dumpText, requestStatus, errorMessage, jobId, actions } =
+    useDumpStore();
+  const { setDumpText, submitDump, clearJob } = actions;
+
+  const view = useParseJobStatus(tripId, jobId);
+
+  useEffect(() => {
+    if (view.kind === 'done') {
+      navigate('/grouping');
+    }
+  }, [view.kind, navigate]);
 
   const dumpTextCount = dumpText.trim().length;
 
@@ -27,17 +44,32 @@ const DumpPage = () => {
     navigate('/');
   };
 
-  const navigate = useNavigate();
-
   const handleClickNext = async () => {
-    navigate('/progress');
-
-    const isSuccess = await submitDump(tripId!);
-
-    if (!isSuccess) {
-      navigate('/dump');
-    }
+    if (!tripId) return;
+    await submitDump(tripId);
   };
+
+  const isInProgress =
+    jobId !== null && view.kind !== 'idle' && view.kind !== 'done';
+
+  if (isInProgress) {
+    return (
+      <main className="dump-page dump-page--progress">
+        <div className="progress-content">
+          {view.kind === 'loading' && <LoadingView step={view.step} />}
+          {view.kind === 'parse-error' && (
+            <ErrorView onRetry={() => clearJob()} />
+          )}
+          {view.kind === 'empty-places' && (
+            <EmptyView onGoBack={() => clearJob()} />
+          )}
+          {view.kind === 'group-error' && (
+            <GroupFailView onContinue={() => navigate('/grouping')} />
+          )}
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="dump-page">

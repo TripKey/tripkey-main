@@ -36,3 +36,8 @@
   color: #888888;
   line-height: 1.6;
 }
+
+.dump-page--progress {
+  align-items: center;
+  background-color: #fafafa;
+}
