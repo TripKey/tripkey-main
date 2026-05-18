@@ -1,11 +1,14 @@
 import './TripCalendar.css';
 import { useState } from 'react';
 
+import { useCalendarStore } from '@/utils/calendar-store';
+
 import { ExactCalendar } from './ExactCalendar';
 import FlexCalendar from './FlexCalendar';
 
 const TripCalendar = () => {
-  const [tab, setTab] = useState<'exact' | 'flexible'>('exact');
+  const storedTab = useCalendarStore((s) => s.type);
+  const [tab, setTab] = useState<'exact' | 'flexible'>(storedTab ?? 'exact');
 
   return (
     <div>
