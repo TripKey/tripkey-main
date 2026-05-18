@@ -1,3 +1,4 @@
+import { format } from 'date-fns';
 import { create } from 'zustand';
 
 type ExactDate = { from: Date; to: Date; nights: number };
@@ -20,3 +21,17 @@ export const useCalendarStore = create<CalendarStore>((set) => ({
   setFlexDate: (value) => set({ type: 'flexible', flexDate: value }),
   clearExactDate: () => set({ type: null, exactDate: null }),
 }));
+
+export const formatDateRangeLabel = (
+  type: CalendarStore['type'],
+  exactDate: ExactDate | null,
+  flexDate: FlexDate | null
+): string => {
+  if (type === 'exact' && exactDate) {
+    return `${format(exactDate.from, 'M월d일')} ~ ${format(exactDate.to, 'M월d일')}`;
+  }
+  if (type === 'flexible' && flexDate) {
+    return `${flexDate.year}년 ${flexDate.month}월`;
+  }
+  return '-';
+};

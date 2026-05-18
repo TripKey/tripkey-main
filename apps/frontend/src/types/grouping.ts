@@ -255,11 +255,11 @@ export type TripSummaryViewModel = {
   //동행자
   travelers: number;
   //전체 카드 개수
-  totalCards: number;
+  totalCards?: number;
   //상태 상태 배지
-  cardStats: { label: string; count: number; tone: SummaryStatTone }[];
+  cardStats?: { label: string; count: number; tone: SummaryStatTone }[];
   //정리 완료도
-  completionPct: number;
+  completionPct?: number;
 };
 
 /** GroupingPage 가 통째로 받는 화면 데이터. fixture 의 최상위 형태. */
