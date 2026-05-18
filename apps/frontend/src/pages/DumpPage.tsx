@@ -45,9 +45,14 @@ const DumpPage = () => {
   };
 
   const handleClickNext = async () => {
+    if (!tripId) {
+      navigate('/onboarding');
+      return;
+    }
+
     navigate('/progress');
 
-    const isSuccess = await submitDump(tripId!);
+    const isSuccess = await submitDump(tripId);
 
     if (!isSuccess) {
       navigate('/dump');
