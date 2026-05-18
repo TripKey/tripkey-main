@@ -5,12 +5,17 @@ import { useCalendarStore } from '@/utils/calendar-store';
 import { useOnboardingStore } from '@/utils/onboarding-store';
 
 const FlexCalendar = () => {
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
-  const [durationNights, setDurationNights] = useState(3);
-
+  const flexDate = useCalendarStore((s) => s.flexDate);
   const setFlexDate = useCalendarStore((s) => s.setFlexDate);
   const setForm = useOnboardingStore((s) => s.actions.setForm);
+
+  const [selectedYear, setSelectedYear] = useState(
+    flexDate?.year ?? new Date().getFullYear()
+  );
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(
+    flexDate?.month ?? null
+  );
+  const [durationNights, setDurationNights] = useState(flexDate?.nights ?? 3);
 
   const currentYear = new Date().getFullYear();
 

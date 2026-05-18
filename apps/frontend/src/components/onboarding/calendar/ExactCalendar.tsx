@@ -9,14 +9,15 @@ import { CalendarNav } from './CalendarNav';
 import './ExactCalendar.css';
 
 export const ExactCalendar = () => {
-  const [range, setRange] = useState<DateRange>({
-    from: undefined,
-    to: undefined,
-  });
-
   const setExactDate = useCalendarStore((s) => s.setExactDate);
   const clearExactDate = useCalendarStore((s) => s.clearExactDate);
+  const exactDate = useCalendarStore((s) => s.exactDate);
   const setForm = useOnboardingStore((s) => s.actions.setForm);
+
+  const [range, setRange] = useState<DateRange>(() => ({
+    from: exactDate?.from,
+    to: exactDate?.to,
+  }));
 
   const handleSelect = (newRange: DateRange | undefined) => {
     const from = newRange?.from;
