@@ -12,12 +12,13 @@ export type StepId = 'onboarding' | 'dump' | 'organize' | 'arrange' | 'confirm';
 export type Step = {
   id: StepId;
   label: string;
+  path?: string;
 };
 
 const STEPS: Step[] = [
-  { id: 'onboarding', label: '온보딩' },
-  { id: 'dump', label: '덤프' },
-  { id: 'organize', label: '정리' },
+  { id: 'onboarding', label: '온보딩', path: '/onboarding' },
+  { id: 'dump', label: '덤프', path: '/dump' },
+  { id: 'organize', label: '정리', path: '/grouping' },
   { id: 'arrange', label: '배치' },
   { id: 'confirm', label: '확정' },
 ];
@@ -121,15 +122,29 @@ const Stepper = ({ currentIndex }: { currentIndex: number }) => {
                 aria-current="step"
                 className="rounded-full bg-primary px-3.5 py-1 font-medium text-primary-foreground"
               >
-                {step.label}
+                {step.path ? (
+                  <Link to={step.path}>{step.label}</Link> // 개발용 링크
+                ) : (
+                  step.label
+                )}
               </span>
             ) : status === 'done' ? (
               <span className="flex items-center gap-1 font-medium text-primary">
                 <Check className="h-4 w-4" aria-hidden="true" />
-                {step.label}
+                {step.path ? (
+                  <Link to={step.path}>{step.label}</Link> // 개발용 링크
+                ) : (
+                  step.label
+                )}
               </span>
             ) : (
-              <span className="text-muted-foreground">{step.label}</span>
+              <span className="text-muted-foreground">
+                {step.path ? (
+                  <Link to={step.path}>{step.label}</Link> // 개발용 링크
+                ) : (
+                  step.label
+                )}
+              </span>
             )}
             {!isLast && (
               <span aria-hidden="true" className="h-px w-6 bg-border" />
