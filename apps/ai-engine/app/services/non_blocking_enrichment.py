@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 import uuid
 from datetime import datetime
 
+from app.prompts.non_blocking_enrichment import build_non_blocking_enrichment_prompt
 from app.schemas.non_blocking_enrichment import (
     EnrichmentPatch,
     NonBlockingEnrichmentRequest,
     NonBlockingEnrichmentResponse,
 )
 from app.schemas.parse import AlertCardResponse, AlertCategory, Category, FlightRole
+from app.services.core_parse import _call_gemini, _extract_json, _parse_alert_cards
+
+logger = logging.getLogger(__name__)
+
+SAFE_PATCH_FIELDS = {"tips", "estimated_duration_min", "tags", "user_context"}
 
 
 def _parse_iso_datetime(value: str | None) -> datetime | None:
@@ -79,9 +87,95 @@ def _build_patch_suggestions(req: NonBlockingEnrichmentRequest) -> list[Enrichme
     return patches
 
 
-async def enrich_card_non_blocking(req: NonBlockingEnrichmentRequest) -> NonBlockingEnrichmentResponse:
+def _fallback_response(req: NonBlockingEnrichmentRequest) -> NonBlockingEnrichmentResponse:
     return NonBlockingEnrichmentResponse(
         card_instance_id=req.card.instance_id,
         patches=_build_patch_suggestions(req),
         alert_cards=_build_transport_alerts(req),
     )
+
+
+def _parse_patches(raw_patches: list[dict]) -> list[EnrichmentPatch]:
+    patches: list[EnrichmentPatch] = []
+    for raw_patch in raw_patches:
+        if not isinstance(raw_patch, dict):
+            logger.warning("Skipping non-object enrichment patch | raw=%s", raw_patch)
+            continue
+
+        field = raw_patch.get("field")
+        if field not in SAFE_PATCH_FIELDS:
+            logger.warning("Skipping unsafe enrichment patch field=%s | raw=%s", field, raw_patch)
+            continue
+
+        if raw_patch.get("apply_mode") != "suggestion":
+            logger.warning("Skipping non-suggestion enrichment patch | raw=%s", raw_patch)
+            continue
+
+        try:
+            patches.append(EnrichmentPatch.model_validate(raw_patch))
+        except Exception as exc:
+            logger.warning("Skipping invalid enrichment patch | error=%s | raw=%s", exc, raw_patch)
+    return patches
+
+
+def _uuid_or_none(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        uuid.UUID(value)
+    except ValueError:
+        return None
+    return value
+
+
+def _attach_current_card_relation(
+    alerts: list[AlertCardResponse],
+    req: NonBlockingEnrichmentRequest,
+) -> list[AlertCardResponse]:
+    instance_id = _uuid_or_none(req.card.instance_id)
+    if not instance_id:
+        return alerts
+
+    related_alerts: list[AlertCardResponse] = []
+    for alert in alerts:
+        if alert.related_instance_ids:
+            related_alerts.append(alert)
+            continue
+        related_alerts.append(alert.model_copy(update={"related_instance_ids": [instance_id]}))
+    return related_alerts
+
+
+def _parse_ai_response(raw_text: str, req: NonBlockingEnrichmentRequest) -> NonBlockingEnrichmentResponse:
+    parsed = _extract_json(raw_text)
+
+    raw_patches = parsed.get("patches", [])
+    if raw_patches is None:
+        raw_patches = []
+    if not isinstance(raw_patches, list):
+        raise ValueError("patches must be an array when provided.")
+
+    raw_alerts = parsed.get("alert_cards", [])
+    if raw_alerts is None:
+        raw_alerts = []
+    if not isinstance(raw_alerts, list):
+        raise ValueError("alert_cards must be an array when provided.")
+
+    card_instance_id = parsed.get("card_instance_id", req.card.instance_id)
+    if card_instance_id is not None and not isinstance(card_instance_id, str):
+        card_instance_id = req.card.instance_id
+
+    return NonBlockingEnrichmentResponse(
+        card_instance_id=card_instance_id,
+        patches=_parse_patches(raw_patches),
+        alert_cards=_attach_current_card_relation(_parse_alert_cards(raw_alerts), req),
+    )
+
+
+async def enrich_card_non_blocking(req: NonBlockingEnrichmentRequest) -> NonBlockingEnrichmentResponse:
+    prompt = build_non_blocking_enrichment_prompt(req)
+    try:
+        raw_text = await asyncio.to_thread(_call_gemini, prompt)
+        return _parse_ai_response(raw_text, req)
+    except Exception as exc:
+        logger.warning("Falling back to rule-based non-blocking enrichment | trip_id=%s | error=%s", req.trip_id, exc)
+        return _fallback_response(req)
