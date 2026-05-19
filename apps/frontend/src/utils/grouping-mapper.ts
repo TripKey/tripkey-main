@@ -15,7 +15,6 @@ import type {
 import type {
   Card,
   CardCategory,
-  CardsResponse,
   Groups03Response,
 } from '../types/grouping-api';
 import type { CardAddRequest } from '../types/grouping-api';
@@ -187,7 +186,7 @@ const countLabel = (
 
 export const mapToGroupingViewModel = (
   groups: Groups03Response,
-  cards: CardsResponse
+  options?: { contextSummary?: string | null }
 ): GroupingViewModel => {
   const selectCards = [
     ...groups.input_required.map(toSelectCard),
@@ -237,8 +236,7 @@ export const mapToGroupingViewModel = (
     },
   ].filter((group) => group.cards.length > 0) as ActionGroup[];
 
-  const totalCards =
-    activeCount + excludedCount + 0; /* excluded counts separately */
+  const totalCards = activeCount + excludedCount;
 
   const destinationSet = new Set<string>();
   for (const card of [
@@ -270,13 +268,52 @@ export const mapToGroupingViewModel = (
     heading: {
       title: '정보 정리하기',
       subtitle:
-        cards.context_summary ??
+        options?.contextSummary ??
         '카드별로 확인/수정/선택을 진행해 일정을 정리하세요',
     },
     progress: { percent, activeCount, doneCount },
     groups: actionGroups,
     summary,
   };
+};
+
+// excluded 우선, 그 외에는 action_type 그대로 버킷 선택.
+const classifyCard = (
+  card: Card
+):
+  | 'input_required'
+  | 'select_required'
+  | 'fix_required'
+  | 'review_only'
+  | 'excluded' => {
+  if (card.is_excluded) return 'excluded';
+  return card.action_type;
+};
+
+// 업데이트된 카드(patch/add 응답)를 모든 버킷에서 제거 후 분류된 버킷에 삽입.
+// 버킷이 바뀌어도(예: 제외 처리 → 'excluded') 일관되게 반영된다.
+export const upsertCardIntoGroups = (
+  groups: Groups03Response,
+  card: Card
+): Groups03Response => {
+  const filtered: Groups03Response = {
+    view: '03',
+    input_required: groups.input_required.filter(
+      (c) => c.instance_id !== card.instance_id
+    ),
+    select_required: groups.select_required.filter(
+      (c) => c.instance_id !== card.instance_id
+    ),
+    fix_required: groups.fix_required.filter(
+      (c) => c.instance_id !== card.instance_id
+    ),
+    review_only: groups.review_only.filter(
+      (c) => c.instance_id !== card.instance_id
+    ),
+    excluded: groups.excluded.filter((c) => c.instance_id !== card.instance_id),
+  };
+  const bucket = classifyCard(card);
+  return { ...filtered, [bucket]: [...filtered[bucket], card] };
 };
 
 const ADD_CATEGORY_MAP: Record<AddCardCategory, CardCategory> = {
