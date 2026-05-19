@@ -254,6 +254,8 @@ export type TripSummaryViewModel = {
   days: number;
   //동행자
   travelers: number;
+  //예약 여부
+  reservation?: string;
   //전체 카드 개수
   totalCards?: number;
   //상태 상태 배지

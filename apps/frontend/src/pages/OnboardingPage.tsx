@@ -1,19 +1,50 @@
 import { useNavigate } from 'react-router-dom';
 
+import TripSummaryCard from '../components/grouping/TripSummaryCard';
 import Header from '../components/header/Header';
 import TripCalendar from '../components/onboarding/calendar/TripCalendar';
 import OnboardingForm from '../components/onboarding/OnboardingForm';
 import TravelerCount from '../components/onboarding/TravelerCount';
 import TravelerReservation from '../components/onboarding/TravelerReservation';
-import TripSummary from '../components/summary/TripSummary';
 import { Button } from '../components/ui/button';
+import {
+  useCalendarStore,
+  formatDateRangeLabel,
+} from '../utils/calendar-store';
 import { useOnboardingStore } from '../utils/onboarding-store';
 import './OnboardingPage.css';
 
 const OnboardingPage = () => {
   const navigate = useNavigate();
   const { submitOnboarding } = useOnboardingStore((s) => s.actions);
-  const errorMessage = useOnboardingStore((s) => s.errorMessage);
+  // const errorMessage = useOnboardingStore((s) => s.errorMessage);
+
+  const { destinations, companion_count, has_flight, has_accommodation } =
+    useOnboardingStore((s) => s.form);
+  const { type, exactDate, flexDate } = useCalendarStore();
+
+  const dateRange = formatDateRangeLabel(type, exactDate, flexDate);
+  const nights = exactDate?.nights ?? flexDate?.nights ?? 0;
+
+  const reservation = [has_flight && '항공편', has_accommodation && '숙소']
+    .filter(Boolean)
+    .join(', ');
+
+  const hasDestination = destinations.length > 0;
+  const hasSchedule = type !== null;
+  const filledCount = [hasDestination, hasSchedule].filter(Boolean).length;
+  const completionPct = (filledCount / 2) * 100;
+  const isNextDisabled = filledCount < 2;
+
+  const summary = {
+    destinations: destinations.length ? destinations : ['-'],
+    dateRange,
+    nights,
+    days: nights + 1,
+    travelers: companion_count,
+    reservation: reservation || undefined,
+    completionPct,
+  };
 
   const handleNext = async () => {
     const success = await submitOnboarding();
@@ -25,11 +56,9 @@ const OnboardingPage = () => {
       <Header
         currentStepId="onboarding"
         actions={
-          <>
-            <Button variant="outline" size="sm">
-              초기화
-            </Button>
-          </>
+          <Button variant="outline" size="sm">
+            초기화
+          </Button>
         }
       />
       <div className="onboarding-page">
@@ -76,16 +105,10 @@ const OnboardingPage = () => {
         </main>
 
         <aside className="onboarding-page__sidebar">
-          <TripSummary
-            items={[
-              { icon: '✈️', label: '여행지', isNextDisabled: true },
-              { icon: '📅', label: '일정', isNextDisabled: true },
-              { icon: '👥', label: '동행자' },
-              { icon: '✅', label: '예약완료' },
-            ]}
+          <TripSummaryCard
+            {...summary}
             onNext={handleNext}
-            errorMessage={errorMessage}
-            stateMessage="여행지와 일정을 입력하면 다음 단계로 진행할 수 있어요"
+            nextDisabled={isNextDisabled}
           />
         </aside>
       </div>
