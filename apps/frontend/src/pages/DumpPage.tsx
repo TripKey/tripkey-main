@@ -16,6 +16,9 @@ import { useOnboardingStore } from '../utils/onboarding-store';
 import './DumpPage.css';
 import './ProgressPage.css';
 
+const TRIP_ID_MISSING_MESSAGE =
+  '여행 정보가 없습니다. 온보딩에서 여행을 먼저 만들어 주세요.';
+
 const DumpPage = () => {
   const navigate = useNavigate();
   const tripId = useOnboardingStore((s) => s.tripId);
@@ -27,14 +30,17 @@ const DumpPage = () => {
 
   useEffect(() => {
     if (view.kind === 'done') {
-      navigate('/grouping');
+      // dump 페이지를 history에 남기지 않아 뒤로가기로 폴링이 재시작되는 것을 막는다.
+      navigate('/grouping', { replace: true });
     }
   }, [view.kind, navigate]);
 
   const dumpTextCount = dumpText.trim().length;
 
   const isNextDisabled =
-    dumpTextCount < DUMP_TEXT.MIN_LENGTH || requestStatus === 'loading';
+    !tripId ||
+    dumpTextCount < DUMP_TEXT.MIN_LENGTH ||
+    requestStatus === 'loading';
 
   const handleDumpTextChange = (nextDumpText: string) => {
     setDumpText(nextDumpText);
@@ -64,12 +70,16 @@ const DumpPage = () => {
             <EmptyView onGoBack={() => clearJob()} />
           )}
           {view.kind === 'group-error' && (
-            <GroupFailView onContinue={() => navigate('/grouping')} />
+            <GroupFailView
+              onContinue={() => navigate('/grouping', { replace: true })}
+            />
           )}
         </div>
       </main>
     );
   }
+
+  const actionBarError = !tripId ? TRIP_ID_MISSING_MESSAGE : errorMessage;
 
   return (
     <main className="dump-page">
@@ -93,7 +103,7 @@ const DumpPage = () => {
           onBack={handleClickBack}
           onNext={handleClickNext}
           isNextDisabled={isNextDisabled}
-          errorMessage={errorMessage}
+          errorMessage={actionBarError}
         />
       </section>
     </main>
