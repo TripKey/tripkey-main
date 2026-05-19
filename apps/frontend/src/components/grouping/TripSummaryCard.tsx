@@ -18,6 +18,7 @@ import SummaryStatBadge from './SummaryStatBadge';
 type TripSummaryCardProps = TripSummaryViewModel & {
   onNext?: () => void;
   onPrev?: () => void;
+  nextDisabled?: boolean;
 };
 
 const TripSummaryCard = ({
@@ -31,6 +32,7 @@ const TripSummaryCard = ({
   completionPct,
   onNext,
   onPrev,
+  nextDisabled,
 }: TripSummaryCardProps) => {
   return (
     <div className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-foreground/10">
@@ -54,41 +56,53 @@ const TripSummaryCard = ({
           <span className="font-semibold text-foreground">{travelers}명</span>
         </SummaryRow>
 
-        <SummaryRow icon={CreditCard} label="전체 카드">
-          <span className="font-semibold text-foreground">{totalCards}개</span>
-          <span className="mt-1.5 flex flex-wrap gap-1">
-            {cardStats.map((stat) => (
-              <SummaryStatBadge
-                key={stat.label}
-                label={stat.label}
-                count={stat.count}
-                tone={stat.tone}
-              />
-            ))}
-          </span>
-        </SummaryRow>
+        {totalCards != null && (
+          <SummaryRow icon={CreditCard} label="전체 카드">
+            <span className="font-semibold text-foreground">
+              {totalCards}개
+            </span>
+            <span className="mt-1.5 flex flex-wrap gap-1">
+              {cardStats?.map((stat) => (
+                <SummaryStatBadge
+                  key={stat.label}
+                  label={stat.label}
+                  count={stat.count}
+                  tone={stat.tone}
+                />
+              ))}
+            </span>
+          </SummaryRow>
+        )}
       </ul>
 
       <Separator className="my-5" />
 
       {/* 정리 완료도 */}
-      <ProgressStat
-        label="정리 완료도"
-        value={completionPct}
-        valueSuffix="완료"
-      />
+      {completionPct != null && (
+        <ProgressStat
+          label="정리 완료도"
+          value={completionPct}
+          valueSuffix="완료"
+        />
+      )}
 
       <div className="mt-5 flex flex-col gap-2.5">
-        <Button onClick={onNext} className="h-11 w-full text-sm font-semibold">
+        <Button
+          onClick={onNext}
+          disabled={nextDisabled}
+          className="h-11 w-full text-sm font-semibold"
+        >
           다음 단계로
         </Button>
-        <Button
-          variant="outline"
-          onClick={onPrev}
-          className="h-11 w-full text-sm"
-        >
-          이전 단계
-        </Button>
+        {onPrev && (
+          <Button
+            variant="outline"
+            onClick={onPrev}
+            className="h-11 w-full text-sm"
+          >
+            이전 단계
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -1,8 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 
-import DumpActionBar from '../components/dump/DumpActionBar';
 import DumpForm from '../components/dump/DumpForm';
 import DumpGuideCard from '../components/dump/DumpGuideCard';
+import TripSummaryCard from '../components/grouping/TripSummaryCard';
+import {
+  useCalendarStore,
+  formatDateRangeLabel,
+} from '../utils/calendar-store';
 import { DUMP_TEXT } from '../utils/constants';
 import { useDumpStore } from '../utils/dump-store';
 import { useOnboardingStore } from '../utils/onboarding-store';
@@ -11,10 +15,21 @@ import './DumpPage.css';
 
 const DumpPage = () => {
   const tripId = useOnboardingStore((s) => s.tripId);
-  const { dumpText, requestStatus, errorMessage, actions } = useDumpStore();
+  const { dumpText, requestStatus, actions } = useDumpStore();
   const { setDumpText, submitDump } = actions;
 
+  const { destinations, companion_count } = useOnboardingStore((s) => s.form);
+  const { type, exactDate, flexDate } = useCalendarStore();
+
+  const dateRange = formatDateRangeLabel(type, exactDate, flexDate);
+  const nights = exactDate?.nights ?? flexDate?.nights ?? 0;
+
   const dumpTextCount = dumpText.trim().length;
+
+  const completionPct = Math.min(
+    100,
+    Math.round((dumpTextCount / DUMP_TEXT.MIN_LENGTH) * 100)
+  );
 
   const isNextDisabled =
     dumpTextCount < DUMP_TEXT.MIN_LENGTH || requestStatus === 'loading';
@@ -23,16 +38,21 @@ const DumpPage = () => {
     setDumpText(nextDumpText);
   };
 
-  const handleClickBack = () => {
-    navigate('/');
-  };
-
   const navigate = useNavigate();
 
+  const handleClickBack = () => {
+    navigate('/onboarding');
+  };
+
   const handleClickNext = async () => {
+    if (!tripId) {
+      navigate('/onboarding');
+      return;
+    }
+
     navigate('/progress');
 
-    const isSuccess = await submitDump(tripId!);
+    const isSuccess = await submitDump(tripId);
 
     if (!isSuccess) {
       navigate('/dump');
@@ -41,8 +61,6 @@ const DumpPage = () => {
 
   return (
     <main className="dump-page">
-      <div className="area">{/* 공통 컴포넌트 순서도 */}</div>
-
       <section className="dump-container">
         <div className="dump-header">
           <h1>여행 정보 입력</h1>
@@ -56,14 +74,21 @@ const DumpPage = () => {
           dumpTextCount={dumpTextCount}
           onTextChange={handleDumpTextChange}
         />
-
-        <DumpActionBar
-          onBack={handleClickBack}
-          onNext={handleClickNext}
-          isNextDisabled={isNextDisabled}
-          errorMessage={errorMessage}
-        />
       </section>
+
+      <aside className="dump-sidebar">
+        <TripSummaryCard
+          destinations={destinations.length ? destinations : ['-']}
+          dateRange={dateRange}
+          nights={nights}
+          days={nights + 1}
+          travelers={companion_count}
+          completionPct={completionPct}
+          onNext={handleClickNext}
+          onPrev={handleClickBack}
+          nextDisabled={isNextDisabled}
+        />
+      </aside>
     </main>
   );
 };

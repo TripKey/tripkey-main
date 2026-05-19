@@ -1,26 +1,64 @@
+import { ChevronDown, Home, Plane } from 'lucide-react';
+import { useState } from 'react';
+
 import './DumpGuideCard.css';
 
-const guideItems = [
-  '가고 싶은 지역, 관광지, 맛집',
-  '원하는 여행 분위기나 스타일',
-  '시간 제약, 이동방식',
-];
-
 const DumpGuideCard = () => {
+  const [openFlight, setOpenFlight] = useState(false);
+  const [openReservation, setOpenReservation] = useState(false);
+
   return (
     <div className="dump-guide-card">
-      <h2 className="dump-guide-title">
-        여행 계획을 세우는 데 도움이 될 수 있도록, 다음과 같은 내용을 입력해
-        주세요.
-      </h2>
+      <h2 className="dump-guide-title">보조 정보 (선택)</h2>
 
-      <ul className="dump-guide-list">
-        {guideItems.map((item) => (
-          <li key={item} className="dump-guide-item">
-            {item}
-          </li>
-        ))}
-      </ul>
+      <div className="dump-guide-list">
+        <button
+          type="button"
+          className="dump-guide-item"
+          onClick={() => setOpenFlight((prev) => !prev)}
+        >
+          <span className="dump-guide-item__icon dump-guide-item__icon--flight">
+            <Plane size={16} />
+          </span>
+          <span className="dump-guide-item__label">
+            항공편 정보{' '}
+            <span className="dump-guide-item__optional">(선택)</span>
+          </span>
+          <ChevronDown
+            className="dump-guide-item__chevron"
+            data-open={openFlight}
+            size={18}
+          />
+        </button>
+        {openFlight && (
+          <div className="dump-guide-item__content">
+            {/* 항공편 정보 입력 영역 */}
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="dump-guide-item"
+          onClick={() => setOpenReservation((prev) => !prev)}
+        >
+          <span className="dump-guide-item__icon dump-guide-item__icon--reservation">
+            <Home size={16} />
+          </span>
+          <span className="dump-guide-item__label">
+            숙박 정보 <span className="dump-guide-item__optional">(선택)</span>
+          </span>
+          <ChevronDown
+            className="dump-guide-item__chevron"
+            data-open={openReservation}
+            size={18}
+          />
+        </button>
+        {openReservation && (
+          <div className="dump-guide-item__content">
+            {/* 숙박 정보 입력 영역 */}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

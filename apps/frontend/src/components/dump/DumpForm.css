@@ -1,22 +1,44 @@
 .dump-form {
+  padding: 20px;
+  border-radius: 12px;
+  background-color: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+}
+
+.dump-form__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.dump-form__required {
+  color: #ef4444;
+  margin-left: 2px;
+}
+
+.dump-textarea-wrapper {
+  position: relative;
 }
 
 .dump-textarea {
   width: 100%;
-  min-height: 300px;
+  min-height: 280px;
   padding: 16px;
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
+  padding-bottom: 36px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
   background-color: #ffffff;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.6;
   color: #1a1a1a;
   resize: none;
   box-sizing: border-box;
   outline: none;
+  font-family: inherit;
 }
 
 .dump-textarea:focus {
@@ -24,18 +46,20 @@
 }
 
 .dump-textarea::placeholder {
-  color: #aaaaaa;
-}
-
-.dump-status-message {
-  min-height: 20px;
-  margin: 0;
-  font-size: 13px;
-  color: #888888;
+  color: #9ca3af;
 }
 
 .dump-text-count {
-  margin-left: auto;
+  position: absolute;
+  bottom: 12px;
+  right: 16px;
   font-size: 13px;
-  color: #aaaaaa;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.dump-status-message {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
 }
