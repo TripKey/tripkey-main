@@ -34,37 +34,42 @@ public class NonBlockingEnrichmentProcessor {
         this.enrichmentTaskExecutor = enrichmentTaskExecutor;
     }
 
-    @Async("dumpTaskExecutor")
+    /**
+     * 비동기 진입을 enrichmentTaskExecutor 로 처리해 dumpTaskExecutor 점유를 피한다.
+     * 호출 thread (transaction 활성 상태) 에서 PlaceCard / Trip entity 를 즉시 immutable request DTO 로
+     * 변환한 뒤 각 카드별 작업을 enrichmentTaskExecutor 에 submit. join 없이 fire-and-forget 으로 종료.
+     */
+    @Async("enrichmentTaskExecutor")
     public void trigger(List<PlaceCard> cards, List<String> destinations, Trip trip) {
-        CompletableFuture<?>[] futures = cards.stream()
-                .map(card -> CompletableFuture.runAsync(
-                        () -> enrichSingleCard(card, destinations, trip),
-                        enrichmentTaskExecutor))
-                .toArray(CompletableFuture[]::new);
-        CompletableFuture.allOf(futures).join();
+        List<AiNonBlockingEnrichmentRequest> requests = cards.stream()
+                .map(card -> AiNonBlockingEnrichmentRequest.from(
+                        card,
+                        destinations,
+                        trip.getTravelDays(),
+                        trip.getCompanionCount()))
+                .toList();
+
+        for (AiNonBlockingEnrichmentRequest request : requests) {
+            CompletableFuture.runAsync(() -> enrichSingleRequest(request), enrichmentTaskExecutor);
+        }
     }
 
-    private void enrichSingleCard(PlaceCard card, List<String> destinations, Trip trip) {
+    private void enrichSingleRequest(AiNonBlockingEnrichmentRequest request) {
+        UUID tripId = request.tripId();
+        UUID instanceId = request.card().instanceId();
         try {
-            AiNonBlockingEnrichmentRequest request = AiNonBlockingEnrichmentRequest.from(
-                    card,
-                    destinations,
-                    trip.getTravelDays(),
-                    trip.getCompanionCount()
-            );
             AiNonBlockingEnrichmentResponse response = aiEngineClient.enrichCardNonBlocking(request);
             int alertCount = response.alertCards() == null ? 0 : response.alertCards().size();
             int patchCount = response.patches() == null ? 0 : response.patches().size();
             if (alertCount > 0 || patchCount > 0) {
                 log.info("Non-blocking enrichment completed. trip={} card={} alerts={} patches={}",
-                        card.getTripId(), card.getInstanceId(), alertCount, patchCount);
+                        tripId, instanceId, alertCount, patchCount);
             }
             if (alertCount > 0) {
-                persistAlertCards(card.getTripId(), response);
+                persistAlertCards(tripId, response);
             }
         } catch (Exception e) {
-            log.warn("Non-blocking enrichment failed. trip={} card={}",
-                    card.getTripId(), card.getInstanceId(), e);
+            log.warn("Non-blocking enrichment failed. trip={} card={}", tripId, instanceId, e);
         }
     }
 
