@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './DevIndexPage.css';
 
+// 백엔드 시드 데이터(개발 DB)의 첫 trip id. 실 환경에선 존재하지 않을 수 있다.
 const DEFAULT_TRIP_ID = '550e8400-e29b-41d4-a716-446655440000';
 
 const pages = [
