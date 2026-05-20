@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 import type { OnboardingRequest } from '../types/onboarding';
 
@@ -19,17 +20,19 @@ type OnboardingStore = {
   };
 };
 
-export const useOnboardingStore = create<OnboardingStore>()((set, get) => ({
-  form: {
-    destinations: [],
-    travel_days: 0,
-    companion_count: 1,
-    has_flight: false,
-    has_accommodation: false,
-  },
-  tripId: null,
-  requestStatus: 'idle',
-  errorMessage: null,
+export const useOnboardingStore = create<OnboardingStore>()(
+  persist(
+    (set, get) => ({
+      form: {
+        destinations: [],
+        travel_days: 0,
+        companion_count: 1,
+        has_flight: false,
+        has_accommodation: false,
+      },
+      tripId: null,
+      requestStatus: 'idle',
+      errorMessage: null,
 
   actions: {
     setForm: (partial) =>

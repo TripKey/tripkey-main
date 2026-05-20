@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 import { DUMP_TEXT } from './constants';
 import { submitDumpText, parseDumpApiError } from './dump-api';
@@ -88,6 +88,7 @@ export const useDumpStore = create<DumpStore>()(
     }),
     {
       name: 'dump-storage',
+      storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         dumpText:
           state.dumpText.length >= DUMP_TEXT.MIN_LENGTH ? state.dumpText : '',

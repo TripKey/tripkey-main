@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import DumpActionBar from '../components/dump/DumpActionBar';
 import DumpForm from '../components/dump/DumpForm';
 import DumpGuideCard from '../components/dump/DumpGuideCard';
 import EmptyView from '../components/progress/EmptyView';
@@ -39,7 +38,18 @@ const DumpPage = () => {
     }
   }, [tripId, navigate]);
 
+  const { destinations, companion_count } = useOnboardingStore((s) => s.form);
+  const { type, exactDate, flexDate } = useCalendarStore();
+
+  const dateRange = formatDateRangeLabel(type, exactDate, flexDate);
+  const nights = exactDate?.nights ?? flexDate?.nights ?? 0;
+
   const dumpTextCount = dumpText.trim().length;
+
+  const completionPct = Math.min(
+    100,
+    Math.round((dumpTextCount / DUMP_TEXT.MIN_LENGTH) * 100)
+  );
 
   const isNextDisabled =
     dumpTextCount < DUMP_TEXT.MIN_LENGTH || requestStatus === 'loading';
@@ -48,8 +58,10 @@ const DumpPage = () => {
     setDumpText(nextDumpText);
   };
 
+  const navigate = useNavigate();
+
   const handleClickBack = () => {
-    navigate('/');
+    navigate('/onboarding');
   };
 
   const handleClickNext = async () => {
@@ -87,31 +99,50 @@ const DumpPage = () => {
   }
 
   return (
-    <main className="dump-page">
-      <div className="area">{/* 공통 컴포넌트 순서도 */}</div>
+    <>
+      <Header
+        currentStepId="dump"
+        actions={
+          <>
+            <Button variant="outline" size="sm">
+              초기화
+            </Button>
+          </>
+        }
+      />
+      <main className="dump-page">
+        <section className="dump-container">
+          <div className="dump-header">
+            <h1>여행 정보 입력</h1>
+            <p>
+              가고 싶은 곳, 하고 싶은 것, 떠오르는 생각을 자유롭게 적어주세요
+            </p>
+          </div>
 
-      <section className="dump-container">
-        <div className="dump-header">
-          <h1>여행 정보 입력</h1>
-          <p>가고 싶은 곳, 하고 싶은 것, 떠오르는 생각을 자유롭게 적어주세요</p>
-        </div>
+          <DumpGuideCard />
 
-        <DumpGuideCard />
+          <DumpForm
+            dumpText={dumpText}
+            dumpTextCount={dumpTextCount}
+            onTextChange={handleDumpTextChange}
+          />
+        </section>
 
-        <DumpForm
-          dumpText={dumpText}
-          dumpTextCount={dumpTextCount}
-          onTextChange={handleDumpTextChange}
-        />
-
-        <DumpActionBar
-          onBack={handleClickBack}
-          onNext={handleClickNext}
-          isNextDisabled={isNextDisabled}
-          errorMessage={errorMessage}
-        />
-      </section>
-    </main>
+        <aside className="dump-sidebar">
+          <TripSummaryCard
+            destinations={destinations.length ? destinations : ['-']}
+            dateRange={dateRange}
+            nights={nights}
+            days={nights + 1}
+            travelers={companion_count}
+            completionPct={completionPct}
+            onNext={handleClickNext}
+            onPrev={handleClickBack}
+            nextDisabled={isNextDisabled}
+          />
+        </aside>
+      </main>
+    </>
   );
 };
 
