@@ -1,7 +1,14 @@
 // GroupingPage (SCR-03 그룹화 '정보 정리하기' 페이지)
 
 import { Plus } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import ProgressStat from '@/components/common/ProgressStat';
@@ -33,6 +40,10 @@ import {
   upsertCardIntoGroups,
 } from '../utils/grouping-mapper';
 import { useOnboardingStore } from '../utils/onboarding-store';
+
+// 카드 재파싱 자동 새로고침 폴링 주기/최대 대기
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 30000;
 
 const FALLBACK_SUMMARY: TripSummaryViewModel = {
   destinations: [],
@@ -178,6 +189,53 @@ const GroupingPage = () => {
     [tripId]
   );
 
+  // 카드 레벨 재파싱(notes) 이후 processing 이 풀릴 때까지 주기적으로 자동 새로고침
+  const pollCancelRef = useRef<(() => void) | null>(null);
+
+  const pollUntilCardSettled = useCallback(
+    (instanceId: string) => {
+      if (!tripId) return;
+      // 진행 중이던 폴링이 있으면 취소 (마지막 confirm 기준으로만 동작)
+      pollCancelRef.current?.();
+
+      let cancelled = false;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      pollCancelRef.current = () => {
+        cancelled = true;
+        if (timer) clearTimeout(timer);
+      };
+
+      const startedAt = Date.now();
+      const tick = async () => {
+        try {
+          const [groupsRes, cardsRes] = await Promise.all([
+            fetchGroups03(tripId),
+            fetchCards(tripId),
+          ]);
+          if (cancelled) return;
+          dispatch({
+            type: 'REFRESH_SUCCESS',
+            groups: groupsRes,
+            contextSummary: cardsRes.context_summary,
+          });
+          const card = cardsRes.cards.find((c) => c.instance_id === instanceId);
+          const settled = !card || card.processing_status !== 'processing';
+          if (settled || Date.now() - startedAt > POLL_TIMEOUT_MS) return;
+        } catch {
+          // 폴링 실패는 조용히 중단 — 사용자는 상단 새로고침으로 재시도 가능
+          return;
+        }
+        if (!cancelled) timer = setTimeout(tick, POLL_INTERVAL_MS);
+      };
+
+      timer = setTimeout(tick, POLL_INTERVAL_MS);
+    },
+    [tripId]
+  );
+
+  // tripId 변경/언마운트 시 진행 중 폴링 정리
+  useEffect(() => () => pollCancelRef.current?.(), [tripId]);
+
   // 초기 로딩 / tripId 변경 시 재로딩
   useEffect(() => {
     if (!tripId) {
@@ -272,11 +330,21 @@ const GroupingPage = () => {
     );
   };
 
-  const handleConfirmSelect = (card: PlaceCardViewModel | null) => {
+  const handleConfirmSelect = (
+    card: PlaceCardViewModel | null,
+    payload: { choices: string[]; answer: string }
+  ) => {
     if (!card || !tripId) return Promise.resolve(false);
+    // 선택 칩 + 답변을 한 덩어리 자연어(notes)로 합쳐 보낸다.
+    // 백엔드는 undecided 카드의 notes 입력을 카드 레벨 AI 재파싱으로 처리한다.
+    const notes = [...payload.choices, payload.answer]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .join(', ');
+    if (!notes) return Promise.resolve(false);
     return runCardMutation(
-      () => patchCard(tripId, card.id, { classification: 'confirmed' }),
-      '확정 처리에 실패했습니다.'
+      () => patchCard(tripId, card.id, { notes }),
+      '확인 처리에 실패했습니다.'
     );
   };
 
@@ -443,8 +511,12 @@ const GroupingPage = () => {
         onOpenChange={setSelectOpen}
         card={selectCard}
         onConfirm={async (payload) => {
-          console.log('[GroupingPage] select payload', payload);
-          if (await handleConfirmSelect(selectCard)) setSelectOpen(false);
+          const cardId = selectCard?.id;
+          if (await handleConfirmSelect(selectCard, payload)) {
+            setSelectOpen(false);
+            // 재파싱이 끝나면 결과가 자동 반영되도록 폴링 새로고침 시작
+            if (cardId) pollUntilCardSettled(cardId);
+          }
         }}
         onExclude={async () => {
           if (await handleExclude(selectCard)) setSelectOpen(false);
