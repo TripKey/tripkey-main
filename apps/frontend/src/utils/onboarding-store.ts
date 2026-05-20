@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 import type { OnboardingRequest } from '../types/onboarding';
 
@@ -59,6 +59,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
     }),
     {
       name: 'onboarding-storage',
+      storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         form: state.form,
         tripId: state.tripId,

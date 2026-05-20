@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 type ExactDate = { from: Date; to: Date; nights: number };
 type FlexDate = { year: number; month: number; nights: number };
@@ -26,6 +26,7 @@ export const useCalendarStore = create<CalendarStore>()(
     }),
     {
       name: 'calendar-storage',
+      storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         type: state.type,
         exactDate: state.exactDate,

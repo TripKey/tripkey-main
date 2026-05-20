@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import DumpForm from '../components/dump/DumpForm';
 import DumpGuideCard from '../components/dump/DumpGuideCard';
 import TripSummaryCard from '../components/grouping/TripSummaryCard';
+import Header from '../components/header/Header';
+import { Button } from '../components/ui/button';
 import {
   useCalendarStore,
   formatDateRangeLabel,
@@ -60,36 +62,50 @@ const DumpPage = () => {
   };
 
   return (
-    <main className="dump-page">
-      <section className="dump-container">
-        <div className="dump-header">
-          <h1>여행 정보 입력</h1>
-          <p>가고 싶은 곳, 하고 싶은 것, 떠오르는 생각을 자유롭게 적어주세요</p>
-        </div>
+    <>
+      <Header
+        currentStepId="dump"
+        actions={
+          <>
+            <Button variant="outline" size="sm">
+              초기화
+            </Button>
+          </>
+        }
+      />
+      <main className="dump-page">
+        <section className="dump-container">
+          <div className="dump-header">
+            <h1>여행 정보 입력</h1>
+            <p>
+              가고 싶은 곳, 하고 싶은 것, 떠오르는 생각을 자유롭게 적어주세요
+            </p>
+          </div>
 
-        <DumpGuideCard />
+          <DumpGuideCard />
 
-        <DumpForm
-          dumpText={dumpText}
-          dumpTextCount={dumpTextCount}
-          onTextChange={handleDumpTextChange}
-        />
-      </section>
+          <DumpForm
+            dumpText={dumpText}
+            dumpTextCount={dumpTextCount}
+            onTextChange={handleDumpTextChange}
+          />
+        </section>
 
-      <aside className="dump-sidebar">
-        <TripSummaryCard
-          destinations={destinations.length ? destinations : ['-']}
-          dateRange={dateRange}
-          nights={nights}
-          days={nights + 1}
-          travelers={companion_count}
-          completionPct={completionPct}
-          onNext={handleClickNext}
-          onPrev={handleClickBack}
-          nextDisabled={isNextDisabled}
-        />
-      </aside>
-    </main>
+        <aside className="dump-sidebar">
+          <TripSummaryCard
+            destinations={destinations.length ? destinations : ['-']}
+            dateRange={dateRange}
+            nights={nights}
+            days={nights + 1}
+            travelers={companion_count}
+            completionPct={completionPct}
+            onNext={handleClickNext}
+            onPrev={handleClickBack}
+            nextDisabled={isNextDisabled}
+          />
+        </aside>
+      </main>
+    </>
   );
 };
 

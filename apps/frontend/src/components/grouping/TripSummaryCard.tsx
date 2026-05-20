@@ -4,6 +4,7 @@ import {
   CreditCard,
   MapPin,
   User,
+  ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { type ReactNode } from 'react';
@@ -28,6 +29,7 @@ const TripSummaryCard = ({
   days,
   travelers,
   totalCards,
+  reservation,
   cardStats,
   completionPct,
   onNext,
@@ -55,6 +57,12 @@ const TripSummaryCard = ({
         <SummaryRow icon={User} label="동행자">
           <span className="font-semibold text-foreground">{travelers}명</span>
         </SummaryRow>
+
+        {reservation && (
+          <SummaryRow icon={ClipboardCheck} label="예약 완료">
+            <span className="font-semibold text-foreground">{reservation}</span>
+          </SummaryRow>
+        )}
 
         {totalCards != null && (
           <SummaryRow icon={CreditCard} label="전체 카드">
