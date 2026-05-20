@@ -16,9 +16,6 @@ import { useOnboardingStore } from '../utils/onboarding-store';
 import './DumpPage.css';
 import './ProgressPage.css';
 
-const TRIP_ID_MISSING_MESSAGE =
-  '여행 정보가 없습니다. 온보딩에서 여행을 먼저 만들어 주세요.';
-
 const DumpPage = () => {
   const navigate = useNavigate();
   const tripId = useOnboardingStore((s) => s.tripId);
@@ -35,12 +32,17 @@ const DumpPage = () => {
     }
   }, [view.kind, navigate]);
 
+  useEffect(() => {
+    // 정상 흐름: tripId 없이 진입하면 온보딩부터 진행하도록 되돌린다.
+    if (!tripId) {
+      navigate('/onboarding', { replace: true });
+    }
+  }, [tripId, navigate]);
+
   const dumpTextCount = dumpText.trim().length;
 
   const isNextDisabled =
-    !tripId ||
-    dumpTextCount < DUMP_TEXT.MIN_LENGTH ||
-    requestStatus === 'loading';
+    dumpTextCount < DUMP_TEXT.MIN_LENGTH || requestStatus === 'loading';
 
   const handleDumpTextChange = (nextDumpText: string) => {
     setDumpText(nextDumpText);
@@ -54,6 +56,11 @@ const DumpPage = () => {
     if (!tripId) return;
     await submitDump(tripId);
   };
+
+  // 온보딩으로 리다이렉트되는 동안 폼이 깜빡이지 않도록 렌더를 막는다.
+  if (!tripId) {
+    return null;
+  }
 
   const isInProgress =
     jobId !== null && view.kind !== 'idle' && view.kind !== 'done';
@@ -79,8 +86,6 @@ const DumpPage = () => {
     );
   }
 
-  const actionBarError = !tripId ? TRIP_ID_MISSING_MESSAGE : errorMessage;
-
   return (
     <main className="dump-page">
       <div className="area">{/* 공통 컴포넌트 순서도 */}</div>
@@ -103,7 +108,7 @@ const DumpPage = () => {
           onBack={handleClickBack}
           onNext={handleClickNext}
           isNextDisabled={isNextDisabled}
-          errorMessage={actionBarError}
+          errorMessage={errorMessage}
         />
       </section>
     </main>
