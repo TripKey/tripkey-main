@@ -1,5 +1,6 @@
 package com.tripkey.global.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -18,6 +19,18 @@ public class AsyncConfig {
         executor.setMaxPoolSize(4);
         executor.setQueueCapacity(50);
         executor.setThreadNamePrefix("dump-");
+        executor.initialize();
+        return executor;
+    }
+
+    @Bean(name = "enrichmentTaskExecutor")
+    public Executor enrichmentTaskExecutor(
+            @Value("${app.enrichment.concurrency:3}") int concurrency) {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(concurrency);
+        executor.setMaxPoolSize(concurrency);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("enrichment-");
         executor.initialize();
         return executor;
     }

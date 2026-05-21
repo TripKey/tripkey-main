@@ -104,7 +104,7 @@ class DumpAsyncProcessorTest {
 
         verify(placeCardRepository).deleteAllByTripId(tripId);
         verify(placeCardRepository).saveAll(any());
-        verify(nonBlockingEnrichmentProcessor).trigger(any(), any(), any());
+        verify(nonBlockingEnrichmentProcessor).trigger(any());
 
         assertThat(job.getStatus()).isEqualTo("completed");
         assertThat(job.getStep()).isEqualTo((short) 3);
@@ -157,11 +157,11 @@ class DumpAsyncProcessorTest {
         when(aiEngineClient.parseDump(any())).thenReturn(response);
         when(placeCardRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
         doThrow(new IllegalStateException("executor rejected"))
-                .when(nonBlockingEnrichmentProcessor).trigger(any(), any(), any());
+                .when(nonBlockingEnrichmentProcessor).trigger(any());
 
         dumpAsyncProcessor.process(job.getJobId());
 
-        verify(nonBlockingEnrichmentProcessor).trigger(any(), any(), any());
+        verify(nonBlockingEnrichmentProcessor).trigger(any());
         assertThat(job.getStatus()).isEqualTo("completed");
         assertThat(job.getErrorCode()).isNull();
     }
