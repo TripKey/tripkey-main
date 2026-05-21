@@ -2,8 +2,6 @@ package com.tripkey.domain.dump;
 
 import com.tripkey.domain.alert.AlertCard;
 import com.tripkey.domain.alert.AlertCardRepository;
-import com.tripkey.domain.place.PlaceCard;
-import com.tripkey.domain.trip.Trip;
 import com.tripkey.infra.aiengine.AiEngineClient;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentRequest;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentResponse;
@@ -35,20 +33,12 @@ public class NonBlockingEnrichmentProcessor {
     }
 
     /**
-     * 비동기 진입을 enrichmentTaskExecutor 로 처리해 dumpTaskExecutor 점유를 피한다.
-     * 호출 thread (transaction 활성 상태) 에서 PlaceCard / Trip entity 를 즉시 immutable request DTO 로
-     * 변환한 뒤 각 카드별 작업을 enrichmentTaskExecutor 에 submit. join 없이 fire-and-forget 으로 종료.
+     * 호출자는 transaction 활성 상태에서 entity → AiNonBlockingEnrichmentRequest 변환을 마치고
+     * 이 메서드에 immutable DTO 리스트만 전달해야 한다. 본 메서드는 enrichmentTaskExecutor 의
+     * thread 에서 실행되므로 entity 를 직접 받으면 detached 상태에서 lazy 필드 접근 위험이 있다.
      */
     @Async("enrichmentTaskExecutor")
-    public void trigger(List<PlaceCard> cards, List<String> destinations, Trip trip) {
-        List<AiNonBlockingEnrichmentRequest> requests = cards.stream()
-                .map(card -> AiNonBlockingEnrichmentRequest.from(
-                        card,
-                        destinations,
-                        trip.getTravelDays(),
-                        trip.getCompanionCount()))
-                .toList();
-
+    public void trigger(List<AiNonBlockingEnrichmentRequest> requests) {
         for (AiNonBlockingEnrichmentRequest request : requests) {
             CompletableFuture.runAsync(() -> enrichSingleRequest(request), enrichmentTaskExecutor);
         }

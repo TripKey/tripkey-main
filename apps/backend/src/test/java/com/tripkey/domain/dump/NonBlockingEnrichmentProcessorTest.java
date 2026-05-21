@@ -3,7 +3,6 @@ package com.tripkey.domain.dump;
 import com.tripkey.domain.alert.AlertCard;
 import com.tripkey.domain.alert.AlertCardRepository;
 import com.tripkey.domain.place.PlaceCard;
-import com.tripkey.domain.trip.Trip;
 import com.tripkey.infra.aiengine.AiEngineClient;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentRequest;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentResponse;
@@ -50,49 +49,33 @@ class NonBlockingEnrichmentProcessorTest {
 
     @Test
     void triggerSwallowsCardLevelEnrichmentFailure() {
-        PlaceCard card = placeCard(UUID.randomUUID());
-        Trip trip = new Trip((short) 3, (short) 2);
+        AiNonBlockingEnrichmentRequest request = enrichmentRequest(UUID.randomUUID());
         when(aiEngineClient.enrichCardNonBlocking(any())).thenThrow(new IllegalStateException("timeout"));
 
-        assertDoesNotThrow(() -> nonBlockingEnrichmentProcessor.trigger(List.of(card), List.of("오사카"), trip));
+        assertDoesNotThrow(() -> nonBlockingEnrichmentProcessor.trigger(List.of(request)));
     }
 
     @Test
-    void triggerPassesFlightFieldsToAiEngineSnapshot() {
-        PlaceCard card = PlaceCard.createFromAiResponse(
-                UUID.randomUUID(),
+    void triggerPassesRequestSnapshotToAiEngine() {
+        UUID tripId = UUID.randomUUID();
+        PlaceCard flightCard = PlaceCard.createFromAiResponse(
+                tripId,
                 new AiPlaceCardDto(
-                        null,
-                        "ICN-NRT",
-                        "transport",
-                        "confirmed",
-                        "ready",
-                        false,
-                        true,
-                        null,
-                        null,
-                        null,
-                        null,
-                        "09:00 출발",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        "KE703",
-                        "2026-07-01T09:00:00+09:00",
-                        "outbound"
+                        null, "ICN-NRT", "transport", "confirmed", "ready",
+                        false, true, null, null, null, null,
+                        "09:00 출발", null, null, null, null, null, null,
+                        null, null,
+                        "KE703", "2026-07-01T09:00:00+09:00", "outbound"
                 ),
                 "ai_parse"
         );
-        Trip trip = new Trip((short) 3, (short) 2);
+        AiNonBlockingEnrichmentRequest request = AiNonBlockingEnrichmentRequest.from(
+                flightCard, List.of("도쿄"), (short) 3, (short) 2
+        );
         when(aiEngineClient.enrichCardNonBlocking(any()))
                 .thenReturn(new AiNonBlockingEnrichmentResponse(null, List.of(), List.of()));
 
-        nonBlockingEnrichmentProcessor.trigger(List.of(card), List.of("도쿄"), trip);
+        nonBlockingEnrichmentProcessor.trigger(List.of(request));
 
         ArgumentCaptor<AiNonBlockingEnrichmentRequest> captor =
                 ArgumentCaptor.forClass(AiNonBlockingEnrichmentRequest.class);
@@ -107,15 +90,14 @@ class NonBlockingEnrichmentProcessorTest {
     @Test
     void triggerPersistsAlertsWithNullJobIdWhenEnrichmentReturnsAlerts() {
         UUID tripId = UUID.randomUUID();
-        PlaceCard card = placeCard(tripId);
-        Trip trip = new Trip((short) 3, (short) 2);
+        AiNonBlockingEnrichmentRequest request = enrichmentRequest(tripId);
         AiParseResponse.AlertCard insightAlert = new AiParseResponse.AlertCard(
                 "alert-insight-1", "festival", "insight", "trip", null, "축제 기간입니다", null
         );
         when(aiEngineClient.enrichCardNonBlocking(any()))
                 .thenReturn(new AiNonBlockingEnrichmentResponse(null, List.of(), List.of(insightAlert)));
 
-        nonBlockingEnrichmentProcessor.trigger(List.of(card), List.of("오사카"), trip);
+        nonBlockingEnrichmentProcessor.trigger(List.of(request));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<AlertCard>> captor = ArgumentCaptor.forClass(List.class);
@@ -128,46 +110,45 @@ class NonBlockingEnrichmentProcessorTest {
     }
 
     @Test
-    void triggerInvokesEnrichmentForEveryCardInBatch() {
+    void triggerInvokesEnrichmentForEveryRequestInBatch() {
         UUID tripId = UUID.randomUUID();
-        PlaceCard a = placeCard(tripId);
-        PlaceCard b = placeCard(tripId);
-        PlaceCard c = placeCard(tripId);
-        Trip trip = new Trip((short) 3, (short) 2);
+        AiNonBlockingEnrichmentRequest a = enrichmentRequest(tripId);
+        AiNonBlockingEnrichmentRequest b = enrichmentRequest(tripId);
+        AiNonBlockingEnrichmentRequest c = enrichmentRequest(tripId);
         when(aiEngineClient.enrichCardNonBlocking(any()))
                 .thenReturn(new AiNonBlockingEnrichmentResponse(null, List.of(), List.of()));
 
-        nonBlockingEnrichmentProcessor.trigger(List.of(a, b, c), List.of("오사카"), trip);
+        nonBlockingEnrichmentProcessor.trigger(List.of(a, b, c));
 
         verify(aiEngineClient, times(3)).enrichCardNonBlocking(any());
     }
 
     @Test
-    void triggerIsolatesPerCardFailureFromOtherCards() {
+    void triggerIsolatesPerRequestFailureFromOtherRequests() {
         UUID tripId = UUID.randomUUID();
-        PlaceCard failing = placeCard(tripId);
-        PlaceCard succeeding = placeCard(tripId);
-        Trip trip = new Trip((short) 3, (short) 2);
+        AiNonBlockingEnrichmentRequest failing = enrichmentRequest(tripId);
+        AiNonBlockingEnrichmentRequest succeeding = enrichmentRequest(tripId);
 
         when(aiEngineClient.enrichCardNonBlocking(any()))
                 .thenThrow(new IllegalStateException("first card timeout"))
                 .thenReturn(new AiNonBlockingEnrichmentResponse(null, List.of(), List.of()));
 
         assertDoesNotThrow(() ->
-                nonBlockingEnrichmentProcessor.trigger(List.of(failing, succeeding), List.of("오사카"), trip));
+                nonBlockingEnrichmentProcessor.trigger(List.of(failing, succeeding)));
 
         verify(aiEngineClient, times(2)).enrichCardNonBlocking(any());
     }
 
-    private PlaceCard placeCard(UUID tripId) {
-        return PlaceCard.createFromAiResponse(
+    private AiNonBlockingEnrichmentRequest enrichmentRequest(UUID tripId) {
+        PlaceCard card = PlaceCard.createFromAiResponse(
                 tripId,
                 new AiPlaceCardDto(
-                        null, "도톤보리", "place", "confirmed", "ready_partial",
+                        null, "도톈보리", "place", "confirmed", "ready_partial",
                         false, false, (short) 90, null, "오사카",
                         null, null, null, null, null, null, null, null, null, null, null
                 ),
                 "ai_parse"
         );
+        return AiNonBlockingEnrichmentRequest.from(card, List.of("오사카"), (short) 3, (short) 2);
     }
 }
