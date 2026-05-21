@@ -34,29 +34,39 @@ export const useOnboardingStore = create<OnboardingStore>()(
       requestStatus: 'idle',
       errorMessage: null,
 
-  actions: {
-    setForm: (partial) =>
-      set((state) => ({ form: { ...state.form, ...partial } })),
+      actions: {
+        setForm: (partial) =>
+          set((state) => ({ form: { ...state.form, ...partial } })),
 
-    setTripId: (tripId) => set({ tripId }),
+        setTripId: (tripId) => set({ tripId }),
 
-    submitOnboarding: async () => {
-      if (get().requestStatus === 'loading') return false;
-      set({ requestStatus: 'loading', errorMessage: null });
+        submitOnboarding: async () => {
+          if (get().requestStatus === 'loading') return false;
+          set({ requestStatus: 'loading', errorMessage: null });
 
-      try {
-        const result = await createTrip(get().form);
-        set({ requestStatus: 'success', tripId: result.trip_id });
-        return true;
-      } catch (error) {
-        set({
-          requestStatus: 'error',
-          errorMessage:
-            parseOnboardingApiError(error)?.message ??
-            '서버 통신 오류가 발생했습니다.',
-        });
-        return false;
-      }
-    },
-  },
-}));
+          try {
+            const result = await createTrip(get().form);
+            set({ requestStatus: 'success', tripId: result.trip_id });
+            return true;
+          } catch (error) {
+            set({
+              requestStatus: 'error',
+              errorMessage:
+                parseOnboardingApiError(error)?.message ??
+                '서버 통신 오류가 발생했습니다.',
+            });
+            return false;
+          }
+        },
+      },
+    }),
+    {
+      name: 'onboarding-storage',
+      storage: createJSONStorage(() => sessionStorage),
+      partialize: (state) => ({
+        form: state.form,
+        tripId: state.tripId,
+      }),
+    }
+  )
+);

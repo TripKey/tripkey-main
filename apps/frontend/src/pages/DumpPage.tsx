@@ -3,11 +3,18 @@ import { useNavigate } from 'react-router-dom';
 
 import DumpForm from '../components/dump/DumpForm';
 import DumpGuideCard from '../components/dump/DumpGuideCard';
+import TripSummaryCard from '../components/grouping/TripSummaryCard';
+import Header from '../components/header/Header';
 import EmptyView from '../components/progress/EmptyView';
 import ErrorView from '../components/progress/ErrorView';
 import GroupFailView from '../components/progress/GroupFailView';
 import LoadingView from '../components/progress/LoadingView';
+import { Button } from '../components/ui/button';
 import { useParseJobStatus } from '../hooks/useParseJobStatus';
+import {
+  useCalendarStore,
+  formatDateRangeLabel,
+} from '../utils/calendar-store';
 import { DUMP_TEXT } from '../utils/constants';
 import { useDumpStore } from '../utils/dump-store';
 import { useOnboardingStore } from '../utils/onboarding-store';
@@ -18,8 +25,9 @@ import './ProgressPage.css';
 const DumpPage = () => {
   const navigate = useNavigate();
   const tripId = useOnboardingStore((s) => s.tripId);
-  const { dumpText, requestStatus, errorMessage, jobId, actions } =
-    useDumpStore();
+  const { destinations, companion_count } = useOnboardingStore((s) => s.form);
+  const { type, exactDate, flexDate } = useCalendarStore();
+  const { dumpText, requestStatus, jobId, actions } = useDumpStore();
   const { setDumpText, submitDump, clearJob } = actions;
 
   const view = useParseJobStatus(tripId, jobId);
@@ -38,9 +46,6 @@ const DumpPage = () => {
     }
   }, [tripId, navigate]);
 
-  const { destinations, companion_count } = useOnboardingStore((s) => s.form);
-  const { type, exactDate, flexDate } = useCalendarStore();
-
   const dateRange = formatDateRangeLabel(type, exactDate, flexDate);
   const nights = exactDate?.nights ?? flexDate?.nights ?? 0;
 
@@ -57,8 +62,6 @@ const DumpPage = () => {
   const handleDumpTextChange = (nextDumpText: string) => {
     setDumpText(nextDumpText);
   };
-
-  const navigate = useNavigate();
 
   const handleClickBack = () => {
     navigate('/onboarding');
