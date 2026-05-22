@@ -74,6 +74,8 @@ create table place_cards (
   flight_datetime        text,
   flight_role            text,
   search_alias           text,
+  enrichment_attempts    integer     not null default 0,
+  enrichment_claimed_at  timestamptz,
   geom                   geometry(Point, 4326)
     generated always as (
       case
@@ -87,6 +89,7 @@ create table place_cards (
 );
 
 create index idx_place_cards_geom on place_cards using gist (geom);
+create index idx_place_cards_enrichment_pending on place_cards (created_at) where processing_status = 'pending';
 
 create table alert_cards (
   id                    bigserial   primary key,
@@ -99,7 +102,8 @@ create table alert_cards (
   day                   smallint,
   message               text        not null,
   related_instance_ids  text,
-  created_at            timestamptz not null default now()
+  created_at            timestamptz not null default now(),
+  constraint uq_alert_cards_trip_alert unique (trip_id, alert_id)
 );
 
 create index idx_alert_cards_trip_id on alert_cards (trip_id);

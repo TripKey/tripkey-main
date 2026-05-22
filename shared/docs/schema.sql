@@ -95,6 +95,10 @@ create table if not exists public.place_cards (
   flight_role            text,                                     -- outbound / inbound / null
   search_alias           text,                                     -- Places API 검색용 내부 별칭 (외부 응답 비노출)
 
+  -- enrichment 작업 큐 (BE-154)
+  enrichment_attempts    integer     not null default 0,           -- AI enrichment 시도 횟수 (maxAttempts 초과 시 failed)
+  enrichment_claimed_at  timestamptz,                              -- 워커 claim 시각 (NULL=미점유, stale 회수 기준)
+
   -- 공간 (lat/lng 기반 generated column, SRID 4326)
   geom                   geometry(Point, 4326)
     generated always as (
@@ -111,6 +115,8 @@ create table if not exists public.place_cards (
 
 create index if not exists idx_place_cards_trip_id on public.place_cards (trip_id);
 create index if not exists idx_place_cards_geom    on public.place_cards using gist (geom);
+create index if not exists idx_place_cards_enrichment_pending
+  on public.place_cards (created_at) where processing_status = 'pending';
 
 -- AI 엔진 (Core Parse / Non-blocking Enrichment) 이 생성하는 알림 카드
 -- (Cards SSOT 응답의 alert_cards 배열로 노출됨)
@@ -129,3 +135,5 @@ create table if not exists public.alert_cards (
 );
 
 create index if not exists idx_alert_cards_trip_id on public.alert_cards (trip_id);
+alter table public.alert_cards
+  add constraint uq_alert_cards_trip_alert unique (trip_id, alert_id);
