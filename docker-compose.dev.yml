@@ -23,6 +23,9 @@ services:
       - "8080:8080"
     env_file:
       - ./apps/backend/.env
+    depends_on:
+      localstack:
+        condition: service_healthy
     restart: unless-stopped
 
   ai-engine:
@@ -50,4 +53,10 @@ services:
       SERVICES: sqs
     volumes:
       - ./localstack/init/ready.d:/etc/localstack/init/ready.d
+    healthcheck:
+      test: ["CMD", "awslocal", "sqs", "list-queues"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     restart: unless-stopped
