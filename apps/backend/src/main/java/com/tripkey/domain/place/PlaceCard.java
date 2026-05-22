@@ -149,12 +149,6 @@ public class PlaceCard {
     @Column(name = "search_alias", columnDefinition = "text")
     private String searchAlias;
 
-    @Column(name = "enrichment_attempts", nullable = false)
-    private Integer enrichmentAttempts = 0;
-
-    @Column(name = "enrichment_claimed_at")
-    private OffsetDateTime enrichmentClaimedAt;
-
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -331,22 +325,18 @@ public class PlaceCard {
         recomputeActionType();
     }
 
-    public void claimForEnrichment(OffsetDateTime claimedAt) {
+    public void markProcessing() {
         this.processingStatus = "processing";
-        this.enrichmentClaimedAt = claimedAt;
         recomputeActionType();
     }
 
     public void completeEnrichment() {
         this.processingStatus = "completed";
-        this.enrichmentClaimedAt = null;
         recomputeActionType();
     }
 
-    public void failEnrichmentAttempt(int maxAttempts) {
-        this.enrichmentAttempts = (this.enrichmentAttempts == null ? 0 : this.enrichmentAttempts) + 1;
-        this.enrichmentClaimedAt = null;
-        this.processingStatus = this.enrichmentAttempts >= maxAttempts ? "failed" : "pending";
+    public void markFailed() {
+        this.processingStatus = "failed";
         recomputeActionType();
     }
 
@@ -368,7 +358,6 @@ public class PlaceCard {
         card.classification = normalizeClassification(dto.classification());
         card.placementStatus = normalizePlacementStatus(dto.placementStatus(), card.classification);
         card.processingStatus = "pending";
-        card.enrichmentAttempts = 0;
         card.isAiGenerated = dto.isAiGenerated() != null ? dto.isAiGenerated() : false;
         card.allowDuplicate = dto.allowDuplicate() != null
                 ? dto.allowDuplicate()

@@ -4,7 +4,6 @@ import com.tripkey.dto.card.CardDto;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import org.junit.jupiter.api.Test;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -320,47 +319,29 @@ class PlaceCardTest {
         PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
 
         assertThat(card.getProcessingStatus()).isEqualTo("pending");
-        assertThat(card.getEnrichmentAttempts()).isZero();
-        assertThat(card.getEnrichmentClaimedAt()).isNull();
     }
 
     @Test
-    void claimForEnrichmentMarksProcessingWithClaimTimestamp() {
+    void markProcessingSetsProcessingStatus() {
         PlaceCard card = sampleCard();
-        OffsetDateTime now = OffsetDateTime.parse("2026-05-22T09:00:00Z");
-
-        card.claimForEnrichment(now);
-
+        card.markProcessing();
         assertThat(card.getProcessingStatus()).isEqualTo("processing");
-        assertThat(card.getEnrichmentClaimedAt()).isEqualTo(now);
     }
 
     @Test
-    void completeEnrichmentMarksCompletedAndClearsClaim() {
+    void completeEnrichmentMarksCompleted() {
         PlaceCard card = sampleCard();
-        card.claimForEnrichment(OffsetDateTime.parse("2026-05-22T09:00:00Z"));
-
+        card.markProcessing();
         card.completeEnrichment();
-
         assertThat(card.getProcessingStatus()).isEqualTo("completed");
-        assertThat(card.getEnrichmentClaimedAt()).isNull();
     }
 
     @Test
-    void failEnrichmentAttemptRetriesUntilMaxThenFails() {
+    void markFailedSetsFailed() {
         PlaceCard card = sampleCard();
-        card.claimForEnrichment(OffsetDateTime.parse("2026-05-22T09:00:00Z"));
-
-        card.failEnrichmentAttempt(2);
-        assertThat(card.getEnrichmentAttempts()).isEqualTo(1);
-        assertThat(card.getProcessingStatus()).isEqualTo("pending");
-        assertThat(card.getEnrichmentClaimedAt()).isNull();
-
-        card.claimForEnrichment(OffsetDateTime.parse("2026-05-22T09:05:00Z"));
-        card.failEnrichmentAttempt(2);
-        assertThat(card.getEnrichmentAttempts()).isEqualTo(2);
+        card.markProcessing();
+        card.markFailed();
         assertThat(card.getProcessingStatus()).isEqualTo("failed");
-        assertThat(card.getEnrichmentClaimedAt()).isNull();
     }
 
     private static PlaceCard sampleCard() {

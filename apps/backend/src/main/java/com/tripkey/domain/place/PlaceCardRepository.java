@@ -65,23 +65,4 @@ public interface PlaceCardRepository extends JpaRepository<PlaceCard, UUID> {
             """, nativeQuery = true)
     List<Object[]> findAdjacentCardDistances(@Param("tripId") UUID tripId);
 
-    /**
-     * enrichment 작업 큐 claim 쿼리.
-     * pending 카드 + claim 만료된 stale processing 카드를 created_at FIFO 로,
-     * FOR UPDATE SKIP LOCKED 로 batchSize 만큼 잠가 반환한다.
-     * 호출자는 같은 트랜잭션에서 claimForEnrichment 마킹 후 커밋해야 락이 풀린다.
-     * enrichment_claimed_at IS NULL 인 processing(manual/카드레벨 파싱) 은
-     * 부등호 비교가 NULL->false 라 자연히 제외된다.
-     */
-    @Query(value = """
-            select * from place_cards
-             where processing_status = 'pending'
-                or (processing_status = 'processing'
-                    and enrichment_claimed_at < now() - (:claimTimeoutSeconds * interval '1 second'))
-             order by created_at asc
-             for update skip locked
-             limit :batchSize
-            """, nativeQuery = true)
-    List<PlaceCard> findClaimablePendingCards(@Param("claimTimeoutSeconds") int claimTimeoutSeconds,
-                                              @Param("batchSize") int batchSize);
 }

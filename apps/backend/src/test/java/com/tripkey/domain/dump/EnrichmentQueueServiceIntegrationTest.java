@@ -8,7 +8,6 @@ import com.tripkey.domain.trip.Trip;
 import com.tripkey.domain.trip.TripDestination;
 import com.tripkey.domain.trip.TripDestinationRepository;
 import com.tripkey.domain.trip.TripRepository;
-import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentRequest;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentResponse;
 import com.tripkey.infra.aiengine.dto.AiParseResponse;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
@@ -67,34 +66,9 @@ class EnrichmentQueueServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        service = new EnrichmentQueueService(
-                placeCardRepository, tripRepository, tripDestinationRepository, alertCardRepository);
+        service = new EnrichmentQueueService(placeCardRepository, alertCardRepository);
         newTx = new TransactionTemplate(txManager);
         newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-    }
-
-    @Test
-    void claimBatchMarksProcessingAndBuildsRequestsWithTripContext() {
-        UUID tripId = seedTripWithDestinations((short) 4, (short) 2, "오사카", "교토");
-        UUID cardId = seedPendingCard(tripId, "도톤보리");
-
-        List<AiNonBlockingEnrichmentRequest> requests = newTx.execute(s ->
-                service.claimBatch(10, 60));
-
-        assertThat(requests).filteredOn(r -> r.tripId().equals(tripId)).hasSize(1);
-        AiNonBlockingEnrichmentRequest req = requests.stream()
-                .filter(r -> r.tripId().equals(tripId))
-                .findFirst()
-                .orElseThrow();
-        assertThat(req.tripId()).isEqualTo(tripId);
-        assertThat(req.travelDays()).isEqualTo((short) 4);
-        assertThat(req.companionCount()).isEqualTo((short) 2);
-        assertThat(req.destinations()).containsExactly("오사카", "교토");
-        assertThat(req.card().instanceId()).isEqualTo(cardId);
-
-        PlaceCard reloaded = placeCardRepository.findById(cardId).orElseThrow();
-        assertThat(reloaded.getProcessingStatus()).isEqualTo("processing");
-        assertThat(reloaded.getEnrichmentClaimedAt()).isNotNull();
     }
 
     @Test
@@ -116,7 +90,6 @@ class EnrichmentQueueServiceIntegrationTest {
 
         PlaceCard reloaded = placeCardRepository.findById(cardId).orElseThrow();
         assertThat(reloaded.getProcessingStatus()).isEqualTo("completed");
-        assertThat(reloaded.getEnrichmentClaimedAt()).isNull();
     }
 
     @Test
@@ -134,19 +107,25 @@ class EnrichmentQueueServiceIntegrationTest {
     }
 
     @Test
-    void recordFailureRetriesThenMarksFailedAtMaxAttempts() {
+    void markEnrichmentFailedSetsCardFailed() {
         UUID tripId = seedTripWithDestinations((short) 3, (short) 1, "도쿄");
         UUID cardId = seedPendingCard(tripId, "신주쿠");
 
-        newTx.executeWithoutResult(s -> service.recordFailure(cardId, 2));
-        PlaceCard afterFirst = placeCardRepository.findById(cardId).orElseThrow();
-        assertThat(afterFirst.getProcessingStatus()).isEqualTo("pending");
-        assertThat(afterFirst.getEnrichmentAttempts()).isEqualTo(1);
+        newTx.executeWithoutResult(s -> service.markEnrichmentFailed(cardId));
 
-        newTx.executeWithoutResult(s -> service.recordFailure(cardId, 2));
-        PlaceCard afterSecond = placeCardRepository.findById(cardId).orElseThrow();
-        assertThat(afterSecond.getProcessingStatus()).isEqualTo("failed");
-        assertThat(afterSecond.getEnrichmentAttempts()).isEqualTo(2);
+        assertThat(placeCardRepository.findById(cardId).orElseThrow().getProcessingStatus())
+                .isEqualTo("failed");
+    }
+
+    @Test
+    void markProcessingSetsCardProcessing() {
+        UUID tripId = seedTripWithDestinations((short) 3, (short) 1, "도쿄");
+        UUID cardId = seedPendingCard(tripId, "시부야");
+
+        newTx.executeWithoutResult(s -> service.markProcessing(cardId));
+
+        assertThat(placeCardRepository.findById(cardId).orElseThrow().getProcessingStatus())
+                .isEqualTo("processing");
     }
 
     private UUID seedTripWithDestinations(short travelDays, short companionCount, String... names) {
