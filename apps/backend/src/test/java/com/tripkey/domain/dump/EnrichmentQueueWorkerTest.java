@@ -87,6 +87,17 @@ class EnrichmentQueueWorkerTest {
                         false, false, (short) 90, null, "오사카",
                         null, null, null, null, null, null, null, null, null, null, null),
                 "ai_parse");
+        setInstanceId(card, UUID.randomUUID());
         return AiNonBlockingEnrichmentRequest.from(card, List.of("오사카"), (short) 3, (short) 2);
+    }
+
+    private static void setInstanceId(PlaceCard card, UUID id) {
+        try {
+            java.lang.reflect.Field field = PlaceCard.class.getDeclaredField("instanceId");
+            field.setAccessible(true);
+            field.set(card, id);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }
