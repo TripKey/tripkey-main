@@ -334,6 +334,7 @@ public class PlaceCard {
     public void claimForEnrichment(OffsetDateTime claimedAt) {
         this.processingStatus = "processing";
         this.enrichmentClaimedAt = claimedAt;
+        recomputeActionType();
     }
 
     public void completeEnrichment() {
