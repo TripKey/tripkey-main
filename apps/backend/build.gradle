@@ -46,6 +46,14 @@ dependencies {
     // ── Swagger / OpenAPI ────────────────────────────────
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
 
+    // ── AWS SQS (Spring Cloud AWS) ───────────────────────
+    implementation platform('io.awspring.cloud:spring-cloud-aws-dependencies:3.3.0')
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs'
+
+    // ── Test: LocalStack ─────────────────────────────────
+    testImplementation 'org.testcontainers:localstack'
+    testImplementation 'org.awaitility:awaitility'
+
     // ── Test ─────────────────────────────────────────────
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
