@@ -27,12 +27,15 @@ public class EnrichmentSqsListener {
 
     @SqsListener("${app.enrichment.sqs.queue-name}")
     public void onMessage(String body) {
+        // SQS at-least-once: 재전달 시 markProcessing/AI 재호출/recordSuccess 가 다시 실행되지만
+        // recordSuccess 가 alert (trip_id, alert_id) 삭제-후-삽입으로 멱등이라 안전(중복 미발생).
         AiNonBlockingEnrichmentRequest request = deserialize(body);
         UUID tripId = request.tripId();
         UUID instanceId = request.card().instanceId();
         queueService.markProcessing(instanceId);
         AiNonBlockingEnrichmentResponse response = aiEngineClient.enrichCardNonBlocking(request);
         queueService.recordSuccess(tripId, instanceId, response);
+        log.info("Enrichment processed. trip={} card={}", tripId, instanceId);
     }
 
     private AiNonBlockingEnrichmentRequest deserialize(String body) {
