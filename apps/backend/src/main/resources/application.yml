@@ -10,6 +10,7 @@ spring:
       sqs:
         listener:
           max-concurrent-messages: ${ENRICHMENT_CONCURRENCY:3}
+          max-messages-per-poll: ${ENRICHMENT_CONCURRENCY:3}
   datasource:
     url: ${SUPABASE_DB_URL}
     username: ${SUPABASE_DB_USERNAME}

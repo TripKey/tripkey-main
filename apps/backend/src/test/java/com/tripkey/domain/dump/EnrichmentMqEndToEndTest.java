@@ -36,8 +36,6 @@ import static org.testcontainers.containers.localstack.LocalStackContainer.Servi
 
 @SpringBootTest(properties = {
         "app.enrichment.relay.poll-interval-ms=500",
-        // SQS listener constraint: messagesPerPoll (batch-size default 10) must be <= maxConcurrentMessages
-        "spring.cloud.aws.sqs.listener.max-concurrent-messages=10",
         "spring.datasource.url=will-be-overridden",
         "spring.datasource.username=will-be-overridden",
         "spring.datasource.password=will-be-overridden"
