@@ -2,6 +2,7 @@ package com.tripkey.domain.dump;
 
 import com.tripkey.domain.alert.AlertCard;
 import com.tripkey.domain.alert.AlertCardRepository;
+import com.tripkey.domain.place.PlaceCard;
 import com.tripkey.domain.place.PlaceCardRepository;
 import com.tripkey.domain.trip.Trip;
 import com.tripkey.domain.trip.TripDestination;
@@ -23,7 +24,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,9 +49,6 @@ class DumpAsyncProcessorTest {
 
     @Mock
     private AiEngineClient aiEngineClient;
-
-    @Mock
-    private NonBlockingEnrichmentProcessor nonBlockingEnrichmentProcessor;
 
     @InjectMocks
     private DumpAsyncProcessor dumpAsyncProcessor;
@@ -103,66 +101,15 @@ class DumpAsyncProcessorTest {
         dumpAsyncProcessor.process(job.getJobId());
 
         verify(placeCardRepository).deleteAllByTripId(tripId);
-        verify(placeCardRepository).saveAll(any());
-        verify(nonBlockingEnrichmentProcessor).trigger(any());
+        ArgumentCaptor<List<PlaceCard>> cardsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(placeCardRepository).saveAll(cardsCaptor.capture());
+        assertThat(cardsCaptor.getValue())
+                .extracting(PlaceCard::getProcessingStatus)
+                .containsOnly("pending");
 
         assertThat(job.getStatus()).isEqualTo("completed");
         assertThat(job.getStep()).isEqualTo((short) 3);
         assertThat(job.getContextSummary()).isEqualTo("오사카 시내 중심 동선");
-        assertThat(job.getErrorCode()).isNull();
-    }
-
-    @Test
-    void processCompletesWhenNonBlockingEnrichmentSubmissionFails() {
-        UUID tripId = UUID.randomUUID();
-        DumpJob job = DumpJob.create(tripId, "오사카 3박4일 여행입니다.");
-        Trip trip = new Trip((short) 4, (short) 2);
-        TripDestination destination = new TripDestination(trip, "오사카", (short) 0);
-
-        AiPlaceCardDto card = new AiPlaceCardDto(
-                "place-1",
-                "도톤보리",
-                "place",
-                "confirmed",
-                "ready_partial",
-                false,
-                false,
-                (short) 90,
-                null,
-                "오사카 중앙구",
-                null,
-                null,
-                "야간 방문 추천",
-                null,
-                null,
-                null,
-                null,
-                List.of(),
-                null,
-                null,
-                null
-        );
-
-        AiParseResponse response = new AiParseResponse(
-                List.of(card),
-                "오사카 시내 중심 동선",
-                List.of(),
-                "3.2.0"
-        );
-
-        when(dumpJobRepository.findById(job.getJobId())).thenReturn(Optional.of(job));
-        when(dumpJobRepository.save(any(DumpJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(tripRepository.findById(tripId)).thenReturn(Optional.of(trip));
-        when(tripDestinationRepository.findByTripTripIdOrderBySortOrder(tripId)).thenReturn(List.of(destination));
-        when(aiEngineClient.parseDump(any())).thenReturn(response);
-        when(placeCardRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        doThrow(new IllegalStateException("executor rejected"))
-                .when(nonBlockingEnrichmentProcessor).trigger(any());
-
-        dumpAsyncProcessor.process(job.getJobId());
-
-        verify(nonBlockingEnrichmentProcessor).trigger(any());
-        assertThat(job.getStatus()).isEqualTo("completed");
         assertThat(job.getErrorCode()).isNull();
     }
 
@@ -199,7 +146,7 @@ class DumpAsyncProcessorTest {
 
         dumpAsyncProcessor.process(job.getJobId());
 
-        verify(alertCardRepository).deleteAllByJobId(job.getJobId());
+        verify(alertCardRepository).deleteByTripIdAndAlertIdIn(eq(tripId), any());
         ArgumentCaptor<List<AlertCard>> captor = ArgumentCaptor.forClass(List.class);
         verify(alertCardRepository).saveAll(captor.capture());
         List<AlertCard> persisted = captor.getValue();
@@ -235,7 +182,7 @@ class DumpAsyncProcessorTest {
 
         dumpAsyncProcessor.process(job.getJobId());
 
-        verify(alertCardRepository, never()).deleteAllByJobId(any());
+        verify(alertCardRepository, never()).deleteByTripIdAndAlertIdIn(any(), any());
         verify(alertCardRepository, never()).saveAll(any());
     }
 }

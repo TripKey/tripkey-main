@@ -10,7 +10,5 @@ public interface AlertCardRepository extends JpaRepository<AlertCard, Long> {
 
     List<AlertCard> findAllByTripIdOrderByCreatedAtAsc(UUID tripId);
 
-    void deleteAllByJobId(UUID jobId);
-
     void deleteByTripIdAndAlertIdIn(UUID tripId, Collection<String> alertIds);
 }
