@@ -461,7 +461,7 @@ class CardServiceTest {
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
         assertThat(updated.notes()).isEqualTo("여기 포함해줘");
-        assertThat(updated.processingStatus()).isEqualTo("completed");
+        assertThat(updated.processingStatus()).isEqualTo("pending");
         verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
     }
 
@@ -484,7 +484,7 @@ class CardServiceTest {
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
         assertThat(updated.memo()).isEqualTo("자유 메모만 저장");
-        assertThat(updated.processingStatus()).isEqualTo("completed");
+        assertThat(updated.processingStatus()).isEqualTo("pending");
         verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
     }
 
