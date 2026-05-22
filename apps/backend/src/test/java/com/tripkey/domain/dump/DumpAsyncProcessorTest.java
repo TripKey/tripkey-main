@@ -11,10 +11,10 @@ import com.tripkey.domain.trip.TripRepository;
 import com.tripkey.infra.aiengine.AiEngineClient;
 import com.tripkey.infra.aiengine.dto.AiParseResponse;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -24,6 +24,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -50,8 +51,18 @@ class DumpAsyncProcessorTest {
     @Mock
     private AiEngineClient aiEngineClient;
 
-    @InjectMocks
+    @Mock
+    private EnrichmentOutboxRepository enrichmentOutboxRepository;
+
     private DumpAsyncProcessor dumpAsyncProcessor;
+
+    @BeforeEach
+    void setUp() {
+        dumpAsyncProcessor = new DumpAsyncProcessor(
+                dumpJobRepository, tripRepository, tripDestinationRepository,
+                placeCardRepository, alertCardRepository, aiEngineClient,
+                enrichmentOutboxRepository, new com.fasterxml.jackson.databind.ObjectMapper());
+    }
 
     @Test
     void processMarksJobCompletedAndStoresParsedCards() {
@@ -106,6 +117,8 @@ class DumpAsyncProcessorTest {
         assertThat(cardsCaptor.getValue())
                 .extracting(PlaceCard::getProcessingStatus)
                 .containsOnly("pending");
+
+        verify(enrichmentOutboxRepository).saveAll(anyList());
 
         assertThat(job.getStatus()).isEqualTo("completed");
         assertThat(job.getStep()).isEqualTo((short) 3);

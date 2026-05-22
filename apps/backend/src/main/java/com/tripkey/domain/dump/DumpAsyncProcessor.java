@@ -1,5 +1,7 @@
 package com.tripkey.domain.dump;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tripkey.domain.alert.AlertCard;
 import com.tripkey.domain.alert.AlertCardRepository;
 import com.tripkey.domain.place.PlaceCard;
@@ -9,6 +11,7 @@ import com.tripkey.domain.trip.TripDestination;
 import com.tripkey.domain.trip.TripDestinationRepository;
 import com.tripkey.domain.trip.TripRepository;
 import com.tripkey.infra.aiengine.AiEngineClient;
+import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentRequest;
 import com.tripkey.infra.aiengine.dto.AiParseRequest;
 import com.tripkey.infra.aiengine.dto.AiParseResponse;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +34,8 @@ public class DumpAsyncProcessor {
     private final PlaceCardRepository placeCardRepository;
     private final AlertCardRepository alertCardRepository;
     private final AiEngineClient aiEngineClient;
+    private final EnrichmentOutboxRepository enrichmentOutboxRepository;
+    private final ObjectMapper objectMapper;
 
     @Async("dumpTaskExecutor")
     @Transactional
@@ -81,9 +86,18 @@ public class DumpAsyncProcessor {
                 return;
             }
 
-            placeCardRepository.saveAll(cards);
+            List<PlaceCard> savedCards = placeCardRepository.saveAll(cards);
 
             persistAlertCards(job.getTripId(), job.getJobId(), response);
+
+            List<EnrichmentOutbox> outbox = savedCards.stream()
+                    .map(card -> EnrichmentOutbox.create(
+                            card.getTripId(),
+                            card.getInstanceId(),
+                            serialize(AiNonBlockingEnrichmentRequest.from(
+                                    card, destinations, trip.getTravelDays(), trip.getCompanionCount()))))
+                    .toList();
+            enrichmentOutboxRepository.saveAll(outbox);
 
             job.complete(response.contextSummary());
             dumpJobRepository.save(job);
@@ -91,6 +105,14 @@ public class DumpAsyncProcessor {
             log.error("Failed to parse dump job. jobId={}", jobId, e);
             job.fail("PARSE_FAILED");
             dumpJobRepository.save(job);
+        }
+    }
+
+    private String serialize(AiNonBlockingEnrichmentRequest request) {
+        try {
+            return objectMapper.writeValueAsString(request);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize enrichment request", e);
         }
     }
 
