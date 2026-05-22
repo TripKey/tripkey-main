@@ -47,7 +47,7 @@ class EnrichmentOutboxRepositoryIntegrationTest {
         done.markPublished(OffsetDateTime.now());
         repository.saveAndFlush(done);
         var future = EnrichmentOutbox.create(trip, UUID.randomUUID(), "{\"a\":4}");
-        future.backoff(OffsetDateTime.now().plusHours(1), 5);
+        setField(future, "nextAttemptAt", OffsetDateTime.now().plusHours(1));
         repository.saveAndFlush(future);
 
         List<Long> publishableIds = repository.findPublishable(10).stream()
@@ -76,5 +76,15 @@ class EnrichmentOutboxRepositoryIntegrationTest {
         var reloaded2 = repository.findById(fail.getId()).orElseThrow();
         assertThat(reloaded2.getStatus()).isEqualTo("failed");
         assertThat(reloaded2.getAttempts()).isEqualTo(2);
+    }
+
+    private static void setField(EnrichmentOutbox target, String name, Object value) {
+        try {
+            java.lang.reflect.Field field = EnrichmentOutbox.class.getDeclaredField(name);
+            field.setAccessible(true);
+            field.set(target, value);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

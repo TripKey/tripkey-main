@@ -30,7 +30,7 @@ public class EnrichmentOutbox {
     @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
     private String payload;
 
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "text")
     private String status;
 
     @Column(name = "attempts", nullable = false)
@@ -66,14 +66,9 @@ public class EnrichmentOutbox {
         if (this.attempts >= maxAttempts) {
             this.status = "failed";
         } else {
+            this.status = "pending";
             this.nextAttemptAt = nextAttempt;
         }
-    }
-
-    /** 테스트 보조: next_attempt_at/attempts 직접 세팅. */
-    public void backoff(OffsetDateTime nextAttempt, int attempts) {
-        this.nextAttemptAt = nextAttempt;
-        this.attempts = attempts;
     }
 
     @PrePersist
