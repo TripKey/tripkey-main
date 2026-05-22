@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,8 +67,8 @@ class EnrichmentClaimConcurrencyIntegrationTest {
         CompletableFuture<List<UUID>> a = CompletableFuture.supplyAsync(() -> claimInNewTx(barrier, 2));
         CompletableFuture<List<UUID>> b = CompletableFuture.supplyAsync(() -> claimInNewTx(barrier, 2));
 
-        List<UUID> claimedA = a.get();
-        List<UUID> claimedB = b.get();
+        List<UUID> claimedA = a.get(30, TimeUnit.SECONDS);
+        List<UUID> claimedB = b.get(30, TimeUnit.SECONDS);
 
         Set<UUID> union = claimedA.stream().collect(Collectors.toSet());
         union.addAll(claimedB);
@@ -86,7 +87,7 @@ class EnrichmentClaimConcurrencyIntegrationTest {
             placeCardRepository.flush();
             try {
                 // 두 트랜잭션이 동시에 FOR UPDATE 락을 잡은 상태에서 커밋하도록 정렬
-                barrier.await();
+                barrier.await(10, TimeUnit.SECONDS);
             } catch (Exception e) {
                 throw new IllegalStateException(e);
             }
