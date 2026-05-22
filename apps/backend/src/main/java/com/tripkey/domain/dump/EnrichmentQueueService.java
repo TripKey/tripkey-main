@@ -85,6 +85,12 @@ public class EnrichmentQueueService {
      */
     @Transactional
     public void recordSuccess(UUID tripId, UUID instanceId, AiNonBlockingEnrichmentResponse response) {
+        PlaceCard card = placeCardRepository.findById(instanceId).orElse(null);
+        if (card == null) {
+            // 카드가 enrichment in-flight 중 재파싱 등으로 사라진 경우: 결과(alert 포함)를 버린다.
+            log.warn("Enrichment result for missing card dropped. trip={} card={}", tripId, instanceId);
+            return;
+        }
         List<AiParseResponse.AlertCard> alerts = response.alertCards();
         if (alerts != null && !alerts.isEmpty()) {
             List<String> alertIds = alerts.stream().map(AiParseResponse.AlertCard::id).toList();
@@ -95,7 +101,7 @@ public class EnrichmentQueueService {
                     .toList();
             alertCardRepository.saveAll(entities);
         }
-        placeCardRepository.findById(instanceId).ifPresent(PlaceCard::completeEnrichment);
+        card.completeEnrichment();
     }
 
     /**

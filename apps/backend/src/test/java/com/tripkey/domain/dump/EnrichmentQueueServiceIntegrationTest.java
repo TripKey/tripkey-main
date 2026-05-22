@@ -120,6 +120,20 @@ class EnrichmentQueueServiceIntegrationTest {
     }
 
     @Test
+    void recordSuccessDropsResultWhenCardNoLongerExists() {
+        UUID tripId = seedTripWithDestinations((short) 3, (short) 1, "도쿄");
+        UUID goneCardId = UUID.randomUUID(); // 재파싱 등으로 사라진(미존재) 카드
+        AiParseResponse.AlertCard alert = new AiParseResponse.AlertCard(
+                "alert-orphan", "festival", "insight", "trip", null, "축제", null);
+        AiNonBlockingEnrichmentResponse response =
+                new AiNonBlockingEnrichmentResponse(goneCardId, List.of(), List.of(alert));
+
+        newTx.executeWithoutResult(s -> service.recordSuccess(tripId, goneCardId, response));
+
+        assertThat(alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId)).isEmpty();
+    }
+
+    @Test
     void recordFailureRetriesThenMarksFailedAtMaxAttempts() {
         UUID tripId = seedTripWithDestinations((short) 3, (short) 1, "도쿄");
         UUID cardId = seedPendingCard(tripId, "신주쿠");
