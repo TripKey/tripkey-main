@@ -34,7 +34,14 @@ app:
     base-url: ${AI_ENGINE_URL:http://tripkey-ai-engine:8000}
     timeout-seconds: ${AI_ENGINE_TIMEOUT_SECONDS:90}
   enrichment:
-    # Non-blocking enrichment 의 카드별 병렬 동시성 상한.
-    # enrichmentTaskExecutor 의 corePoolSize / maxPoolSize 로 사용됨.
-    # Gemini / Google API quota 보호를 위해 무제한 병렬을 피하고 보수적 상한 유지.
+    # per-instance 카드별 병렬 동시성 상한 (워커 bounded pool 크기).
+    # 전역 동시성 = 인스턴스 수 × concurrency 이므로 Gemini/Google quota 보호를 위해 보수적 유지.
     concurrency: ${ENRICHMENT_CONCURRENCY:3}
+    # 작업 큐 폴링 주기 (ms).
+    poll-interval-ms: ${ENRICHMENT_POLL_INTERVAL_MS:2000}
+    # 1회 claim 최대 작업 수.
+    batch-size: ${ENRICHMENT_BATCH_SIZE:10}
+    # 재시도 상한. 초과 시 processing_status='failed'.
+    max-attempts: ${ENRICHMENT_MAX_ATTEMPTS:3}
+    # stale claim 회수 기준 (초). processing 이면서 이 시간보다 오래 점유된 작업을 재claim.
+    claim-timeout-seconds: ${ENRICHMENT_CLAIM_TIMEOUT_SECONDS:60}
