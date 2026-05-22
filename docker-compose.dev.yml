@@ -41,3 +41,13 @@ services:
         aliases:
           - tripkey-ai-engine
     restart: unless-stopped
+
+  localstack:
+    image: localstack/localstack:3.8
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: sqs
+    volumes:
+      - ./localstack/init/ready.d:/etc/localstack/init/ready.d
+    restart: unless-stopped

@@ -41,9 +41,6 @@ app:
     base-url: ${AI_ENGINE_URL:http://tripkey-ai-engine:8000}
     timeout-seconds: ${AI_ENGINE_TIMEOUT_SECONDS:90}
   enrichment:
-    # per-instance 카드별 병렬 동시성 상한 (워커 bounded pool 크기).
-    # 전역 동시성 = 인스턴스 수 × concurrency 이므로 Gemini/Google quota 보호를 위해 보수적 유지.
-    concurrency: ${ENRICHMENT_CONCURRENCY:3}
     sqs:
       queue-name: ${ENRICHMENT_QUEUE_NAME:tripkey-enrichment}
       dlq-name: ${ENRICHMENT_DLQ_NAME:tripkey-enrichment-dlq}
