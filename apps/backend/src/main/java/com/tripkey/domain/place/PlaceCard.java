@@ -361,6 +361,7 @@ public class PlaceCard {
 
     public static PlaceCard createFromAiResponse(UUID tripId, AiPlaceCardDto dto, String source) {
         PlaceCard card = new PlaceCard();
+        card.instanceId = UUID.randomUUID();
         card.tripId = tripId;
         card.placeId = trimToNull(dto.placeId());
         card.name = defaultString(dto.name(), "이름 미정");
