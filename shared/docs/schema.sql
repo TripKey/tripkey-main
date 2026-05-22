@@ -131,9 +131,8 @@ create table if not exists public.alert_cards (
   day                   smallint,                                                -- scope=day 일 때만, 현재 항상 NULL
   message               text        not null,                                    -- 알림 본문
   related_instance_ids  text,                                                    -- 관련 카드 instance_id CSV
-  created_at            timestamptz not null default now()
+  created_at            timestamptz not null default now(),
+  constraint uq_alert_cards_trip_alert unique (trip_id, alert_id)
 );
 
 create index if not exists idx_alert_cards_trip_id on public.alert_cards (trip_id);
-alter table public.alert_cards
-  add constraint uq_alert_cards_trip_alert unique (trip_id, alert_id);

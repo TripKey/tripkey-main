@@ -1,4 +1,5 @@
 -- TripKey migration: place_cards enrichment 작업 큐 컬럼 + alert_cards 멱등 제약
+-- Date: 2026-05-22
 -- Scope: Non-blocking enrichment 을 in-memory 풀 → place_cards 기반 DB 작업 큐로 전환.
 --        place_cards.processing_status='pending' 인 카드 = 처리 대기 enrichment 작업.
 --
@@ -33,7 +34,9 @@ delete from public.alert_cards a
 do $$
 begin
   if not exists (
-    select 1 from pg_constraint where conname = 'uq_alert_cards_trip_alert'
+    select 1 from pg_constraint
+     where conname = 'uq_alert_cards_trip_alert'
+       and conrelid = 'public.alert_cards'::regclass
   ) then
     alter table public.alert_cards
       add constraint uq_alert_cards_trip_alert unique (trip_id, alert_id);
