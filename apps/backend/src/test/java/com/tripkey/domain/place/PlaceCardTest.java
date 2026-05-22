@@ -4,6 +4,7 @@ import com.tripkey.dto.card.CardDto;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import org.junit.jupiter.api.Test;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -42,7 +43,7 @@ class PlaceCardTest {
         assertThat(card.getCategory()).isEqualTo("food");
         assertThat(card.getClassification()).isEqualTo("confirmed");
         assertThat(card.getPlacementStatus()).isEqualTo("ready_partial");
-        assertThat(card.getProcessingStatus()).isEqualTo("completed");
+        assertThat(card.getProcessingStatus()).isEqualTo("pending");
         assertThat(card.getActionType()).isEqualTo("review_only");
         assertThat(card.getCanExclude()).isTrue();
         assertThat(card.getAllowDuplicate()).isFalse();
@@ -306,5 +307,68 @@ class PlaceCardTest {
         assertThat(card.getPendingReorder())
                 .as("ai_recommend 카드는 사용자가 인지하도록 pending_reorder=true 로 분류")
                 .isTrue();
+    }
+
+    @Test
+    void createFromAiResponseEnqueuesAsPending() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                "p1", "도톤보리", "place", "confirmed", "ready_partial",
+                false, false, (short) 90, null, "오사카",
+                null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
+
+        assertThat(card.getProcessingStatus()).isEqualTo("pending");
+        assertThat(card.getEnrichmentAttempts()).isZero();
+        assertThat(card.getEnrichmentClaimedAt()).isNull();
+    }
+
+    @Test
+    void claimForEnrichmentMarksProcessingWithClaimTimestamp() {
+        PlaceCard card = sampleCard();
+        OffsetDateTime now = OffsetDateTime.parse("2026-05-22T09:00:00Z");
+
+        card.claimForEnrichment(now);
+
+        assertThat(card.getProcessingStatus()).isEqualTo("processing");
+        assertThat(card.getEnrichmentClaimedAt()).isEqualTo(now);
+    }
+
+    @Test
+    void completeEnrichmentMarksCompletedAndClearsClaim() {
+        PlaceCard card = sampleCard();
+        card.claimForEnrichment(OffsetDateTime.parse("2026-05-22T09:00:00Z"));
+
+        card.completeEnrichment();
+
+        assertThat(card.getProcessingStatus()).isEqualTo("completed");
+        assertThat(card.getEnrichmentClaimedAt()).isNull();
+    }
+
+    @Test
+    void failEnrichmentAttemptRetriesUntilMaxThenFails() {
+        PlaceCard card = sampleCard();
+        card.claimForEnrichment(OffsetDateTime.parse("2026-05-22T09:00:00Z"));
+
+        card.failEnrichmentAttempt(2);
+        assertThat(card.getEnrichmentAttempts()).isEqualTo(1);
+        assertThat(card.getProcessingStatus()).isEqualTo("pending");
+        assertThat(card.getEnrichmentClaimedAt()).isNull();
+
+        card.claimForEnrichment(OffsetDateTime.parse("2026-05-22T09:05:00Z"));
+        card.failEnrichmentAttempt(2);
+        assertThat(card.getEnrichmentAttempts()).isEqualTo(2);
+        assertThat(card.getProcessingStatus()).isEqualTo("failed");
+        assertThat(card.getEnrichmentClaimedAt()).isNull();
+    }
+
+    private static PlaceCard sampleCard() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                "p1", "도톤보리", "place", "confirmed", "ready_partial",
+                false, false, (short) 90, null, "오사카",
+                null, null, null, null, null, null, null, null, null, null, null
+        );
+        return PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
     }
 }
