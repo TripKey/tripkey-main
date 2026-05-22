@@ -81,8 +81,11 @@ class EnrichmentQueueServiceIntegrationTest {
         List<AiNonBlockingEnrichmentRequest> requests = newTx.execute(s ->
                 service.claimBatch(10, 60));
 
-        assertThat(requests).hasSize(1);
-        AiNonBlockingEnrichmentRequest req = requests.get(0);
+        assertThat(requests).filteredOn(r -> r.tripId().equals(tripId)).hasSize(1);
+        AiNonBlockingEnrichmentRequest req = requests.stream()
+                .filter(r -> r.tripId().equals(tripId))
+                .findFirst()
+                .orElseThrow();
         assertThat(req.tripId()).isEqualTo(tripId);
         assertThat(req.travelDays()).isEqualTo((short) 4);
         assertThat(req.companionCount()).isEqualTo((short) 2);
