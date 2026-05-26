@@ -1,5 +1,7 @@
 package com.tripkey.domain.dump;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tripkey.domain.alert.AlertCard;
 import com.tripkey.domain.alert.AlertCardRepository;
 import com.tripkey.domain.place.PlaceCard;
@@ -32,7 +34,8 @@ public class DumpAsyncProcessor {
     private final PlaceCardRepository placeCardRepository;
     private final AlertCardRepository alertCardRepository;
     private final AiEngineClient aiEngineClient;
-    private final NonBlockingEnrichmentProcessor nonBlockingEnrichmentProcessor;
+    private final EnrichmentOutboxRepository enrichmentOutboxRepository;
+    private final ObjectMapper objectMapper;
 
     @Async("dumpTaskExecutor")
     @Transactional
@@ -87,20 +90,17 @@ public class DumpAsyncProcessor {
 
             persistAlertCards(job.getTripId(), job.getJobId(), response);
 
-            // entity → request DTO 변환은 호출자 transaction 안에서 수행해야 한다.
-            // NonBlockingEnrichmentProcessor.trigger 는 @Async("enrichmentTaskExecutor") 라 다른 thread 에서
-            // 실행되므로 entity 를 그 시점에 전달하면 detached 상태에서 lazy 필드 접근 위험.
-            List<AiNonBlockingEnrichmentRequest> enrichmentRequests = savedCards.stream()
-                    .map(card -> AiNonBlockingEnrichmentRequest.from(
-                            card,
-                            destinations,
-                            trip.getTravelDays(),
-                            trip.getCompanionCount()))
+            List<EnrichmentOutbox> outbox = savedCards.stream()
+                    .map(card -> EnrichmentOutbox.create(
+                            card.getTripId(),
+                            card.getInstanceId(),
+                            serialize(AiNonBlockingEnrichmentRequest.from(
+                                    card, destinations, trip.getTravelDays(), trip.getCompanionCount()))))
                     .toList();
+            enrichmentOutboxRepository.saveAll(outbox);
 
             job.complete(response.contextSummary());
             dumpJobRepository.save(job);
-            triggerNonBlockingEnrichment(enrichmentRequests, trip.getTripId());
         } catch (Exception e) {
             log.error("Failed to parse dump job. jobId={}", jobId, e);
             job.fail("PARSE_FAILED");
@@ -108,12 +108,22 @@ public class DumpAsyncProcessor {
         }
     }
 
+    private String serialize(AiNonBlockingEnrichmentRequest request) {
+        try {
+            return objectMapper.writeValueAsString(request);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize enrichment request", e);
+        }
+    }
+
     private void persistAlertCards(UUID tripId, UUID jobId, AiParseResponse response) {
         if (response.alertCards() == null || response.alertCards().isEmpty()) {
             return;
         }
-        alertCardRepository.deleteAllByJobId(jobId);
-        List<AlertCard> entities = response.alertCards().stream()
+        List<AiParseResponse.AlertCard> alerts = response.alertCards();
+        List<String> alertIds = alerts.stream().map(AiParseResponse.AlertCard::id).toList();
+        alertCardRepository.deleteByTripIdAndAlertIdIn(tripId, alertIds);
+        List<AlertCard> entities = alerts.stream()
                 .map(dto -> AlertCard.fromAiResponse(dto, tripId, jobId))
                 .toList();
         alertCardRepository.saveAll(entities);
@@ -121,11 +131,4 @@ public class DumpAsyncProcessor {
                 entities.size(), tripId, response.parseVersion());
     }
 
-    private void triggerNonBlockingEnrichment(List<AiNonBlockingEnrichmentRequest> requests, UUID tripId) {
-        try {
-            nonBlockingEnrichmentProcessor.trigger(requests);
-        } catch (Exception e) {
-            log.warn("Failed to submit non-blocking enrichment. trip={}", tripId, e);
-        }
-    }
 }

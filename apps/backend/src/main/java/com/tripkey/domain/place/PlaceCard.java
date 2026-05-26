@@ -325,6 +325,21 @@ public class PlaceCard {
         recomputeActionType();
     }
 
+    public void markProcessing() {
+        this.processingStatus = "processing";
+        recomputeActionType();
+    }
+
+    public void completeEnrichment() {
+        this.processingStatus = "completed";
+        recomputeActionType();
+    }
+
+    public void markFailed() {
+        this.processingStatus = "failed";
+        recomputeActionType();
+    }
+
     private void markReprocessing() {
         this.processingStatus = "processing";
         recomputeActionType();
@@ -342,7 +357,7 @@ public class PlaceCard {
         card.category = normalizeCategory(dto.category());
         card.classification = normalizeClassification(dto.classification());
         card.placementStatus = normalizePlacementStatus(dto.placementStatus(), card.classification);
-        card.processingStatus = "completed";
+        card.processingStatus = "pending";
         card.isAiGenerated = dto.isAiGenerated() != null ? dto.isAiGenerated() : false;
         card.allowDuplicate = dto.allowDuplicate() != null
                 ? dto.allowDuplicate()

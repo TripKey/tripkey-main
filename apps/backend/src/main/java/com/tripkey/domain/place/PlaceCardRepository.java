@@ -64,4 +64,5 @@ public interface PlaceCardRepository extends JpaRepository<PlaceCard, UUID> {
                and c1.day_order is not null
             """, nativeQuery = true)
     List<Object[]> findAdjacentCardDistances(@Param("tripId") UUID tripId);
+
 }

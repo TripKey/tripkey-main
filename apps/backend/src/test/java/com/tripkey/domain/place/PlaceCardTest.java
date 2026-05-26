@@ -42,7 +42,7 @@ class PlaceCardTest {
         assertThat(card.getCategory()).isEqualTo("food");
         assertThat(card.getClassification()).isEqualTo("confirmed");
         assertThat(card.getPlacementStatus()).isEqualTo("ready_partial");
-        assertThat(card.getProcessingStatus()).isEqualTo("completed");
+        assertThat(card.getProcessingStatus()).isEqualTo("pending");
         assertThat(card.getActionType()).isEqualTo("review_only");
         assertThat(card.getCanExclude()).isTrue();
         assertThat(card.getAllowDuplicate()).isFalse();
@@ -306,5 +306,50 @@ class PlaceCardTest {
         assertThat(card.getPendingReorder())
                 .as("ai_recommend 카드는 사용자가 인지하도록 pending_reorder=true 로 분류")
                 .isTrue();
+    }
+
+    @Test
+    void createFromAiResponseEnqueuesAsPending() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                "p1", "도톤보리", "place", "confirmed", "ready_partial",
+                false, false, (short) 90, null, "오사카",
+                null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
+
+        assertThat(card.getProcessingStatus()).isEqualTo("pending");
+    }
+
+    @Test
+    void markProcessingSetsProcessingStatus() {
+        PlaceCard card = sampleCard();
+        card.markProcessing();
+        assertThat(card.getProcessingStatus()).isEqualTo("processing");
+    }
+
+    @Test
+    void completeEnrichmentMarksCompleted() {
+        PlaceCard card = sampleCard();
+        card.markProcessing();
+        card.completeEnrichment();
+        assertThat(card.getProcessingStatus()).isEqualTo("completed");
+    }
+
+    @Test
+    void markFailedSetsFailed() {
+        PlaceCard card = sampleCard();
+        card.markProcessing();
+        card.markFailed();
+        assertThat(card.getProcessingStatus()).isEqualTo("failed");
+    }
+
+    private static PlaceCard sampleCard() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                "p1", "도톤보리", "place", "confirmed", "ready_partial",
+                false, false, (short) 90, null, "오사카",
+                null, null, null, null, null, null, null, null, null, null, null
+        );
+        return PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
     }
 }

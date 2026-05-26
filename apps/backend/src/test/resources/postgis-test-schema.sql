@@ -99,7 +99,21 @@ create table alert_cards (
   day                   smallint,
   message               text        not null,
   related_instance_ids  text,
-  created_at            timestamptz not null default now()
+  created_at            timestamptz not null default now(),
+  constraint uq_alert_cards_trip_alert unique (trip_id, alert_id)
 );
 
 create index idx_alert_cards_trip_id on alert_cards (trip_id);
+
+create table enrichment_outbox (
+  id              bigserial   primary key,
+  trip_id         uuid        not null,
+  instance_id     uuid        not null,
+  payload         jsonb       not null,
+  status          text        not null default 'pending',
+  attempts        integer     not null default 0,
+  created_at      timestamptz not null default now(),
+  published_at    timestamptz,
+  next_attempt_at timestamptz not null default now()
+);
+create index idx_enrichment_outbox_pending on enrichment_outbox (created_at) where status = 'pending';
