@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -36,6 +38,14 @@ public class DumpJob {
     @Column(name = "context_summary", columnDefinition = "text")
     private String contextSummary;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "departure_flight", columnDefinition = "jsonb")
+    private String departureFlight;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "return_flight", columnDefinition = "jsonb")
+    private String returnFlight;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -43,10 +53,17 @@ public class DumpJob {
     private OffsetDateTime updatedAt;
 
     public static DumpJob create(UUID tripId, String dumpText) {
+        return create(tripId, dumpText, null, null);
+    }
+
+    public static DumpJob create(UUID tripId, String dumpText,
+                                 String departureFlight, String returnFlight) {
         DumpJob job = new DumpJob();
         job.jobId = UUID.randomUUID();
         job.tripId = tripId;
         job.dumpText = dumpText;
+        job.departureFlight = departureFlight;
+        job.returnFlight = returnFlight;
         job.status = "pending";
         job.step = null;
         return job;

@@ -30,7 +30,9 @@ create table dump_jobs (
   status          text        not null,
   step            smallint,
   error_code      text,
-  context_summary text,
+  context_summary  text,
+  departure_flight jsonb,
+  return_flight    jsonb,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );

@@ -32,7 +32,9 @@ create table if not exists public.dump_jobs (
   status          text        not null,                            -- 작업 상태: pending / processing / completed / failed
   step            smallint,                                        -- 파싱 진행 단계 (1~3), null이면 미시작
   error_code      text,                                            -- 실패 시 오류 코드: PARSE_FAILED / NO_PLACES_FOUND
-  context_summary text,                                            -- AI가 파악한 여행 스타일 요약
+  context_summary  text,                                            -- AI가 파악한 여행 스타일 요약
+  departure_flight jsonb,                                           -- 출발 항공편 구조화 입력 (FlightInput JSON)
+  return_flight    jsonb,                                           -- 귀국 항공편 구조화 입력 (FlightInput JSON)
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
