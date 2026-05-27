@@ -64,7 +64,10 @@ public class DumpAsyncProcessor {
                     job.getDumpText(),
                     destinations,
                     trip.getTravelDays(),
-                    trip.getCompanionCount()
+                    trip.getCompanionCount(),
+                    null,
+                    deserializeFlight(job.getDepartureFlight()),
+                    deserializeFlight(job.getReturnFlight())
             );
 
             AiParseResponse response = aiEngineClient.parseDump(request);
@@ -113,6 +116,17 @@ public class DumpAsyncProcessor {
             return objectMapper.writeValueAsString(request);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to serialize enrichment request", e);
+        }
+    }
+
+    private AiParseRequest.FlightInput deserializeFlight(String json) {
+        if (json == null) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json, AiParseRequest.FlightInput.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to deserialize flight input", e);
         }
     }
 
