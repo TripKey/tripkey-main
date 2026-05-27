@@ -9,6 +9,7 @@ import com.tripkey.domain.trip.TripDestination;
 import com.tripkey.domain.trip.TripDestinationRepository;
 import com.tripkey.domain.trip.TripRepository;
 import com.tripkey.infra.aiengine.AiEngineClient;
+import com.tripkey.infra.aiengine.dto.AiParseRequest;
 import com.tripkey.infra.aiengine.dto.AiParseResponse;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import org.junit.jupiter.api.BeforeEach;
@@ -197,5 +198,37 @@ class DumpAsyncProcessorTest {
 
         verify(alertCardRepository, never()).deleteByTripIdAndAlertIdIn(any(), any());
         verify(alertCardRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void processPassesStoredFlightsToParseRequest() {
+        UUID tripId = UUID.randomUUID();
+        String depJson = "{\"departure_airport\":\"ICN\",\"arrival_airport\":\"NRT\",\"flight_number\":\"KE703\",\"datetime\":\"2026-07-01T09:00:00+09:00\"}";
+        DumpJob job = DumpJob.create(tripId, "오사카 3박4일 여행입니다.", depJson, null);
+        Trip trip = new Trip((short) 4, (short) 2);
+        TripDestination destination = new TripDestination(trip, "오사카", (short) 0);
+
+        AiPlaceCardDto card = new AiPlaceCardDto(
+                "place-1", "도톈보리", "place", "confirmed", "ready_partial",
+                false, false, (short) 90, null, "오사카",
+                null, null, null, null, null, null, null, List.of(), null, null, null);
+        AiParseResponse response = new AiParseResponse(List.of(card), "요약", List.of(), "3.2.0");
+
+        when(dumpJobRepository.findById(job.getJobId())).thenReturn(Optional.of(job));
+        when(dumpJobRepository.save(any(DumpJob.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(tripRepository.findById(tripId)).thenReturn(Optional.of(trip));
+        when(tripDestinationRepository.findByTripTripIdOrderBySortOrder(tripId)).thenReturn(List.of(destination));
+        when(placeCardRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        org.mockito.ArgumentCaptor<AiParseRequest> captor = org.mockito.ArgumentCaptor.forClass(AiParseRequest.class);
+        when(aiEngineClient.parseDump(captor.capture())).thenReturn(response);
+
+        dumpAsyncProcessor.process(job.getJobId());
+
+        AiParseRequest sent = captor.getValue();
+        assertThat(sent.departureFlight()).isNotNull();
+        assertThat(sent.departureFlight().departureAirport()).isEqualTo("ICN");
+        assertThat(sent.departureFlight().flightNumber()).isEqualTo("KE703");
+        assertThat(sent.returnFlight()).isNull();
     }
 }
