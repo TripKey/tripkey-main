@@ -15,6 +15,7 @@ type OnboardingStore = {
 
   actions: {
     setForm: (form: Partial<OnboardingRequest>) => void;
+    setTripId: (tripId: string | null) => void;
     submitOnboarding: () => Promise<boolean>;
   };
 };
@@ -36,6 +37,8 @@ export const useOnboardingStore = create<OnboardingStore>()(
       actions: {
         setForm: (partial) =>
           set((state) => ({ form: { ...state.form, ...partial } })),
+
+        setTripId: (tripId) => set({ tripId }),
 
         submitOnboarding: async () => {
           if (get().requestStatus === 'loading') return false;

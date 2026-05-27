@@ -29,3 +29,10 @@
   color: #888;
   font-size: 13px;
 }
+
+.destination-dropdown__hint {
+  margin: 6px 2px 0;
+  color: #b25400;
+  font-size: 12px;
+  line-height: 1.5;
+}

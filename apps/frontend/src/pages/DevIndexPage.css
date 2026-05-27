@@ -57,3 +57,39 @@
   font-size: 14px;
   color: #888;
 }
+
+.dev-index-tripid-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.dev-index-tripid-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #d4d8e0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #2f3441;
+}
+
+.dev-index-tripid-input:focus {
+  outline: none;
+  border-color: #4a90d9;
+}
+
+.dev-index-tripid-button {
+  padding: 8px 16px;
+  border: 1px solid #4a90d9;
+  border-radius: 6px;
+  background: #4a90d9;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dev-index-tripid-button:hover {
+  background: #3a7bbf;
+}
