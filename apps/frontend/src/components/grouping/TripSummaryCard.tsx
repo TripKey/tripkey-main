@@ -1,5 +1,6 @@
 // TripSummaryCard — 우측 sticky 사이드바의 "여행 요약" 카드
 import {
+  AlertCircle,
   Calendar,
   CreditCard,
   MapPin,
@@ -20,6 +21,10 @@ type TripSummaryCardProps = TripSummaryViewModel & {
   onNext?: () => void;
   onPrev?: () => void;
   nextDisabled?: boolean;
+  progressLabel?: string;
+  progressValueLabel?: string;
+  guideText?: string;
+  errorMessage?: string | null;
 };
 
 const TripSummaryCard = ({
@@ -35,6 +40,10 @@ const TripSummaryCard = ({
   onNext,
   onPrev,
   nextDisabled,
+  progressLabel = '정리 완료도',
+  progressValueLabel,
+  guideText,
+  errorMessage,
 }: TripSummaryCardProps) => {
   return (
     <div className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-foreground/10">
@@ -88,9 +97,9 @@ const TripSummaryCard = ({
       {/* 정리 완료도 */}
       {completionPct != null && (
         <ProgressStat
-          label="정리 완료도"
+          label={progressLabel}
           value={completionPct}
-          valueSuffix="완료"
+          valueLabel={progressValueLabel ?? `${completionPct}% 완료`}
         />
       )}
 
@@ -112,6 +121,18 @@ const TripSummaryCard = ({
           </Button>
         )}
       </div>
+      {nextDisabled && guideText && (
+        <p className="mt-3 text-xs text-muted-foreground">{guideText}</p>
+      )}
+      {errorMessage && (
+        <p className="mt-3 flex items-start gap-1.5 border-l-2 border-destructive pl-2.5 text-xs text-destructive">
+          <AlertCircle
+            className="mt-0.5 size-3.5 shrink-0"
+            aria-hidden="true"
+          />
+          <span>{errorMessage}</span>
+        </p>
+      )}
     </div>
   );
 };

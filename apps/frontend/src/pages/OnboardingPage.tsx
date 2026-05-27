@@ -17,7 +17,7 @@ import './OnboardingPage.css';
 const OnboardingPage = () => {
   const navigate = useNavigate();
   const { submitOnboarding } = useOnboardingStore((s) => s.actions);
-  // const errorMessage = useOnboardingStore((s) => s.errorMessage);
+  const errorMessage = useOnboardingStore((s) => s.errorMessage);
 
   const { destinations, companion_count, has_flight, has_accommodation } =
     useOnboardingStore((s) => s.form);
@@ -34,7 +34,9 @@ const OnboardingPage = () => {
   const hasSchedule = type !== null;
   const filledCount = [hasDestination, hasSchedule].filter(Boolean).length;
   const completionPct = (filledCount / 2) * 100;
-  const isNextDisabled = filledCount < 2;
+  const remainingFields = 2 - filledCount;
+  const progressValueLabel =
+    remainingFields > 0 ? `${remainingFields}개 남음` : '준비 완료';
 
   const summary = {
     destinations: destinations.length ? destinations : ['-'],
@@ -46,6 +48,8 @@ const OnboardingPage = () => {
     completionPct,
   };
 
+  const isNextDisabled = filledCount < 2;
+
   const handleNext = async () => {
     const success = await submitOnboarding();
     if (success) navigate('/dump');
@@ -55,6 +59,7 @@ const OnboardingPage = () => {
     <>
       <Header
         currentStepId="onboarding"
+        showTripMeta={false}
         actions={
           <Button variant="outline" size="sm">
             초기화
@@ -109,6 +114,10 @@ const OnboardingPage = () => {
             {...summary}
             onNext={handleNext}
             nextDisabled={isNextDisabled}
+            progressLabel="입력 완료도"
+            progressValueLabel={progressValueLabel}
+            guideText="여행지와 일정을 입력하면 다음 단계로 진행할 수 있어요."
+            errorMessage={errorMessage}
           />
         </aside>
       </div>
