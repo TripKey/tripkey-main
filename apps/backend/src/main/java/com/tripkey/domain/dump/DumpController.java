@@ -28,7 +28,7 @@ public class DumpController {
             @PathVariable UUID tripId,
             @Valid @RequestBody DumpSubmitRequest request) {
 
-        DumpSubmitResponse response = dumpService.submit(tripId, request.dumpText());
+        DumpSubmitResponse response = dumpService.submit(tripId, request);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
 

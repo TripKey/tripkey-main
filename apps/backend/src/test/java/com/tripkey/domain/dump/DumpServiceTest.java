@@ -1,13 +1,16 @@
 package com.tripkey.domain.dump;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tripkey.domain.place.PlaceCardRepository;
 import com.tripkey.domain.trip.TripRepository;
+import com.tripkey.dto.dump.DumpSubmitRequest;
 import com.tripkey.dto.dump.DumpSubmitResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.UUID;
@@ -32,6 +35,9 @@ class DumpServiceTest {
     @Mock
     private DumpAsyncProcessor dumpAsyncProcessor;
 
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
+
     @InjectMocks
     private DumpService dumpService;
 
@@ -41,7 +47,8 @@ class DumpServiceTest {
         when(tripRepository.existsById(tripId)).thenReturn(true);
         when(dumpJobRepository.save(any(DumpJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        DumpSubmitResponse response = dumpService.submit(tripId, "오사카 3박4일 여행입니다.");
+        DumpSubmitRequest req = new DumpSubmitRequest("오사카 3박4일 여행입니다.", null, null);
+        DumpSubmitResponse response = dumpService.submit(tripId, req);
 
         ArgumentCaptor<DumpJob> jobCaptor = ArgumentCaptor.forClass(DumpJob.class);
         verify(dumpJobRepository).save(jobCaptor.capture());
@@ -51,5 +58,23 @@ class DumpServiceTest {
         assertThat(savedJob.getTripId()).isEqualTo(tripId);
         assertThat(response.jobId()).isEqualTo(savedJob.getJobId());
         assertThat(response.status()).isEqualTo("pending");
+    }
+
+    @Test
+    void submitStoresStructuredFlightsOnDumpJob() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        org.mockito.ArgumentCaptor<DumpJob> jobCaptor = org.mockito.ArgumentCaptor.forClass(DumpJob.class);
+        when(dumpJobRepository.save(jobCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
+
+        DumpSubmitRequest.FlightInput dep =
+                new DumpSubmitRequest.FlightInput("ICN", "NRT", "KE703", "2026-07-01T09:00:00+09:00");
+        DumpSubmitRequest req = new DumpSubmitRequest("오사카 3박4일 여행입니다.", dep, null);
+
+        dumpService.submit(tripId, req);
+
+        DumpJob saved = jobCaptor.getValue();
+        assertThat(saved.getDepartureFlight()).contains("ICN").contains("KE703");
+        assertThat(saved.getReturnFlight()).isNull();
     }
 }
