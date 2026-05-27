@@ -27,7 +27,8 @@ const DumpPage = () => {
   const tripId = useOnboardingStore((s) => s.tripId);
   const { destinations, companion_count } = useOnboardingStore((s) => s.form);
   const { type, exactDate, flexDate } = useCalendarStore();
-  const { dumpText, requestStatus, jobId, actions } = useDumpStore();
+  const { dumpText, requestStatus, errorMessage, jobId, actions } =
+    useDumpStore();
   const { setDumpText, submitDump, clearJob } = actions;
 
   const view = useParseJobStatus(tripId, jobId);
@@ -55,6 +56,19 @@ const DumpPage = () => {
     100,
     Math.round((dumpTextCount / DUMP_TEXT.MIN_LENGTH) * 100)
   );
+
+  const remainingChars = Math.max(0, DUMP_TEXT.MIN_LENGTH - dumpTextCount);
+  const progressValueLabel =
+    remainingChars > 0 ? `${remainingChars}자 남음` : '준비 완료';
+
+  const summary = {
+    destinations: destinations.length ? destinations : ['-'],
+    dateRange,
+    nights,
+    days: nights + 1,
+    travelers: companion_count,
+    completionPct,
+  };
 
   const isNextDisabled =
     dumpTextCount < DUMP_TEXT.MIN_LENGTH || requestStatus === 'loading';
@@ -105,6 +119,10 @@ const DumpPage = () => {
     <>
       <Header
         currentStepId="dump"
+        destination={summary.destinations[0] ?? '여행'}
+        extraDestinations={Math.max(summary.destinations.length - 1, 0)}
+        travelers={summary.travelers}
+        dateRange={summary.dateRange}
         actions={
           <>
             <Button variant="outline" size="sm">
@@ -133,15 +151,14 @@ const DumpPage = () => {
 
         <aside className="dump-sidebar">
           <TripSummaryCard
-            destinations={destinations.length ? destinations : ['-']}
-            dateRange={dateRange}
-            nights={nights}
-            days={nights + 1}
-            travelers={companion_count}
-            completionPct={completionPct}
+            {...summary}
             onNext={handleClickNext}
             onPrev={handleClickBack}
             nextDisabled={isNextDisabled}
+            progressLabel="입력 완료도"
+            progressValueLabel={progressValueLabel}
+            guideText="여행 정보를 10자 이상 입력하면 다음 단계로 진행할 수 있어요."
+            errorMessage={errorMessage}
           />
         </aside>
       </main>

@@ -7,8 +7,8 @@ type ProgressStatProps = {
   label: string;
   /** 0~100 */
   value: number;
-  /** 퍼센트 뒤에 붙는 텍스트(예: "완료"). 기본은 "%" 만 표시 */
-  valueSuffix?: string;
+  /** 우측 표시 텍스트(예: "50% 완료", "3자 남음"). 미지정 시 `${value}%` */
+  valueLabel?: string;
   /** 막대 아래 보조 설명 */
   caption?: string;
   /** 카드 박스(rounded/bg/ring/padding)로 감쌀지. 기본 false(상위 카드 안에 끼워 쓰는 용도) */
@@ -19,7 +19,7 @@ type ProgressStatProps = {
 const ProgressStat = ({
   label,
   value,
-  valueSuffix,
+  valueLabel,
   caption,
   boxed = false,
   className,
@@ -36,7 +36,7 @@ const ProgressStat = ({
           {label}
         </span>
         <span className="text-sm font-bold text-primary tabular-nums">
-          {value}%{valueSuffix ? ` ${valueSuffix}` : ''}
+          {valueLabel ?? `${value}%`}
         </span>
       </div>
 
