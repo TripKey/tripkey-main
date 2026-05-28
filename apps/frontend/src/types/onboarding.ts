@@ -1,4 +1,5 @@
 export type OnboardingRequest = {
+  tripName: string;
   destinations: string[];
   travel_days: number;
   companion_count: number;
