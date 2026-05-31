@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
+import ArrangePage from './pages/ArrangePage';
 import DevIndexPage from './pages/DevIndexPage';
 import DumpPage from './pages/DumpPage';
 import GroupingPage from './pages/GroupingPage';
@@ -15,6 +16,7 @@ const App = () => {
         <Route path="/dump" element={<DumpPage />} />
         <Route path="/progress" element={<ProgressPageDev />} />
         <Route path="/grouping" element={<GroupingPage />} />
+        <Route path="/arrange" element={<ArrangePage />} />
       </Routes>
     </BrowserRouter>
   );
