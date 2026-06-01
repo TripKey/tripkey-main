@@ -17,7 +17,7 @@ PLACES_AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocomplete"
 
 
 def _places_api_key() -> str | None:
-    return os.getenv("GOOGLE_MAPS_API_KEY")
+    return os.getenv("GOOGLE_PLACES_API_KEY") or os.getenv("GOOGLE_MAPS_API_KEY")
 
 
 async def search_destinations(query: str) -> list[Destination]:
