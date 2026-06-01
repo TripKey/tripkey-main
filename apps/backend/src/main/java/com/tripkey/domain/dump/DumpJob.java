@@ -46,6 +46,10 @@ public class DumpJob {
     @Column(name = "return_flight", columnDefinition = "jsonb")
     private String returnFlight;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "accommodation_inputs", columnDefinition = "jsonb")
+    private String accommodationInputs;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -53,17 +57,24 @@ public class DumpJob {
     private OffsetDateTime updatedAt;
 
     public static DumpJob create(UUID tripId, String dumpText) {
-        return create(tripId, dumpText, null, null);
+        return create(tripId, dumpText, null, null, null);
     }
 
     public static DumpJob create(UUID tripId, String dumpText,
                                  String departureFlight, String returnFlight) {
+        return create(tripId, dumpText, departureFlight, returnFlight, null);
+    }
+
+    public static DumpJob create(UUID tripId, String dumpText,
+                                 String departureFlight, String returnFlight,
+                                 String accommodationInputs) {
         DumpJob job = new DumpJob();
         job.jobId = UUID.randomUUID();
         job.tripId = tripId;
         job.dumpText = dumpText;
         job.departureFlight = departureFlight;
         job.returnFlight = returnFlight;
+        job.accommodationInputs = accommodationInputs;
         job.status = "pending";
         job.step = null;
         return job;
