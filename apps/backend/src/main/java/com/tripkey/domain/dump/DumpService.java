@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -43,7 +44,8 @@ public class DumpService {
                 tripId,
                 dumpText,
                 serializeFlight(request.departureFlight()),
-                serializeFlight(request.returnFlight()));
+                serializeFlight(request.returnFlight()),
+                serializeAccommodations(request.accommodationInputs()));
         dumpJobRepository.save(job);
         dumpAsyncProcessor.process(job.getJobId());
 
@@ -66,6 +68,17 @@ public class DumpService {
             return objectMapper.writeValueAsString(flight);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to serialize flight input", e);
+        }
+    }
+
+    private String serializeAccommodations(List<DumpSubmitRequest.AccommodationInput> accommodations) {
+        if (accommodations == null || accommodations.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(accommodations);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize accommodation inputs", e);
         }
     }
 }
