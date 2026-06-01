@@ -16,12 +16,20 @@ import './OnboardingPage.css';
 
 const OnboardingPage = () => {
   const navigate = useNavigate();
-  const { submitOnboarding } = useOnboardingStore((s) => s.actions);
+  const { submitOnboarding, resetForm } = useOnboardingStore((s) => s.actions);
   const errorMessage = useOnboardingStore((s) => s.errorMessage);
 
-  const { destinations, companion_count, has_flight, has_accommodation } =
-    useOnboardingStore((s) => s.form);
+  const {
+    tripName,
+    destinations,
+    companion_count,
+    has_flight,
+    has_accommodation,
+  } = useOnboardingStore((s) => s.form);
+  const setForm = useOnboardingStore((s) => s.actions.setForm);
+
   const { type, exactDate, flexDate } = useCalendarStore();
+  const resetCalendar = useCalendarStore((s) => s.resetCalendar);
 
   const dateRange = formatDateRangeLabel(type, exactDate, flexDate);
   const nights = exactDate?.nights ?? flexDate?.nights ?? 0;
@@ -55,13 +63,18 @@ const OnboardingPage = () => {
     if (success) navigate('/dump');
   };
 
+  const handleReset = () => {
+    resetForm();
+    resetCalendar();
+  };
+
   return (
     <>
       <Header
         currentStepId="onboarding"
         showTripMeta={false}
         actions={
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleReset}>
             초기화
           </Button>
         }
@@ -82,6 +95,8 @@ const OnboardingPage = () => {
                 name="tripName"
                 placeholder="여행의 이름을 입력하세요"
                 subtitle="여행을 구분할 수 있는 이름을 자유롭게 입력하세요."
+                value={tripName}
+                onChange={(v) => setForm({ tripName: v })}
               />
             </section>
 

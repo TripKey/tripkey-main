@@ -7,6 +7,15 @@ import { createTrip, parseOnboardingApiError } from './onboarding-api';
 
 type RequestStatus = 'idle' | 'loading' | 'success' | 'error';
 
+const INITIAL_FORM: OnboardingRequest = {
+  tripName: '',
+  destinations: [],
+  travel_days: 0,
+  companion_count: 1,
+  has_flight: false,
+  has_accommodation: false,
+};
+
 type OnboardingStore = {
   form: OnboardingRequest;
   tripId: string | null;
@@ -17,19 +26,14 @@ type OnboardingStore = {
     setForm: (form: Partial<OnboardingRequest>) => void;
     setTripId: (tripId: string | null) => void;
     submitOnboarding: () => Promise<boolean>;
+    resetForm: () => void;
   };
 };
 
 export const useOnboardingStore = create<OnboardingStore>()(
   persist(
     (set, get) => ({
-      form: {
-        destinations: [],
-        travel_days: 0,
-        companion_count: 1,
-        has_flight: false,
-        has_accommodation: false,
-      },
+      form: { ...INITIAL_FORM },
       tripId: null,
       requestStatus: 'idle',
       errorMessage: null,
@@ -39,6 +43,13 @@ export const useOnboardingStore = create<OnboardingStore>()(
           set((state) => ({ form: { ...state.form, ...partial } })),
 
         setTripId: (tripId) => set({ tripId }),
+
+        resetForm: () =>
+          set({
+            form: INITIAL_FORM,
+            requestStatus: 'idle',
+            errorMessage: null,
+          }),
 
         submitOnboarding: async () => {
           if (get().requestStatus === 'loading') return false;
