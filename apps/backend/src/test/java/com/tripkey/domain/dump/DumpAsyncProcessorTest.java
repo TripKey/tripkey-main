@@ -231,4 +231,36 @@ class DumpAsyncProcessorTest {
         assertThat(sent.departureFlight().flightNumber()).isEqualTo("KE703");
         assertThat(sent.returnFlight()).isNull();
     }
+
+    @Test
+    void processPassesStoredAccommodationsToParseRequest() {
+        UUID tripId = UUID.randomUUID();
+        String accJson = "[{\"name\":\"호텔 그란비아 오사카\",\"location\":\"오사카\",\"check_in\":\"2026-07-01\",\"check_out\":\"2026-07-03\"}]";
+        DumpJob job = DumpJob.create(tripId, "오사카 3박4일 여행입니다.", null, null, accJson);
+        Trip trip = new Trip((short) 4, (short) 2);
+        TripDestination destination = new TripDestination(trip, "오사카", (short) 0);
+
+        AiPlaceCardDto card = new AiPlaceCardDto(
+                "place-1", "도톈보리", "place", "confirmed", "ready_partial",
+                false, false, (short) 90, null, "오사카",
+                null, null, null, null, null, null, null, List.of(), null, null, null);
+        AiParseResponse response = new AiParseResponse(List.of(card), "요약", List.of(), "3.2.0");
+
+        when(dumpJobRepository.findById(job.getJobId())).thenReturn(Optional.of(job));
+        when(dumpJobRepository.save(any(DumpJob.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(tripRepository.findById(tripId)).thenReturn(Optional.of(trip));
+        when(tripDestinationRepository.findByTripTripIdOrderBySortOrder(tripId)).thenReturn(List.of(destination));
+        when(placeCardRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        ArgumentCaptor<AiParseRequest> captor = ArgumentCaptor.forClass(AiParseRequest.class);
+        when(aiEngineClient.parseDump(captor.capture())).thenReturn(response);
+
+        dumpAsyncProcessor.process(job.getJobId());
+
+        AiParseRequest sent = captor.getValue();
+        assertThat(sent.accommodationInputs()).isNotNull().hasSize(1);
+        assertThat(sent.accommodationInputs().get(0).name()).isEqualTo("호텔 그란비아 오사카");
+        assertThat(sent.accommodationInputs().get(0).checkIn()).isEqualTo("2026-07-01");
+        assertThat(sent.accommodationInputs().get(0).checkOut()).isEqualTo("2026-07-03");
+    }
 }
