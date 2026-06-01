@@ -50,4 +50,19 @@ class DumpJobFlightInputIntegrationTest {
         assertThat(reloaded.getDepartureFlight()).contains("ICN").contains("KE703");
         assertThat(reloaded.getReturnFlight()).isNull();
     }
+
+    @Test
+    void dumpJobPersistsAccommodationJsonbRoundTrip() {
+        Trip trip = new Trip((short) 3, (short) 1);
+        tripRepository.saveAndFlush(trip);
+        String accJson = "[{\"name\":\"호텔 그란비아 오사카\",\"location\":\"오사카\",\"check_in\":\"2026-07-01\",\"check_out\":\"2026-07-03\"}]";
+
+        DumpJob job = DumpJob.create(trip.getTripId(), "오사카 3박4일 여행입니다.", null, null, accJson);
+        dumpJobRepository.saveAndFlush(job);
+
+        DumpJob reloaded = dumpJobRepository.findById(job.getJobId()).orElseThrow();
+        assertThat(reloaded.getAccommodationInputs()).contains("호텔 그란비아 오사카").contains("check_in");
+        assertThat(reloaded.getDepartureFlight()).isNull();
+        assertThat(reloaded.getReturnFlight()).isNull();
+    }
 }
