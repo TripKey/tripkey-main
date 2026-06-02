@@ -35,6 +35,7 @@ create table if not exists public.dump_jobs (
   context_summary  text,                                            -- AI가 파악한 여행 스타일 요약
   departure_flight jsonb,                                           -- 출발 항공편 구조화 입력 (FlightInput JSON)
   return_flight    jsonb,                                           -- 귀국 항공편 구조화 입력 (FlightInput JSON)
+  accommodation_inputs jsonb,                                       -- 숙박 구조화 입력 리스트 (AccommodationInput JSON 배열)
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
