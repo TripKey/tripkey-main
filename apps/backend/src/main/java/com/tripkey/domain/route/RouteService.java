@@ -8,7 +8,6 @@ import com.tripkey.infra.aiengine.dto.AiRouteRequest;
 import com.tripkey.infra.aiengine.dto.AiRouteResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -27,12 +26,18 @@ public class RouteService {
     private final RouteLegCacheRepository routeLegCacheRepository;
     private final AiEngineClient aiEngineClient;
 
-    @Transactional
+    private static final double COORD_PRECISION = 100_000.0; // 좌표 5자리(약 1m) 반올림
+
+    // 의도적으로 @Transactional 미적용: AI 엔진 HTTP 호출 동안 DB 커넥션을 점유하지 않기 위함. 캐시 read/save 는 각 repository 호출의 기본 트랜잭션으로 처리.
     public List<RouteLeg> computeLegs(UUID tripId) {
         Map<Integer, List<PlaceCard>> byDay = groupByDay(tripId);
         List<RouteLeg> result = new ArrayList<>();
+        List<RouteLegCache> cacheRows = new ArrayList<>();
         for (Map.Entry<Integer, List<PlaceCard>> entry : byDay.entrySet()) {
-            result.addAll(computeDayLegs(entry.getKey(), entry.getValue()));
+            result.addAll(computeDayLegs(entry.getKey(), entry.getValue(), cacheRows));
+        }
+        if (!cacheRows.isEmpty()) {
+            routeLegCacheRepository.saveAll(cacheRows);
         }
         return result;
     }
@@ -51,7 +56,7 @@ public class RouteService {
         return byDay;
     }
 
-    private List<RouteLeg> computeDayLegs(int day, List<PlaceCard> cards) {
+    private List<RouteLeg> computeDayLegs(int day, List<PlaceCard> cards, List<RouteLegCache> cacheRows) {
         List<PlaceCard[]> pairs = new ArrayList<>();
         for (int i = 0; i + 1 < cards.size(); i++) {
             pairs.add(new PlaceCard[]{cards.get(i), cards.get(i + 1)});
@@ -90,7 +95,7 @@ public class RouteService {
                 if ("google".equals(leg.source())) {
                     AiRouteRequest.Leg req = findRequestLeg(misses, leg.fromInstanceId(), leg.toInstanceId());
                     if (req != null) {
-                        routeLegCacheRepository.save(RouteLegCache.of(
+                        cacheRows.add(RouteLegCache.of(
                                 req.origin().lat(), req.origin().lng(),
                                 req.destination().lat(), req.destination().lng(),
                                 leg.durationSeconds(), leg.distanceMeters(), leg.mode(), leg.source()));
@@ -118,6 +123,6 @@ public class RouteService {
     }
 
     private static double round(double value) {
-        return Math.round(value * 100_000.0) / 100_000.0;
+        return Math.round(value * COORD_PRECISION) / COORD_PRECISION;
     }
 }

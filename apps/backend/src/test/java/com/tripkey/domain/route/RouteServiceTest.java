@@ -87,7 +87,60 @@ class RouteServiceTest {
         assertThat(legs.get(0).mode()).isEqualTo("transit");
         assertThat(legs.get(0).durationSeconds()).isEqualTo(1320);
         assertThat(legs.get(0).day()).isEqualTo(1);
-        verify(routeLegCacheRepository).save(any(RouteLegCache.class));
+        verify(routeLegCacheRepository).saveAll(any());
+    }
+
+    @Test
+    void returnsEstimatedLegButDoesNotCacheIt() {
+        UUID tripId = UUID.randomUUID();
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(
+                card(a, 1, 1, 34.70, 135.50),
+                card(b, 1, 2, 34.67, 135.49)
+        ));
+        when(routeLegCacheRepository.findByOriginLatAndOriginLngAndDestLatAndDestLng(
+                anyDouble(), anyDouble(), anyDouble(), anyDouble())).thenReturn(Optional.empty());
+        when(aiEngineClient.route(any(AiRouteRequest.class))).thenReturn(new AiRouteResponse(List.of(
+                new AiRouteResponse.Leg(a.toString(), b.toString(), 1800, 6000, "estimated", "estimated")
+        )));
+
+        List<RouteLeg> legs = routeService.computeLegs(tripId);
+
+        assertThat(legs).hasSize(1);
+        assertThat(legs.get(0).mode()).isEqualTo("estimated");
+        assertThat(legs.get(0).source()).isEqualTo("estimated");
+        verify(routeLegCacheRepository, never()).saveAll(any());
+        verify(routeLegCacheRepository, never()).save(any());
+    }
+
+    @Test
+    void ordersLegsByDayAscending() {
+        UUID tripId = UUID.randomUUID();
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        UUID c = UUID.randomUUID();
+        UUID d = UUID.randomUUID();
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(
+                card(a, 2, 1, 35.10, 136.50),
+                card(b, 2, 2, 35.12, 136.52),
+                card(c, 1, 1, 34.70, 135.50),
+                card(d, 1, 2, 34.67, 135.49)
+        ));
+        when(routeLegCacheRepository.findByOriginLatAndOriginLngAndDestLatAndDestLng(
+                anyDouble(), anyDouble(), anyDouble(), anyDouble())).thenReturn(Optional.empty());
+        when(aiEngineClient.route(any())).thenAnswer(inv -> {
+            AiRouteRequest req = inv.getArgument(0);
+            return new AiRouteResponse(req.legs().stream()
+                    .map(l -> new AiRouteResponse.Leg(l.fromInstanceId(), l.toInstanceId(), 600, 2000, "walking", "google"))
+                    .toList());
+        });
+
+        List<RouteLeg> legs = routeService.computeLegs(tripId);
+
+        assertThat(legs).hasSize(2);
+        assertThat(legs.get(0).day()).isEqualTo(1);
+        assertThat(legs.get(1).day()).isEqualTo(2);
     }
 
     @Test
