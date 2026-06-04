@@ -94,6 +94,23 @@ async def test_optimize_falls_back_when_google_returns_nothing(monkeypatch) -> N
 
 
 @pytest.mark.asyncio
+async def test_optimize_falls_back_when_leg_raises(monkeypatch) -> None:
+    async def boom(origin, destination, travel_mode, api_key):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(route_optimizer, "_places_api_key", lambda: "k")
+    monkeypatch.setattr(route_optimizer, "_call_routes_api", boom)
+
+    req = RouteRequest(legs=[RouteLeg(
+        from_instance_id="a", to_instance_id="b",
+        origin=Coordinates(lat=34.70, lng=135.50),
+        destination=Coordinates(lat=34.67, lng=135.49),
+    )])
+    resp = await route_optimizer.optimize_routes(req)
+    assert resp.legs[0].source == "estimated"
+
+
+@pytest.mark.asyncio
 async def test_optimize_falls_back_when_no_api_key(monkeypatch) -> None:
     monkeypatch.setattr(route_optimizer, "_places_api_key", lambda: None)
     req = RouteRequest(legs=[RouteLeg(

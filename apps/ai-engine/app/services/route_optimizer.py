@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 
 import httpx
@@ -15,6 +16,8 @@ import httpx
 from app.fallback.estimated_route import estimate_leg
 from app.schemas.parse import Coordinates
 from app.schemas.route import RouteLeg, RouteLegResult, RouteRequest, RouteResponse
+
+logger = logging.getLogger(__name__)
 
 COMPUTE_ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
 
@@ -56,7 +59,8 @@ async def _call_routes_api(
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(COMPUTE_ROUTES_URL, json=payload, headers=headers)
         response.raise_for_status()
-    except httpx.HTTPError:
+    except httpx.HTTPError as exc:
+        logger.warning("Routes lookup failed | travel_mode=%s | error=%s", travel_mode, exc)
         return None
 
     routes = (response.json() or {}).get("routes") or []
@@ -77,6 +81,11 @@ async def _optimize_leg(leg: RouteLeg, api_key: str) -> RouteLegResult:
         if result is not None:
             candidates.append((mode, result))
     if not candidates:
+        logger.warning(
+            "No route candidates, falling back to estimate | from=%s | to=%s",
+            leg.from_instance_id,
+            leg.to_instance_id,
+        )
         return estimate_leg(leg)
     best_mode, best = min(candidates, key=lambda c: c[1]["duration_seconds"])
     return RouteLegResult(
@@ -93,5 +102,21 @@ async def optimize_routes(request: RouteRequest) -> RouteResponse:
     api_key = _places_api_key()
     if not api_key:
         return RouteResponse(legs=[estimate_leg(leg) for leg in request.legs])
-    results = await asyncio.gather(*(_optimize_leg(leg, api_key) for leg in request.legs))
-    return RouteResponse(legs=list(results))
+    results = await asyncio.gather(
+        *(_optimize_leg(leg, api_key) for leg in request.legs),
+        return_exceptions=True,
+    )
+
+    legs: list[RouteLegResult] = []
+    for leg, result in zip(request.legs, results):
+        if isinstance(result, Exception):
+            logger.warning(
+                "Leg optimization failed, falling back to estimate | from=%s | to=%s | error=%s",
+                leg.from_instance_id,
+                leg.to_instance_id,
+                result,
+            )
+            legs.append(estimate_leg(leg))
+            continue
+        legs.append(result)
+    return RouteResponse(legs=legs)
