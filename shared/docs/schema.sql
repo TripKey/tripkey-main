@@ -148,3 +148,18 @@ create table if not exists public.enrichment_outbox (
 );
 create index if not exists idx_enrichment_outbox_pending
   on public.enrichment_outbox (created_at) where status = 'pending';
+
+-- 카드 간 이동시간·이동수단 캐시 (#167, AI 엔진 Routes 결과 캐싱)
+create table if not exists public.route_legs_cache (
+  id               bigserial   primary key,
+  origin_lat       double precision not null,
+  origin_lng       double precision not null,
+  dest_lat         double precision not null,
+  dest_lng         double precision not null,
+  duration_seconds integer     not null,
+  distance_meters  integer     not null,
+  mode             text        not null,
+  source           text        not null,
+  created_at       timestamptz not null default now(),
+  constraint uq_route_legs unique (origin_lat, origin_lng, dest_lat, dest_lng)
+);
