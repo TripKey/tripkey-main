@@ -120,3 +120,31 @@ async def test_optimize_falls_back_when_no_api_key(monkeypatch) -> None:
     )])
     resp = await route_optimizer.optimize_routes(req)
     assert resp.legs[0].source == "estimated"
+
+
+from httpx import ASGITransport, AsyncClient
+
+
+@pytest.mark.asyncio
+async def test_route_endpoint_returns_legs(monkeypatch) -> None:
+    async def fake_call(origin, destination, travel_mode, api_key):
+        return {"duration_seconds": 600, "distance_meters": 2000}
+
+    monkeypatch.setattr(route_optimizer, "_places_api_key", lambda: "k")
+    monkeypatch.setattr(route_optimizer, "_call_routes_api", fake_call)
+
+    from app.main import app
+
+    body = {"legs": [{
+        "from_instance_id": "a", "to_instance_id": "b",
+        "origin": {"lat": 34.70, "lng": 135.50},
+        "destination": {"lat": 34.67, "lng": 135.49},
+    }]}
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/internal/ai/route", json=body)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["legs"][0]["from_instance_id"] == "a"
+    assert data["legs"][0]["source"] == "google"
