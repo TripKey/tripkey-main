@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,7 +48,7 @@ class DumpServiceTest {
         when(tripRepository.existsById(tripId)).thenReturn(true);
         when(dumpJobRepository.save(any(DumpJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        DumpSubmitRequest req = new DumpSubmitRequest("오사카 3박4일 여행입니다.", null, null);
+        DumpSubmitRequest req = new DumpSubmitRequest("오사카 3박4일 여행입니다.", null, null, null);
         DumpSubmitResponse response = dumpService.submit(tripId, req);
 
         ArgumentCaptor<DumpJob> jobCaptor = ArgumentCaptor.forClass(DumpJob.class);
@@ -69,12 +70,49 @@ class DumpServiceTest {
 
         DumpSubmitRequest.FlightInput dep =
                 new DumpSubmitRequest.FlightInput("ICN", "NRT", "KE703", "2026-07-01T09:00:00+09:00");
-        DumpSubmitRequest req = new DumpSubmitRequest("오사카 3박4일 여행입니다.", dep, null);
+        DumpSubmitRequest req = new DumpSubmitRequest("오사카 3박4일 여행입니다.", dep, null, null);
 
         dumpService.submit(tripId, req);
 
         DumpJob saved = jobCaptor.getValue();
         assertThat(saved.getDepartureFlight()).contains("ICN").contains("KE703");
         assertThat(saved.getReturnFlight()).isNull();
+    }
+
+    @Test
+    void submitStoresStructuredAccommodationsOnDumpJob() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        ArgumentCaptor<DumpJob> jobCaptor = ArgumentCaptor.forClass(DumpJob.class);
+        when(dumpJobRepository.save(jobCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
+
+        DumpSubmitRequest.AccommodationInput hotel =
+                new DumpSubmitRequest.AccommodationInput(
+                        "호텔 그란비아 오사카", "오사카", "2026-07-01", "2026-07-03");
+        DumpSubmitRequest req = new DumpSubmitRequest(
+                "오사카 3박4일 여행입니다.", null, null, List.of(hotel));
+
+        dumpService.submit(tripId, req);
+
+        DumpJob saved = jobCaptor.getValue();
+        assertThat(saved.getAccommodationInputs())
+                .contains("호텔 그란비아 오사카")
+                .contains("check_in")
+                .contains("2026-07-01");
+    }
+
+    @Test
+    void submitLeavesAccommodationsNullWhenEmpty() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        ArgumentCaptor<DumpJob> jobCaptor = ArgumentCaptor.forClass(DumpJob.class);
+        when(dumpJobRepository.save(jobCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
+
+        DumpSubmitRequest req = new DumpSubmitRequest(
+                "오사카 3박4일 여행입니다.", null, null, List.of());
+
+        dumpService.submit(tripId, req);
+
+        assertThat(jobCaptor.getValue().getAccommodationInputs()).isNull();
     }
 }

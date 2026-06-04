@@ -19,7 +19,7 @@ const STEPS: Step[] = [
   { id: 'onboarding', label: '온보딩', path: '/onboarding' },
   { id: 'dump', label: '덤프', path: '/dump' },
   { id: 'organize', label: '정리', path: '/grouping' },
-  { id: 'arrange', label: '배치' },
+  { id: 'arrange', label: '배치', path: '/arrange' },
   { id: 'confirm', label: '확정' },
 ];
 

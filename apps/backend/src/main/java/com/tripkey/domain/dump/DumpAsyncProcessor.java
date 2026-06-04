@@ -1,6 +1,7 @@
 package com.tripkey.domain.dump;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tripkey.domain.alert.AlertCard;
 import com.tripkey.domain.alert.AlertCardRepository;
@@ -65,7 +66,7 @@ public class DumpAsyncProcessor {
                     destinations,
                     trip.getTravelDays(),
                     trip.getCompanionCount(),
-                    null,
+                    deserializeAccommodations(job.getAccommodationInputs()),
                     deserializeFlight(job.getDepartureFlight()),
                     deserializeFlight(job.getReturnFlight())
             );
@@ -127,6 +128,17 @@ public class DumpAsyncProcessor {
             return objectMapper.readValue(json, AiParseRequest.FlightInput.class);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to deserialize flight input", e);
+        }
+    }
+
+    private List<AiParseRequest.AccommodationInput> deserializeAccommodations(String json) {
+        if (json == null) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<AiParseRequest.AccommodationInput>>() {});
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to deserialize accommodation inputs", e);
         }
     }
 

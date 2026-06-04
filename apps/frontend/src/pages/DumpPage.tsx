@@ -30,7 +30,7 @@ const DumpPage = () => {
   const { type, exactDate, flexDate } = useCalendarStore();
   const { dumpText, requestStatus, errorMessage, jobId, actions } =
     useDumpStore();
-  const { setDumpText, submitDump, clearJob } = actions;
+  const { setDumpText, submitDump, clearJob, resetDump } = actions;
 
   const view = useParseJobStatus(tripId, jobId);
 
@@ -87,6 +87,10 @@ const DumpPage = () => {
     await submitDump(tripId);
   };
 
+  const handleReset = () => {
+    resetDump();
+  };
+
   // 온보딩으로 리다이렉트되는 동안 폼이 깜빡이지 않도록 렌더를 막는다.
   if (!tripId) {
     return null;
@@ -126,7 +130,7 @@ const DumpPage = () => {
         dateRange={summary.dateRange}
         actions={
           <>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleReset}>
               초기화
             </Button>
           </>

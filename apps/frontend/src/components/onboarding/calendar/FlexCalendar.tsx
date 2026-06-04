@@ -1,5 +1,5 @@
 import './FlexCalendar.css';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useCalendarStore } from '@/utils/calendar-store';
 import { useOnboardingStore } from '@/utils/onboarding-store';
@@ -15,7 +15,17 @@ const FlexCalendar = () => {
   const [selectedMonth, setSelectedMonth] = useState<number | null>(
     flexDate?.month ?? null
   );
-  const [durationNights, setDurationNights] = useState(flexDate?.nights ?? 3);
+  const [durationNights, setDurationNights] = useState<number | null>(
+    flexDate?.nights ?? null
+  );
+
+  useEffect(() => {
+    if (flexDate === null) {
+      setSelectedYear(new Date().getFullYear());
+      setSelectedMonth(null);
+      setDurationNights(null);
+    }
+  }, [flexDate]);
 
   const currentYear = new Date().getFullYear();
 
@@ -25,8 +35,10 @@ const FlexCalendar = () => {
 
   const handleMonthClick = (month: number) => {
     setSelectedMonth(month);
-    setFlexDate({ year: selectedYear, month, nights: durationNights });
-    setForm({ travel_days: durationNights });
+    if (durationNights !== null) {
+      setFlexDate({ year: selectedYear, month, nights: durationNights });
+      setForm({ travel_days: durationNights });
+    }
   };
 
   const handleDurationClick = (nights: number) => {

@@ -1,5 +1,5 @@
 import { format, differenceInDays } from 'date-fns';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { type DateRange, DayPicker } from 'react-day-picker';
 
 import { useCalendarStore } from '@/utils/calendar-store';
@@ -18,6 +18,12 @@ export const ExactCalendar = () => {
     from: exactDate?.from,
     to: exactDate?.to,
   }));
+
+  useEffect(() => {
+    if (exactDate === null) {
+      setRange({ from: undefined, to: undefined });
+    }
+  }, [exactDate]);
 
   const handleSelect = (newRange: DateRange | undefined) => {
     const from = newRange?.from;

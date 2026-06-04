@@ -33,6 +33,7 @@ create table dump_jobs (
   context_summary  text,
   departure_flight jsonb,
   return_flight    jsonb,
+  accommodation_inputs jsonb,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
