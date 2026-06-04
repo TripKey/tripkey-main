@@ -28,7 +28,7 @@ public class RouteService {
 
     private static final double COORD_PRECISION = 100_000.0; // 좌표 5자리(약 1m) 반올림
 
-    // 의도적으로 @Transactional 미적용: AI 엔진 HTTP 호출 동안 DB 커넥션을 점유하지 않기 위함. 캐시 read/save 는 각 repository 호출의 기본 트랜잭션으로 처리.
+    // @Transactional 미선언: 호출자(VerifyService.verifyAndSave)의 트랜잭션에 참여한다. 카드 read 와 캐시 saveAll 만 수행하며, 라우트 계산은 부가정보이므로 호출자에서 best-effort 로 감싼다.
     public List<RouteLeg> computeLegs(UUID tripId) {
         Map<Integer, List<PlaceCard>> byDay = groupByDay(tripId);
         List<RouteLeg> result = new ArrayList<>();
@@ -36,8 +36,16 @@ public class RouteService {
         for (Map.Entry<Integer, List<PlaceCard>> entry : byDay.entrySet()) {
             result.addAll(computeDayLegs(entry.getKey(), entry.getValue(), cacheRows));
         }
+        // route_legs_cache 의 unique (origin_lat, origin_lng, dest_lat, dest_lng) 제약 위반을 막기 위해
+        // 동일 좌표 튜플의 캐시 행은 첫 번째만 남기고 dedupe 한다. (result 의 RouteLeg 는 그대로 유지)
         if (!cacheRows.isEmpty()) {
-            routeLegCacheRepository.saveAll(cacheRows);
+            Map<String, RouteLegCache> deduped = new LinkedHashMap<>();
+            for (RouteLegCache row : cacheRows) {
+                String coordKey = row.getOriginLat() + "," + row.getOriginLng()
+                        + "," + row.getDestLat() + "," + row.getDestLng();
+                deduped.putIfAbsent(coordKey, row);
+            }
+            routeLegCacheRepository.saveAll(deduped.values());
         }
         return result;
     }

@@ -21,6 +21,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -284,6 +285,23 @@ class VerifyServiceTest {
         );
 
         assertThat(response.routeWarnings()).isEmpty();
+    }
+
+    @Test
+    void verifySucceedsWhenRouteServiceFails() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
+        // ai-engine 장애 시뮬레이션: route 계산이 예외를 던져도 저장은 성공해야 한다.
+        when(routeService.computeLegs(any())).thenThrow(new IllegalStateException("ai-engine down"));
+
+        PlacementSaveResponse response = verifyService.verifyAndSave(
+                tripId, new PlacementSaveRequest(List.of())
+        );
+
+        assertThat(response).isNotNull();
+        assertThat(response.saved()).isTrue();
+        assertThat(response.routeLegs()).isEmpty();
     }
 
     private PlaceCard placeCard(UUID tripId) {

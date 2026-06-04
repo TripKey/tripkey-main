@@ -12,6 +12,7 @@ import com.tripkey.dto.placement.PlacementSaveResponse;
 import com.tripkey.dto.placement.RouteLeg;
 import com.tripkey.dto.placement.RouteWarning;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class VerifyService {
@@ -76,7 +78,14 @@ public class VerifyService {
 
         placeCardRepository.flush();
         List<RouteWarning> routeWarnings = routeValidator.validate(tripId);
-        List<RouteLeg> routeLegs = routeService.computeLegs(tripId);
+        // route leg 계산은 부가정보(best-effort). ai-engine 장애/타임아웃 시에도 Day 배치 저장은 성공해야 한다.
+        List<RouteLeg> routeLegs;
+        try {
+            routeLegs = routeService.computeLegs(tripId);
+        } catch (Exception e) {
+            log.warn("route leg 계산 실패, 빈 결과로 대체합니다. tripId={}", tripId, e);
+            routeLegs = List.of();
+        }
 
         return PlacementSaveResponse.of(tripId, skippedInstanceIds, routeWarnings, routeLegs);
     }

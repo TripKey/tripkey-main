@@ -8,12 +8,14 @@ import com.tripkey.infra.aiengine.dto.AiRouteRequest;
 import com.tripkey.infra.aiengine.dto.AiRouteResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -161,6 +163,43 @@ class RouteServiceTest {
         assertThat(legs).hasSize(1);
         assertThat(legs.get(0).mode()).isEqualTo("walking");
         verify(aiEngineClient, never()).route(any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void dedupesCacheRowsWithSameCoordinates() {
+        UUID tripId = UUID.randomUUID();
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        UUID c = UUID.randomUUID();
+        UUID d = UUID.randomUUID();
+        // day 1: A(coordsX) -> B(coordsY), day 2: C(coordsX) -> D(coordsY)
+        // 좌표는 A=C, B=D 로 동일하지만 instanceId 는 모두 다름.
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(
+                card(a, 1, 1, 34.70, 135.50),
+                card(b, 1, 2, 34.67, 135.49),
+                card(c, 2, 1, 34.70, 135.50),
+                card(d, 2, 2, 34.67, 135.49)
+        ));
+        when(routeLegCacheRepository.findByOriginLatAndOriginLngAndDestLatAndDestLng(
+                anyDouble(), anyDouble(), anyDouble(), anyDouble())).thenReturn(Optional.empty());
+        when(aiEngineClient.route(any())).thenAnswer(inv -> {
+            AiRouteRequest req = inv.getArgument(0);
+            return new AiRouteResponse(req.legs().stream()
+                    .map(l -> new AiRouteResponse.Leg(l.fromInstanceId(), l.toInstanceId(), 600, 2000, "walking", "google"))
+                    .toList());
+        });
+
+        List<RouteLeg> legs = routeService.computeLegs(tripId);
+
+        // 두 day 각각 RouteLeg 1개씩 = 총 2개 (result leg 는 dedupe 되지 않음)
+        assertThat(legs).hasSize(2);
+
+        // 캐시 행은 동일 좌표 튜플이므로 1개로 dedupe 되어 저장
+        ArgumentCaptor<Iterable<RouteLegCache>> captor = ArgumentCaptor.forClass(Iterable.class);
+        verify(routeLegCacheRepository).saveAll(captor.capture());
+        Collection<RouteLegCache> saved = (Collection<RouteLegCache>) captor.getValue();
+        assertThat(saved).hasSize(1);
     }
 
     @Test
