@@ -7,7 +7,7 @@ os.environ.setdefault("GOOGLE_MAPS_API_KEY", "test-maps-key")
 from pydantic import ValidationError
 
 from app.schemas.parse import Coordinates
-from app.schemas.route import RouteLeg, RouteLegResult, RouteRequest, RouteResponse
+from app.schemas.route import RouteLeg, RouteRequest
 
 
 def test_schema_roundtrip() -> None:
@@ -47,7 +47,6 @@ def test_estimate_leg_returns_estimated_source() -> None:
 
 
 from app.services import route_optimizer
-from app.schemas.route import RouteRequest
 
 
 @pytest.mark.asyncio
