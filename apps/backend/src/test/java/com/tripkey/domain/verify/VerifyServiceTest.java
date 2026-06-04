@@ -35,6 +35,9 @@ class VerifyServiceTest {
     @Mock
     private RouteValidator routeValidator;
 
+    @Mock
+    private com.tripkey.domain.route.RouteService routeService;
+
     @InjectMocks
     private VerifyService verifyService;
 
