@@ -6,6 +6,8 @@ import com.tripkey.infra.aiengine.dto.AiParseResponse;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentRequest;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentResponse;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
+import com.tripkey.infra.aiengine.dto.AiRouteRequest;
+import com.tripkey.infra.aiengine.dto.AiRouteResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -34,6 +36,23 @@ public class AiEngineClient {
             return response;
         } catch (WebClientResponseException | WebClientRequestException e) {
             throw new IllegalStateException("Failed to call ai-engine parse endpoint", e);
+        }
+    }
+
+    public AiRouteResponse route(AiRouteRequest request) {
+        try {
+            AiRouteResponse response = aiEngineWebClient.post()
+                    .uri("/internal/ai/route")
+                    .bodyValue(request)
+                    .retrieve()
+                    .bodyToMono(AiRouteResponse.class)
+                    .block();
+            if (response == null) {
+                throw new IllegalStateException("ai-engine returned an empty route response body");
+            }
+            return response;
+        } catch (WebClientResponseException | WebClientRequestException e) {
+            throw new IllegalStateException("Failed to call ai-engine route endpoint", e);
         }
     }
 
