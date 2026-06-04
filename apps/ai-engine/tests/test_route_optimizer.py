@@ -43,3 +43,4 @@ def test_estimate_leg_returns_estimated_source() -> None:
     assert result.distance_meters > 0
     assert result.duration_seconds > 0
     assert result.from_instance_id == "a"
+    assert result.to_instance_id == "b"
