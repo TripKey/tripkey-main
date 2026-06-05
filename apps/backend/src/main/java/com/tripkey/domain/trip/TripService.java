@@ -63,7 +63,8 @@ public class TripService {
     public TripCreateResponse create(TripCreateRequest request) {
         Trip trip = new Trip(
                 request.travelDays(),
-                request.companionCount()
+                request.companionCount(),
+                request.startDate()
         );
         tripRepository.save(trip);
 

@@ -1,14 +1,17 @@
 package com.tripkey.domain.trip;
 
 import com.tripkey.common.exception.TripNotFoundException;
+import com.tripkey.dto.trip.TripCreateRequest;
 import com.tripkey.dto.trip.TripDetailResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -96,5 +99,20 @@ class TripServiceTest {
 
         assertThatThrownBy(() -> tripService.getTripDetail(id))
                 .isInstanceOf(TripNotFoundException.class);
+    }
+
+    @Test
+    void createPersistsStartDate() {
+        LocalDate start = LocalDate.parse("2026-05-10");
+        TripCreateRequest request = new TripCreateRequest(
+                List.of("교토"), (short) 5, (short) 2, start);
+        when(tripRepository.save(org.mockito.ArgumentMatchers.any(Trip.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        tripService.create(request);
+
+        ArgumentCaptor<Trip> captor = ArgumentCaptor.forClass(Trip.class);
+        org.mockito.Mockito.verify(tripRepository).save(captor.capture());
+        assertThat(captor.getValue().getStartDate()).isEqualTo(start);
     }
 }
