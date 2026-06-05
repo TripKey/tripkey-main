@@ -1,15 +1,18 @@
 package com.tripkey.domain.trip;
 
+import com.tripkey.common.exception.TripNotFoundException;
 import com.tripkey.dto.trip.DestinationSearchResponse;
 import com.tripkey.dto.trip.DestinationSearchResponse.DestinationDto;
 import com.tripkey.dto.trip.TripCreateRequest;
 import com.tripkey.dto.trip.TripCreateResponse;
+import com.tripkey.dto.trip.TripDetailResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -42,6 +45,18 @@ public class TripService {
                 .toList();
 
         return new DestinationSearchResponse(filtered);
+    }
+
+    @Transactional(readOnly = true)
+    public TripDetailResponse getTripDetail(UUID tripId) {
+        Trip trip = tripRepository.findById(tripId)
+                .orElseThrow(() -> new TripNotFoundException(tripId));
+        List<String> destinations = tripDestinationRepository
+                .findByTripTripIdOrderBySortOrder(tripId)
+                .stream()
+                .map(TripDestination::getName)
+                .toList();
+        return TripDetailResponse.of(trip, destinations);
     }
 
     @Transactional
