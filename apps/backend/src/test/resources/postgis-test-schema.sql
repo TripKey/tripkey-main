@@ -12,6 +12,7 @@ create table trips (
   has_flight         boolean,
   has_accommodation  boolean,
   confirmed_at       timestamptz,
+  start_date         date,
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now()
 );

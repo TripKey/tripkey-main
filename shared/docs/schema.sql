@@ -12,6 +12,7 @@ create table if not exists public.trips (
   has_flight         boolean,                                     -- 항공권 보유 여부 (온보딩 응답)
   has_accommodation  boolean,                                     -- 숙소 보유 여부 (온보딩 응답)
   confirmed_at       timestamptz,                                 -- 일정 확정 시각 (SCR-05)
+  start_date         date,                                        -- 여행 시작일 (#171 2단계, nullable)
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now()
 );
