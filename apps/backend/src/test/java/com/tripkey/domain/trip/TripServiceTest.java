@@ -43,8 +43,9 @@ class TripServiceTest {
         }
     }
 
-    private Trip trip(UUID id, short days, short companions, OffsetDateTime confirmedAt, OffsetDateTime createdAt) {
-        Trip t = new Trip(days, companions);
+    private Trip trip(UUID id, short days, short companions, OffsetDateTime confirmedAt,
+                      OffsetDateTime createdAt, LocalDate startDate) {
+        Trip t = new Trip(days, companions, startDate);
         setField(t, "tripId", id);
         setField(t, "confirmedAt", confirmedAt);
         setField(t, "createdAt", createdAt);
@@ -60,7 +61,7 @@ class TripServiceTest {
     void getTripDetailMapsTripAndOrderedDestinations() {
         UUID id = UUID.randomUUID();
         OffsetDateTime created = OffsetDateTime.parse("2026-05-31T10:00:00+09:00");
-        Trip t = trip(id, (short) 5, (short) 2, null, created);
+        Trip t = trip(id, (short) 5, (short) 2, null, created, LocalDate.parse("2026-05-10"));
         when(tripRepository.findById(id)).thenReturn(Optional.of(t));
         when(tripDestinationRepository.findByTripTripIdOrderBySortOrder(id)).thenReturn(List.of(
                 destination(t, "교토", 0),
@@ -75,6 +76,7 @@ class TripServiceTest {
         assertThat(response.destinations()).containsExactly("교토", "오사카");
         assertThat(response.confirmed()).isFalse();
         assertThat(response.createdAt()).isEqualTo(created);
+        assertThat(response.startDate()).isEqualTo(LocalDate.parse("2026-05-10"));
     }
 
     @Test
@@ -82,7 +84,7 @@ class TripServiceTest {
         UUID id = UUID.randomUUID();
         Trip t = trip(id, (short) 3, (short) 1,
                 OffsetDateTime.parse("2026-05-31T12:00:00+09:00"),
-                OffsetDateTime.parse("2026-05-31T10:00:00+09:00"));
+                OffsetDateTime.parse("2026-05-31T10:00:00+09:00"), null);
         when(tripRepository.findById(id)).thenReturn(Optional.of(t));
         when(tripDestinationRepository.findByTripTripIdOrderBySortOrder(id)).thenReturn(List.of());
 
@@ -90,6 +92,7 @@ class TripServiceTest {
 
         assertThat(response.confirmed()).isTrue();
         assertThat(response.destinations()).isEmpty();
+        assertThat(response.startDate()).isNull();
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.tripkey.dto.trip;
 
 import com.tripkey.domain.trip.Trip;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -12,7 +13,8 @@ public record TripDetailResponse(
         Short companionCount,
         List<String> destinations,
         boolean confirmed,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        LocalDate startDate
 ) {
     public static TripDetailResponse of(Trip trip, List<String> destinations) {
         return new TripDetailResponse(
@@ -21,7 +23,8 @@ public record TripDetailResponse(
                 trip.getCompanionCount(),
                 destinations,
                 trip.getConfirmedAt() != null,
-                trip.getCreatedAt()
+                trip.getCreatedAt(),
+                trip.getStartDate()
         );
     }
 }

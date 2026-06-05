@@ -9,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -30,7 +31,8 @@ class TripControllerTest {
         UUID id = UUID.randomUUID();
         TripDetailResponse body = new TripDetailResponse(
                 id, (short) 5, (short) 2, List.of("교토"), false,
-                OffsetDateTime.parse("2026-05-31T10:00:00+09:00"));
+                OffsetDateTime.parse("2026-05-31T10:00:00+09:00"),
+                LocalDate.parse("2026-05-10"));
         when(tripService.getTripDetail(id)).thenReturn(body);
 
         ResponseEntity<TripDetailResponse> response = tripController.getTrip(id);

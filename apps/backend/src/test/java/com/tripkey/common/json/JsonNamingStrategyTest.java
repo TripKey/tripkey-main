@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.json.JsonTest;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -129,7 +130,8 @@ class JsonNamingStrategyTest {
                 (short) 2,
                 List.of("교토", "오사카"),
                 false,
-                OffsetDateTime.parse("2026-05-31T10:00:00+09:00")
+                OffsetDateTime.parse("2026-05-31T10:00:00+09:00"),
+                LocalDate.parse("2026-05-10")
         );
 
         String json = objectMapper.writeValueAsString(response);
@@ -141,6 +143,8 @@ class JsonNamingStrategyTest {
                 .contains("destinations")
                 .contains("confirmed")
                 .contains("created_at")
+                .contains("start_date")
+                .doesNotContain("startDate")
                 .doesNotContain("tripId")
                 .doesNotContain("travelDays")
                 .doesNotContain("companionCount")
