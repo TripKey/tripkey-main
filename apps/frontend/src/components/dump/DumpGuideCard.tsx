@@ -2,6 +2,8 @@ import { ChevronDown, Home, Plane } from 'lucide-react';
 import { useState } from 'react';
 
 import './DumpGuideCard.css';
+import DumpFlightInfo from './DumpFlightInfo';
+import DumpHotelInfo from './DumpHotelInfo';
 
 const DumpGuideCard = () => {
   const [openFlight, setOpenFlight] = useState(false);
@@ -32,7 +34,7 @@ const DumpGuideCard = () => {
         </button>
         {openFlight && (
           <div className="dump-guide-item__content">
-            {/* 항공편 정보 입력 영역 */}
+            <DumpFlightInfo />
           </div>
         )}
 
@@ -55,7 +57,7 @@ const DumpGuideCard = () => {
         </button>
         {openReservation && (
           <div className="dump-guide-item__content">
-            {/* 숙박 정보 입력 영역 */}
+            <DumpHotelInfo />
           </div>
         )}
       </div>

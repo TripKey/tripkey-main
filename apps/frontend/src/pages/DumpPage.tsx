@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import DumpForm from '../components/dump/DumpForm';
 import DumpGuideCard from '../components/dump/DumpGuideCard';
+import DumpInputGuide from '../components/dump/DumpInputGuide';
 import TripSummaryCard from '../components/grouping/TripSummaryCard';
 import Header from '../components/header/Header';
 import EmptyView from '../components/progress/EmptyView';
@@ -151,6 +152,8 @@ const DumpPage = () => {
             dumpTextCount={dumpTextCount}
             onTextChange={handleDumpTextChange}
           />
+
+          <DumpInputGuide />
         </section>
 
         <aside className="dump-sidebar">
