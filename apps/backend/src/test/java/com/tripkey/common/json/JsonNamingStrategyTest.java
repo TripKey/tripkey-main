@@ -3,12 +3,14 @@ package com.tripkey.common.json;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tripkey.dto.dump.ParseJobStatusResponse;
 import com.tripkey.dto.trip.TripCreateResponse;
+import com.tripkey.dto.trip.TripDetailResponse;
 import com.tripkey.infra.aiengine.dto.AiParseResponse;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.json.JsonTest;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -118,5 +120,34 @@ class JsonNamingStrategyTest {
                 .doesNotContain("userContext")
                 .doesNotContain("blockedReason")
                 .doesNotContain("relatedInstanceIds");
+    }
+
+    @Test
+    void serializesTripDetailResponseFieldsAsSnakeCase() throws Exception {
+        TripDetailResponse response = new TripDetailResponse(
+                UUID.randomUUID(),
+                (short) 5,
+                (short) 2,
+                List.of("교토", "오사카"),
+                false,
+                OffsetDateTime.parse("2026-05-31T10:00:00+09:00"),
+                LocalDate.parse("2026-05-10")
+        );
+
+        String json = objectMapper.writeValueAsString(response);
+
+        assertThat(json)
+                .contains("trip_id")
+                .contains("travel_days")
+                .contains("companion_count")
+                .contains("destinations")
+                .contains("confirmed")
+                .contains("created_at")
+                .contains("start_date")
+                .doesNotContain("startDate")
+                .doesNotContain("tripId")
+                .doesNotContain("travelDays")
+                .doesNotContain("companionCount")
+                .doesNotContain("createdAt");
     }
 }

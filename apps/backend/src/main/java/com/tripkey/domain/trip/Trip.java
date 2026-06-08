@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -24,12 +25,20 @@ public class Trip {
     @Column(name = "companion_count", nullable = false)
     private Short companionCount;
 
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
     @Column(name = "confirmed_at")
     private OffsetDateTime confirmedAt;
 
-    public Trip(Short travelDays, Short companionCount) {
+    public Trip(Short travelDays, Short companionCount, LocalDate startDate) {
         this.travelDays = travelDays;
         this.companionCount = companionCount;
+        this.startDate = startDate;
+    }
+
+    public Trip(Short travelDays, Short companionCount) {
+        this(travelDays, companionCount, null);
     }
 
     public void confirm() {
