@@ -37,6 +37,12 @@ const pages: DevNavEntry[] = [
     title: 'Arrange Page (SCR-04)',
     description: '일정 배치 페이지 — Day 칸반 보드 (목데이터 UI)',
   },
+  {
+    kind: 'link',
+    path: '/confirm',
+    title: 'Confirm Page (SCR-05)',
+    description: '확정 전 최종 점검 페이지 (mock 데이터 기반 UI)',
+  },
 ];
 
 const DevIndexPage = () => {
