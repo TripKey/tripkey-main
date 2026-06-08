@@ -1,40 +1,18 @@
 import { Plus, X } from 'lucide-react';
-import { useState } from 'react';
 
 import { Input } from '@/components/ui/input';
 
-type Hotel = {
-  id: string;
-  name: string;
-  location: string;
-  checkIn: string;
-  checkOut: string;
-};
-
-const createEmptyHotel = (): Hotel => ({
-  id: crypto.randomUUID(),
-  name: '',
-  location: '',
-  checkIn: '',
-  checkOut: '',
-});
+import { useDumpStore } from '../../utils/dump-store';
 
 const DumpHotelInfo = () => {
-  const [hotels, setHotels] = useState<Hotel[]>([createEmptyHotel()]);
-
-  const handleAdd = () => {
-    setHotels((prev) => [...prev, createEmptyHotel()]);
-  };
-
-  const handleRemove = (id: string) => {
-    setHotels((prev) => prev.filter((hotel) => hotel.id !== id));
-  };
+  const hotels = useDumpStore((s) => s.accommodations);
+  const { addAccommodation, removeAccommodation, updateAccommodation } =
+    useDumpStore((s) => s.actions);
 
   return (
     <div className="flex flex-col gap-3">
       {hotels.map((hotel, index) => (
         <div key={hotel.id} className="rounded-xl border border-gray-200 p-4">
-          {/* 상단: 뱃지 + 삭제 버튼 */}
           <div className="flex items-center justify-between mb-3">
             <span className="inline-block rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-700">
               숙소 {index + 1}
@@ -42,7 +20,7 @@ const DumpHotelInfo = () => {
             {hotels.length > 1 && (
               <button
                 type="button"
-                onClick={() => handleRemove(hotel.id)}
+                onClick={() => removeAccommodation(hotel.id)}
                 className="flex items-center gap-0.5 text-xs text-red-500 hover:text-red-600"
               >
                 <X size={14} />
@@ -51,13 +29,16 @@ const DumpHotelInfo = () => {
             )}
           </div>
 
-          {/* 2x2 input grid */}
           <div className="grid grid-cols-2 gap-x-3 gap-y-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">숙소명</label>
               <Input
                 className="h-9 text-sm bg-white"
                 placeholder="예: 신주쿠 프린스 호텔"
+                value={hotel.name}
+                onChange={(e) =>
+                  updateAccommodation(hotel.id, 'name', e.target.value)
+                }
               />
             </div>
             <div>
@@ -65,6 +46,10 @@ const DumpHotelInfo = () => {
               <Input
                 className="h-9 text-sm bg-white"
                 placeholder="예: 신주쿠역 도보 5분"
+                value={hotel.location}
+                onChange={(e) =>
+                  updateAccommodation(hotel.id, 'location', e.target.value)
+                }
               />
             </div>
             <div>
@@ -72,6 +57,10 @@ const DumpHotelInfo = () => {
               <Input
                 className="h-9 text-sm bg-white"
                 placeholder="예: 5월 10일 15:00"
+                value={hotel.checkIn}
+                onChange={(e) =>
+                  updateAccommodation(hotel.id, 'checkIn', e.target.value)
+                }
               />
             </div>
             <div>
@@ -81,16 +70,19 @@ const DumpHotelInfo = () => {
               <Input
                 className="h-9 text-sm bg-white"
                 placeholder="예: 5월 12일 11:00"
+                value={hotel.checkOut}
+                onChange={(e) =>
+                  updateAccommodation(hotel.id, 'checkOut', e.target.value)
+                }
               />
             </div>
           </div>
         </div>
       ))}
 
-      {/* 숙소 추가 버튼 */}
       <button
         type="button"
-        onClick={handleAdd}
+        onClick={addAccommodation}
         className="flex items-center justify-center gap-1 rounded-xl border border-dashed border-gray-300 py-3 text-sm text-gray-500 hover:bg-gray-50"
       >
         <Plus size={16} />

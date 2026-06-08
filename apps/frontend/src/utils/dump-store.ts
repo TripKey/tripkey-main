@@ -1,19 +1,54 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
+import type { FlightInput, AccommodationInput } from '../types/dump';
+
 import { DUMP_TEXT } from './constants';
 import { submitDumpText, parseDumpApiError } from './dump-api';
 
 type RequestStatus = 'idle' | 'loading' | 'success' | 'error';
 
+type FlightRow = { airport: string; flightNumber: string; time: string };
+type FlightForm = { departure: FlightRow; return: FlightRow };
+type Accommodation = {
+  id: string;
+  name: string;
+  location: string;
+  checkIn: string;
+  checkOut: string;
+};
+
+const emptyRow = (): FlightRow => ({ airport: '', flightNumber: '', time: '' });
+const emptyAccommodation = (): Accommodation => ({
+  id: crypto.randomUUID(),
+  name: '',
+  location: '',
+  checkIn: '',
+  checkOut: '',
+});
+
 type DumpStore = {
   dumpText: string;
+  flightForm: FlightForm;
+  accommodations: Accommodation[];
   requestStatus: RequestStatus;
   errorMessage: string | null;
   jobId: string | null;
 
   actions: {
     setDumpText: (text: string) => void;
+    updateFlight: (
+      section: 'departure' | 'return',
+      field: keyof FlightRow,
+      value: string
+    ) => void;
+    addAccommodation: () => void;
+    removeAccommodation: (id: string) => void;
+    updateAccommodation: (
+      id: string,
+      field: keyof Omit<Accommodation, 'id'>,
+      value: string
+    ) => void;
     resetDump: () => void;
     clearJob: () => void;
     submitDump: (tripId: string) => Promise<boolean>;
@@ -24,6 +59,8 @@ export const useDumpStore = create<DumpStore>()(
   persist(
     (set, get) => ({
       dumpText: '',
+      flightForm: { departure: emptyRow(), return: emptyRow() },
+      accommodations: [emptyAccommodation()],
       requestStatus: 'idle',
       errorMessage: null,
       jobId: null,
@@ -33,9 +70,40 @@ export const useDumpStore = create<DumpStore>()(
           set({ dumpText: text });
         },
 
+        updateFlight: (section, field, value) => {
+          set((s) => ({
+            flightForm: {
+              ...s.flightForm,
+              [section]: { ...s.flightForm[section], [field]: value },
+            },
+          }));
+        },
+
+        addAccommodation: () => {
+          set((s) => ({
+            accommodations: [...s.accommodations, emptyAccommodation()],
+          }));
+        },
+
+        removeAccommodation: (id) => {
+          set((s) => ({
+            accommodations: s.accommodations.filter((a) => a.id !== id),
+          }));
+        },
+
+        updateAccommodation: (id, field, value) => {
+          set((s) => ({
+            accommodations: s.accommodations.map((a) =>
+              a.id === id ? { ...a, [field]: value } : a
+            ),
+          }));
+        },
+
         resetDump: () => {
           set({
             dumpText: '',
+            flightForm: { departure: emptyRow(), return: emptyRow() },
+            accommodations: [emptyAccommodation()],
             requestStatus: 'idle',
             errorMessage: null,
             jobId: null,
@@ -51,7 +119,7 @@ export const useDumpStore = create<DumpStore>()(
         },
 
         submitDump: async (tripId: string) => {
-          const { dumpText, requestStatus } = get();
+          const { dumpText, flightForm, accommodations, requestStatus } = get();
 
           if (requestStatus === 'loading') {
             return false;
@@ -62,16 +130,35 @@ export const useDumpStore = create<DumpStore>()(
             errorMessage: null,
           });
 
+          const trim = (v: string) => v.trim();
+
+          const flight: FlightInput = {
+            departure_airport: trim(flightForm.departure.airport) || undefined,
+            arrival_airport: trim(flightForm.return.airport) || undefined, //귀국 공항
+            flight_number: trim(flightForm.departure.flightNumber) || undefined,
+            datetime: trim(flightForm.departure.time) || undefined,
+          };
+          // 4칸 다 비었으면 통째로 생략
+          const departure_flight = Object.values(flight).some(Boolean)
+            ? flight
+            : undefined;
+
+          const accommodation_inputs: AccommodationInput[] = accommodations
+            .map((a) => ({
+              name: trim(a.name) || undefined,
+              location: trim(a.location) || undefined,
+              check_in: trim(a.checkIn) || undefined, // camel → snake
+              check_out: trim(a.checkOut) || undefined,
+            }))
+            .filter((a) => Object.values(a).some(Boolean));
+
           try {
             const response = await submitDumpText(tripId, {
               dump_text: dumpText,
+              ...(departure_flight && { departure_flight }),
+              ...(accommodation_inputs.length && { accommodation_inputs }),
             });
-
-            set({
-              requestStatus: 'success',
-              jobId: response.job_id,
-            });
-
+            set({ requestStatus: 'success', jobId: response.job_id });
             return true;
           } catch (error) {
             set({
@@ -80,7 +167,6 @@ export const useDumpStore = create<DumpStore>()(
                 parseDumpApiError(error)?.message ??
                 '서버 통신 오류가 발생했습니다.',
             });
-
             return false;
           }
         },
@@ -92,6 +178,8 @@ export const useDumpStore = create<DumpStore>()(
       partialize: (state) => ({
         dumpText:
           state.dumpText.length >= DUMP_TEXT.MIN_LENGTH ? state.dumpText : '',
+        flightForm: state.flightForm,
+        accommodations: state.accommodations,
       }),
     }
   )
