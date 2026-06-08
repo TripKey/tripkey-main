@@ -5,8 +5,8 @@ export type DumpErrorCode =
 
 export type DumpSubmitRequest = {
   dump_text: string;
-  departure_flight?: FlightInput; // 모두 optional — 백엔드도 nullable
-  return_flight?: FlightInput; // 이번엔 미전송(아래 매핑 참고)
+  departure_flight?: FlightInput;
+  return_flight?: FlightInput;
   accommodation_inputs?: AccommodationInput[];
 };
 
