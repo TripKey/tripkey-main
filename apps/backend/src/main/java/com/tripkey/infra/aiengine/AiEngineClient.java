@@ -1,6 +1,8 @@
 package com.tripkey.infra.aiengine;
 
 import com.tripkey.infra.aiengine.dto.AiCardParseRequest;
+import com.tripkey.infra.aiengine.dto.AiDestinationSearchRequest;
+import com.tripkey.infra.aiengine.dto.AiDestinationSearchResponse;
 import com.tripkey.infra.aiengine.dto.AiParseRequest;
 import com.tripkey.infra.aiengine.dto.AiParseResponse;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentRequest;
@@ -77,6 +79,23 @@ public class AiEngineClient {
                     e);
         } catch (WebClientRequestException e) {
             throw new IllegalStateException("Failed to call ai-engine card parse endpoint", e);
+        }
+    }
+
+    public AiDestinationSearchResponse searchDestinations(String query) {
+        try {
+            AiDestinationSearchResponse response = aiEngineWebClient.post()
+                    .uri("/internal/ai/destinations/search")
+                    .bodyValue(new AiDestinationSearchRequest(query))
+                    .retrieve()
+                    .bodyToMono(AiDestinationSearchResponse.class)
+                    .block();
+            if (response == null) {
+                throw new IllegalStateException("ai-engine returned an empty destination search response body");
+            }
+            return response;
+        } catch (WebClientResponseException | WebClientRequestException e) {
+            throw new IllegalStateException("Failed to call ai-engine destination search endpoint", e);
         }
     }
 }
