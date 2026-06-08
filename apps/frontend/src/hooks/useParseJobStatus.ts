@@ -8,7 +8,7 @@ import {
 import { fetchParseJobStatus } from '../utils/progress-api';
 
 const POLLING_INTERVAL_MS = 1500;
-const POLLING_TIMEOUT_MS = 60_000;
+const POLLING_TIMEOUT_MS = 120_000;
 const MAX_CONSECUTIVE_ERRORS = 3;
 
 // jobId === null 이면 폴링을 멈추고 idle 로 돌아간다. (clearJob() 호출 시 동작)
