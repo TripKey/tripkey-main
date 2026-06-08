@@ -7,6 +7,10 @@ export const API_PATH = {
   CARD: (tripId: string, instanceId: string) =>
     `/trips/${tripId}/cards/${instanceId}`,
   GROUPS: (tripId: string) => `/trips/${tripId}/groups`,
+  DAY: (tripId: string, dayNumber: number) =>
+    `/trips/${tripId}/days/${dayNumber}`,
+  VERIFY: (tripId: string) => `/trips/${tripId}/verify`,
+  CONFIRM: (tripId: string) => `/trips/${tripId}/confirm`,
 } as const;
 
 export const DUMP_TEXT = {
