@@ -68,7 +68,7 @@ class CardInputParsingProcessorTest {
     }
 
     @Test
-    void parseAndEnrichMarksConfirmedCardFailedWhenPlaceLookupMisses() {
+    void parseAndEnrichDemotesToInputRequiredWhenPlaceLookupMisses() {
         UUID tripId = UUID.randomUUID();
         UUID instanceId = UUID.randomUUID();
         Trip trip = new Trip((short) 3, (short) 2);
@@ -81,13 +81,16 @@ class CardInputParsingProcessorTest {
 
         processor.parseAndEnrich(tripId, instanceId, "도톤보리 글리코 사인으로 가자");
 
-        assertThat(card.getClassification()).isEqualTo("confirmed");
-        assertThat(card.getPlacementStatus()).isEqualTo("ready_partial");
+        // 좌표 없이 confirmed 로 돌아오면 입력 필요로 강등해 재파싱(self-heal) 경로를 다시 연다.
+        assertThat(card.getClassification()).isEqualTo("undecided");
+        assertThat(card.getPlacementStatus()).isEqualTo("needs_input");
+        assertThat(card.getActionType()).isEqualTo("input_required");
         assertThat(card.getProcessingStatus()).isEqualTo("failed");
         assertThat(card.getPlaceId()).isNull();
         assertThat(card.getLat()).isNull();
         assertThat(card.getLng()).isNull();
         assertThat(card.getAddress()).isNull();
+        assertThat(card.canStartNaturalLanguageParsingFromNotes()).isTrue();
         verify(placeCardRepository).save(card);
     }
 

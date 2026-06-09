@@ -309,6 +309,8 @@ public class PlaceCard {
                 ? normalizeFlightDatetime(dto.flightDatetime())
                 : this.flightDatetime;
         this.flightRole = dto.flightRole() != null ? normalizeFlightRole(dto.flightRole()) : this.flightRole;
+
+        demoteWhenCoordinatesMissing();
     }
 
     public boolean isConfirmedParseResult(AiPlaceCardDto dto) {
@@ -347,6 +349,26 @@ public class PlaceCard {
 
     private void recomputeActionType() {
         this.actionType = computeActionType(this.classification, this.placementStatus);
+    }
+
+    /**
+     * AI 파싱 결과에 좌표가 없으면 사용자가 직접 풀 수 있도록 입력 필요 상태로 강등한다.
+     * confirmed 카드만 대상이며(질문/blocked 카드는 보존), transport(항공편 등)는 좌표가 없어도 정상이라 면제한다.
+     * 강등 후 undecided + needs_input 이 되어 notes 재파싱(self-heal) 경로가 열린다.
+     */
+    private void demoteWhenCoordinatesMissing() {
+        if (!"confirmed".equals(this.classification)) {
+            return;
+        }
+        if ("transport".equals(this.category)) {
+            return;
+        }
+        if (this.lat != null && this.lng != null) {
+            return;
+        }
+        this.classification = "undecided";
+        this.placementStatus = "needs_input";
+        recomputeActionType();
     }
 
     public static PlaceCard createFromAiResponse(UUID tripId, AiPlaceCardDto dto, String source) {
@@ -388,6 +410,8 @@ public class PlaceCard {
         card.flightDatetime = normalizeFlightDatetime(dto.flightDatetime());
         card.flightRole = normalizeFlightRole(dto.flightRole());
         card.searchAlias = trimToNull(dto.searchAlias());
+
+        card.demoteWhenCoordinatesMissing();
         return card;
     }
 
