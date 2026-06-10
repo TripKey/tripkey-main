@@ -22,7 +22,7 @@ class PlaceCardTest {
                 false,
                 false,
                 (short) 90,
-                null,
+                new AiPlaceCardDto.Coordinates(34.6687, 135.5031),
                 "오사카 중앙구",
                 null,
                 null,
@@ -342,6 +342,116 @@ class PlaceCardTest {
         card.markProcessing();
         card.markFailed();
         assertThat(card.getProcessingStatus()).isEqualTo("failed");
+    }
+
+    @Test
+    void createFromAiResponseDemotesConfirmedWithoutCoordinates() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                "place-1", "모호한 장소", "food", "confirmed", "ready_partial",
+                false, false, (short) 90, null, "오사카",
+                null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
+
+        assertThat(card.getClassification()).isEqualTo("undecided");
+        assertThat(card.getPlacementStatus()).isEqualTo("needs_input");
+        assertThat(card.getActionType()).isEqualTo("input_required");
+    }
+
+    @Test
+    void createFromAiResponseKeepsConfirmedWhenCoordinatesPresent() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                "place-1", "도톤보리", "food", "confirmed", "ready_partial",
+                false, false, (short) 90,
+                new AiPlaceCardDto.Coordinates(34.6687, 135.5031), "오사카",
+                null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
+
+        assertThat(card.getClassification()).isEqualTo("confirmed");
+        assertThat(card.getPlacementStatus()).isEqualTo("ready_partial");
+        assertThat(card.getActionType()).isEqualTo("review_only");
+        assertThat(card.getLat()).isEqualTo(34.6687);
+        assertThat(card.getLng()).isEqualTo(135.5031);
+    }
+
+    @Test
+    void createFromAiResponseExemptsTransportWithoutCoordinates() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                null, "김포-오사카 항공편", "transport", "confirmed", "ready",
+                false, true, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
+
+        assertThat(card.getClassification()).isEqualTo("confirmed");
+        assertThat(card.getActionType()).isEqualTo("review_only");
+    }
+
+    @Test
+    void createFromAiResponseDoesNotDemoteOpenQuestionWithoutCoordinates() {
+        AiPlaceCardDto dto = new AiPlaceCardDto(
+                null, "오사카 어디?", "place", "open_question", "ready_partial",
+                false, false, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        PlaceCard card = PlaceCard.createFromAiResponse(UUID.randomUUID(), dto, "ai_parse");
+
+        assertThat(card.getClassification()).isEqualTo("open_question");
+    }
+
+    @Test
+    void applyCardLevelParseResultDemotesWhenCoordinatesMissing() {
+        PlaceCard card = sampleCard();
+        AiPlaceCardDto parsed = new AiPlaceCardDto(
+                "place-1", "모호한 장소", "food", "confirmed", "ready_partial",
+                false, false, (short) 90, null, "오사카",
+                null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        card.applyCardLevelParseResult(parsed);
+
+        assertThat(card.getClassification()).isEqualTo("undecided");
+        assertThat(card.getPlacementStatus()).isEqualTo("needs_input");
+        assertThat(card.getActionType()).isEqualTo("input_required");
+    }
+
+    @Test
+    void applyCardLevelParseResultKeepsConfirmedWhenCoordinatesPresent() {
+        PlaceCard card = sampleCard();
+        AiPlaceCardDto parsed = new AiPlaceCardDto(
+                "place-1", "도톤보리", "food", "confirmed", "ready_partial",
+                false, false, (short) 90,
+                new AiPlaceCardDto.Coordinates(34.6687, 135.5031), "오사카",
+                null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        card.applyCardLevelParseResult(parsed);
+
+        assertThat(card.getClassification()).isEqualTo("confirmed");
+        assertThat(card.getPlacementStatus()).isEqualTo("ready_partial");
+        assertThat(card.getProcessingStatus()).isEqualTo("completed");
+        assertThat(card.getLat()).isEqualTo(34.6687);
+        assertThat(card.getLng()).isEqualTo(135.5031);
+    }
+
+    @Test
+    void applyCardLevelParseResultExemptsTransport() {
+        PlaceCard card = sampleCard();
+        AiPlaceCardDto parsed = new AiPlaceCardDto(
+                null, "김포-오사카 항공편", "transport", "confirmed", "ready",
+                false, true, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        card.applyCardLevelParseResult(parsed);
+
+        assertThat(card.getClassification()).isEqualTo("confirmed");
+        assertThat(card.getActionType()).isEqualTo("review_only");
     }
 
     private static PlaceCard sampleCard() {
