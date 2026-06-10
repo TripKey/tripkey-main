@@ -18,6 +18,9 @@ import type {
   Groups03Response,
 } from '../types/grouping-api';
 import type { CardAddRequest } from '../types/grouping-api';
+import type { TripDetailResponse } from '../types/trip-api';
+
+import { tripDateRangeLabel } from './trip-meta';
 
 const CATEGORY_MAP: Record<CardCategory, PlaceCategory> = {
   place: 'place',
@@ -186,7 +189,11 @@ const countLabel = (
 
 export const mapToGroupingViewModel = (
   groups: Groups03Response,
-  options?: { contextSummary?: string | null }
+  options?: {
+    contextSummary?: string | null;
+    /** GET /trips/{id} 응답. 있으면 여행지/일수/인원/기간을 여기서 채운다. */
+    trip?: TripDetailResponse | null;
+  }
 ): GroupingViewModel => {
   const selectCards = [
     ...groups.input_required.map(toSelectCard),
@@ -238,22 +245,32 @@ export const mapToGroupingViewModel = (
 
   const totalCards = activeCount + excludedCount;
 
-  const destinationSet = new Set<string>();
-  for (const card of [
-    ...selectCards,
-    ...editCards,
-    ...reviewCards,
-    ...unassignedCards,
-  ]) {
-    if (card.region) destinationSet.add(card.region);
-  }
+  const trip = options?.trip;
+
+  // 여행지: trip 상세가 있으면 그대로, 없으면 카드 location 으로 임시 추출(폴백).
+  const destinations = trip
+    ? trip.destinations
+    : (() => {
+        const set = new Set<string>();
+        for (const card of [
+          ...selectCards,
+          ...editCards,
+          ...reviewCards,
+          ...unassignedCards,
+        ]) {
+          if (card.region) set.add(card.region);
+        }
+        return Array.from(set);
+      })();
 
   const summary: TripSummaryViewModel = {
-    destinations: Array.from(destinationSet),
-    dateRange: '-',
-    nights: 0,
-    days: 0,
-    travelers: 0,
+    destinations,
+    dateRange: trip
+      ? tripDateRangeLabel(trip.start_date, trip.travel_days)
+      : '-',
+    nights: trip ? Math.max(trip.travel_days - 1, 0) : 0,
+    days: trip?.travel_days ?? 0,
+    travelers: trip?.companion_count ?? 0,
     totalCards,
     cardStats: [
       { label: '입력', count: inputCount, tone: 'select' },
