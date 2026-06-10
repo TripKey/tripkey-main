@@ -29,9 +29,9 @@ const DestinationInput = ({ placeholder }: { placeholder?: string }) => {
 
       {import.meta.env.MODE === 'development' && (
         <aside className="destination-input__dev-notice" role="note">
-          <span className="destination-input__dev-badge">개발용 임시</span>
+          <span className="destination-input__dev-badge">등록 도시</span>
           <span className="destination-input__dev-text">
-            백엔드 등록 도시(한글 완전일치만 검색됨):{' '}
+            (한글 완전일치만 검색됨):{' '}
             {RECOMMENDED_DESTINATIONS.map((d) => d.name).join(' · ')}
           </span>
         </aside>
