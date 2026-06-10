@@ -19,6 +19,20 @@ export const fetchGroups04 = async (
   return response.data;
 };
 
+/**
+ * 정리 반영(재클러스터) — POST /groups/reorder.
+ * 위치 정보가 바뀌어 "재정렬이 필요한 카드"(pending_reorder)로 빠져 있던 카드들의
+ * 플래그를 BE 가 비워, 갱신된 groups04(클러스터로 재편입된 상태)를 돌려준다.
+ */
+export const reorderGroups = async (
+  tripId: string
+): Promise<Groups04Response> => {
+  const response = await apiClient.post<Groups04Response>(
+    API_PATH.REORDER(tripId)
+  );
+  return response.data;
+};
+
 /** 특정 Day에 배치된 카드(출국/귀국편 분리) */
 export const fetchDay = async (
   tripId: string,

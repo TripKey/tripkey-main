@@ -17,16 +17,18 @@ import CardListPanel from '@/components/arrange/CardListPanel';
 import DayColumn from '@/components/arrange/DayColumn';
 import AddCardModal from '@/components/grouping/AddCardModal';
 import Header from '@/components/header/Header';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
   useAddCardMutation,
   useArrangeCardsQuery,
   useConfirmPlacementMutation,
+  useDaysQuery,
   useGroups04Query,
   usePatchCardMutation,
+  useReorderGroupsMutation,
   useVerifyPlacementMutation,
 } from '@/hooks/useArrange';
+import { useTripDetailQuery } from '@/hooks/useTripDetail';
 import type {
   ArrangeCardGroup,
   ArrangeCardViewModel,
@@ -38,8 +40,10 @@ import type { RouteWarning } from '@/types/arrange-api';
 import {
   buildPlacementRequest,
   cardToStockCard,
+  mapDayColumns,
   mapToArrangeViewModel,
 } from '../utils/arrange-mapper';
+import type { TripMeta } from '../utils/arrange-mapper';
 import { parseGroupingApiError } from '../utils/grouping-api';
 import { toCardAddRequest } from '../utils/grouping-mapper';
 import { useOnboardingStore } from '../utils/onboarding-store';
@@ -78,26 +82,44 @@ const ArrangePage = () => {
 
   const groups04Query = useGroups04Query(tripId);
   const cardsQuery = useArrangeCardsQuery(tripId);
+  const tripDetailQuery = useTripDetailQuery(tripId);
 
   const patchCardMutation = usePatchCardMutation(tripId);
   const addCardMutation = useAddCardMutation(tripId);
+  const reorderMutation = useReorderGroupsMutation(tripId);
   const verifyMutation = useVerifyPlacementMutation(tripId);
   const confirmMutation = useConfirmPlacementMutation(tripId);
 
-  // 서버 응답 → 화면 ViewModel.
-  const meta = useMemo(
+  // 여행 메타는 GET /trips/{id}(옵션 A)를 1순위로, 미로딩 시 온보딩 스토어로 폴백한다.
+  const detail = tripDetailQuery.data;
+  const meta = useMemo<TripMeta>(
     () => ({
-      travelDays: form.travel_days,
-      destinations: form.destinations,
-      travelers: form.companion_count,
+      travelDays: detail?.travel_days ?? form.travel_days,
+      destinations: detail?.destinations ?? form.destinations,
+      travelers: detail?.companion_count ?? form.companion_count,
+      startDate: detail?.start_date ?? null,
     }),
-    [form.travel_days, form.destinations, form.companion_count]
+    [detail, form.travel_days, form.destinations, form.companion_count]
   );
 
+  // 좌측 stock + 헤더 메타. (Day 보드 로딩과 무관하게 먼저 그릴 수 있다.)
   const viewModel = useMemo(() => {
     if (!groups04Query.data || !cardsQuery.data) return null;
     return mapToArrangeViewModel(groups04Query.data, cardsQuery.data, meta);
   }, [groups04Query.data, cardsQuery.data, meta]);
+
+  // 우측 Day 보드는 백엔드 GET /days/{n}(DayViewService) 결과를 SSOT 로 쓴다.
+  // 컬럼 개수=travel_days(메타 미로딩 시 0). FE 는 day별 그룹핑/정렬을 재현하지 않는다.
+  const daysQuery = useDaysQuery(tripId, meta.travelDays);
+  const dayColumns = useMemo(() => {
+    if (!cardsQuery.data) return null;
+    // travelDays>0 인데 Day 응답이 아직이면 보드를 비우지 않도록 대기.
+    if (meta.travelDays > 0 && !daysQuery.isLoaded) return null;
+    const dayViewModels = daysQuery.dayViewModels.filter(
+      (dvm): dvm is NonNullable<typeof dvm> => dvm != null
+    );
+    return mapDayColumns(dayViewModels, meta, cardsQuery.data);
+  }, [cardsQuery.data, meta, daysQuery.isLoaded, daysQuery.dayViewModels]);
 
   // 배치 저장 요청 시 카드별 예상 소요 시간 조회용.
   const durationByInstance = useMemo(() => {
@@ -113,10 +135,11 @@ const ArrangePage = () => {
   const [groups, setGroups] = useState<ArrangeCardGroup[]>([]);
   const [days, setDays] = useState<DayColumnViewModel[]>([]);
   useEffect(() => {
-    if (!viewModel) return;
-    setGroups(viewModel.groups);
-    setDays(viewModel.days);
+    if (viewModel) setGroups(viewModel.groups);
   }, [viewModel]);
+  useEffect(() => {
+    if (dayColumns) setDays(dayColumns);
+  }, [dayColumns]);
 
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [detailCard, setDetailCard] = useState<ArrangeCardViewModel | null>(
@@ -141,6 +164,10 @@ const ArrangePage = () => {
     .filter((card) => card.draggable !== false).length;
 
   const openCardDetail = (card: ArrangeCardViewModel) => {
+    // "처리가 필요한 카드"(배치 불가)는 사용자가 무엇을 해야 하는지 먼저 브라우저 알림으로 안내한다.
+    if (card.actionGuide) {
+      window.alert(card.actionGuide);
+    }
     setDetailCard(card);
     setDetailOpen(true);
   };
@@ -179,12 +206,19 @@ const ArrangePage = () => {
   ) => {
     if (!tripId) return;
     setActionError(null);
+    setNotice(null);
     setAddCardOpen(false);
     try {
       const created = await addCardMutation.mutateAsync(
         toCardAddRequest(draft)
       );
       const newCard = cardToStockCard(created);
+      // 직접 추가한 카드는 좌표(지도 위치)가 없어 동선 검증·자동 묶기에서 빠진다. 미리 안내한다.
+      if (created.coordinates == null) {
+        setNotice(
+          `'${created.name}' 카드에 지도 위치 정보가 없어 동선 검증·자동 묶기에서 제외될 수 있어요. 정리 화면에서 정확한 장소로 확인해 주세요.`
+        );
+      }
       setGroups((prev) => {
         if (prev.some((group) => group.id === ADDED_GROUP_ID)) {
           return prev.map((group) =>
@@ -230,6 +264,33 @@ const ArrangePage = () => {
       setDetailOpen(false);
     } catch (error) {
       setActionError(errorMessageOf(error, '메모 저장에 실패했습니다.'));
+    }
+  };
+
+  // 정리 반영 — POST /groups/reorder. "재정렬이 필요한 카드"를 클러스터로 재편입한 뒤
+  // 좌측 목록만 갱신한다. 이미 Day 에 배치(로컬·미저장)한 카드는 그대로 둔다.
+  const handleReorder = async () => {
+    if (!tripId || !cardsQuery.data) return;
+    setActionError(null);
+    setNotice(null);
+    try {
+      const fresh = await reorderMutation.mutateAsync();
+      // 좌측 그룹(vm.groups)만 갱신한다. Day 보드는 로컬 상태를 유지한다.
+      const vm = mapToArrangeViewModel(fresh, cardsQuery.data, meta);
+      const placedIds = new Set(
+        days.flatMap((day) => day.cards).map((card) => card.id)
+      );
+      setGroups(
+        vm.groups
+          .map((group) => ({
+            ...group,
+            cards: group.cards.filter((card) => !placedIds.has(card.id)),
+          }))
+          .filter((group) => group.cards.length > 0)
+      );
+      setNotice('카드를 다시 정리했어요.');
+    } catch (error) {
+      setActionError(errorMessageOf(error, '카드 정리에 실패했습니다.'));
     }
   };
 
@@ -297,7 +358,13 @@ const ArrangePage = () => {
   const busy =
     verifyMutation.isPending ||
     confirmMutation.isPending ||
-    addCardMutation.isPending;
+    addCardMutation.isPending ||
+    reorderMutation.isPending;
+
+  // "재정렬이 필요한 카드" 그룹이 있을 때만 정리 반영 버튼을 노출한다.
+  const hasPendingReorder = groups.some(
+    (group) => group.id === 'pending-reorder'
+  );
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-muted">
@@ -331,6 +398,15 @@ const ArrangePage = () => {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {hasPendingReorder && (
+              <Button
+                variant="outline"
+                onClick={handleReorder}
+                disabled={!tripId || busy}
+              >
+                {reorderMutation.isPending ? '정리 중…' : '카드 다시 정리하기'}
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={handleVerify}
@@ -425,13 +501,6 @@ const ArrangePage = () => {
           </Button>
         </div>
       </footer>
-
-      {/* 좌하단 플로팅 참여자 아바타 */}
-      <Avatar className="fixed bottom-4 left-4 z-50 size-9 shadow-md ring-2 ring-background">
-        <AvatarFallback className="bg-orange-500 text-xs font-semibold text-white">
-          N
-        </AvatarFallback>
-      </Avatar>
 
       {/* 카드 클릭 시 우측에서 열리는 상세 패널 */}
       <ArrangeCardDetailPanel

@@ -3,7 +3,9 @@
 //
 // 화면 분할 규칙:
 //  - 좌측 "카드 목록"  = 아직 배치되지 않은(day == null) 카드. Groups04 의 클러스터 라벨을 그대로 쓴다.
-//  - 우측 Day 보드     = 배치된(day != null) 카드. CardsResponse 에서 day 별로 묶는다.
+//  - 우측 Day 보드     = 배치된 카드. day 별 그룹핑/정렬/항공편 분리는 FE 가 재현하지 않고
+//                        백엔드 GET /days/{n}(DayViewService) 결과(DayViewModel)를 그대로 따른다.
+//                        (start_time_card=출국편, end_time_card=귀국편, cards=나머지 createdAt 순)
 // 백엔드 verify/confirm 은 스냅샷 시맨틱(요청에 없는 카드는 day 초기화)이므로
 // 저장 시 각 Day 의 모든 카드를(항공편 포함) 빠짐없이 보내야 한다.
 
@@ -21,15 +23,23 @@ import type {
   PlaceCategory,
 } from '@/types/grouping';
 
-import type { PlacementSaveRequest } from '../types/arrange-api';
-import type { Groups04Response } from '../types/arrange-api';
+import type {
+  DayViewModel,
+  Groups04Response,
+  PlacementSaveRequest,
+} from '../types/arrange-api';
 import type { Card, CardCategory, CardsResponse } from '../types/grouping-api';
 
-/** 온보딩 단계에서만 알 수 있는 여행 메타(백엔드 trip 상세 API 부재). */
+/**
+ * 화면 헤더/Day 보드에 필요한 여행 메타.
+ * 1순위 출처는 GET /trips/{id}(옵션 A) 응답이며, 미로딩 시 온보딩 스토어로 폴백한다.
+ */
 export type TripMeta = {
   travelDays: number;
   destinations: string[];
   travelers: number;
+  /** GET /trips/{id}.start_date(YYYY-MM-DD). 없으면 출국 항공편에서 파생. */
+  startDate?: string | null;
 };
 
 const CATEGORY_MAP: Record<CardCategory, PlaceCategory> = {
@@ -112,6 +122,16 @@ const buildBadges = (card: Card): PlaceCardBadgeSpec[] => {
   return badges;
 };
 
+/**
+ * 좌표(지도 위치)가 없어 동선 검증·자동 묶기(클러스터)에서 빠지는 드래그 가능 카드에 다는 표식.
+ * 대표 사례: "카드 추가하기"로 직접 추가한 카드(백엔드가 좌표를 만들지 않음).
+ */
+const NEEDS_LOCATION_BADGE: PlaceCardBadgeSpec = {
+  kind: 'status',
+  label: '위치 확인 필요',
+  tone: 'pending',
+};
+
 const placementLabel = (card: Card): string => {
   if (card.is_excluded) return '제외됨';
   return PLACEMENT_LABEL[card.placement_status] ?? card.placement_status;
@@ -122,6 +142,34 @@ const attentionLabel = (card: Card): string => {
   if (card.placement_status === 'needs_input') return '입력 필요';
   if (card.placement_status === 'blocked') return '확인 필요';
   return '처리 필요';
+};
+
+/**
+ * "처리가 필요한 카드"(배치 불가)를 클릭했을 때 띄울 브라우저 알림(window.alert) 안내 문구.
+ * 케이스 판별 순서는 백엔드 GroupService.getGroups04 의 unavailable 분기와 맞춘다.
+ *  - failed: 처리 중 오류
+ *  - needs_input: 정보 부족
+ *  - blocked: 확인 필요
+ *  - 그 외(ready/ready_partial 인데 좌표 없음 → geom null): 지도 위치를 못 찾음
+ */
+const attentionGuide = (card: Card): string => {
+  const name = card.name?.trim() || '이 카드';
+  if (card.processing_status === 'failed') {
+    return `'${name}' 카드는 처리 중 문제가 생겨 일정에 배치할 수 없어요.\n\n정리 화면에서 카드를 열어 장소 정보를 다시 입력한 뒤 시도해 주세요.`;
+  }
+  if (card.placement_status === 'needs_input') {
+    return `'${name}' 카드는 배치에 필요한 정보가 부족해요.\n\n정리 화면에서 카드를 열어 빠진 정보를 입력해 주세요.`;
+  }
+  if (card.placement_status === 'blocked') {
+    return `'${name}' 카드는 먼저 확인이 필요해요.\n\n정리 화면에서 카드 내용을 확인·정리한 뒤 다시 배치해 주세요.`;
+  }
+  // 좌표(지도 위치)가 없어 배치 불가인 케이스. placement_status 추론 대신
+  // API 가 내려주는 coordinates 로 직접 판정한다(ready/ready_partial 모두 포함).
+  if (card.coordinates == null) {
+    return `'${name}' 카드는 지도 위치를 찾지 못해 일정에 배치할 수 없어요.\n\n정리 화면에서 카드를 열어 장소명·주소를 더 정확히 입력한 뒤 다시 시도해 주세요.`;
+  }
+  // 위 어느 사유에도 해당하지 않는 경우(정상 동작 시 도달하지 않음) — 일반 안내.
+  return `'${name}' 카드는 아직 일정에 배치할 수 없어요.\n\n정리 화면에서 카드 상태를 확인해 주세요.`;
 };
 
 const flightLabel = (card: Card): string | undefined => {
@@ -154,14 +202,19 @@ const cardToDetail = (card: Card): ArrangeCardDetailViewModel => ({
 });
 
 /** 좌측 목록의 배치 가능 카드(드래그 가능). add 응답 등에서도 재사용한다. */
-export const cardToStockCard = (card: Card): ArrangeCardViewModel => ({
-  id: card.instance_id,
-  name: card.name,
-  accent: accentForCard(card),
-  badges: buildBadges(card),
-  draggable: true,
-  detail: cardToDetail(card),
-});
+export const cardToStockCard = (card: Card): ArrangeCardViewModel => {
+  const badges = buildBadges(card);
+  // 좌표가 없으면(직접 추가 카드 등) 동선 검증·자동 묶기에서 빠지므로 미리 표식을 단다.
+  if (card.coordinates == null) badges.push(NEEDS_LOCATION_BADGE);
+  return {
+    id: card.instance_id,
+    name: card.name,
+    accent: accentForCard(card),
+    badges,
+    draggable: true,
+    detail: cardToDetail(card),
+  };
+};
 
 /** 좌측 목록의 "처리 필요 / 제외" 카드(드래그 불가, 클릭하면 사유 확인). */
 const cardToAttentionCard = (
@@ -179,6 +232,8 @@ const cardToAttentionCard = (
     badges: [...buildBadges(card), statusBadge],
     draggable: false,
     detail: cardToDetail(card),
+    // 제외 카드는 의도적으로 뺀 항목이므로 안내하지 않는다.
+    actionGuide: kind === 'unavailable' ? attentionGuide(card) : undefined,
   };
 };
 
@@ -191,16 +246,6 @@ const cardToScheduled = (card: Card): ScheduledCardViewModel => ({
   fixedTime: card.flight_role ? fmtTime(card.flight_datetime) : undefined,
 });
 
-// 항공편(출국=맨 위, 귀국=맨 아래) + 나머지는 day_order 순.
-const orderDayCards = (cards: Card[]): Card[] => {
-  const outbound = cards.filter((c) => c.flight_role === 'outbound');
-  const inbound = cards.filter((c) => c.flight_role === 'inbound');
-  const middle = cards
-    .filter((c) => c.flight_role !== 'outbound' && c.flight_role !== 'inbound')
-    .sort((a, b) => (a.day_order ?? Infinity) - (b.day_order ?? Infinity));
-  return [...outbound, ...middle, ...inbound];
-};
-
 const deriveStartDate = (cards: Card[]): Date | null => {
   const outbound = cards.find(
     (c) => c.flight_role === 'outbound' && c.flight_datetime
@@ -210,6 +255,48 @@ const deriveStartDate = (cards: Card[]): Date | null => {
   if (!dt) return null;
   // outbound 가 day N 에 있다면 day 1 날짜는 그만큼 앞선다.
   return addDays(dt, -((outbound.day ?? 1) - 1));
+};
+
+/** 옵션 A: trip 상세 start_date 우선, 없으면(온보딩 미전송) 출국 항공편에서 파생. */
+const resolveStartDate = (meta: TripMeta, cards: Card[]): Date | null =>
+  parseDate(meta.startDate) ?? deriveStartDate(cards);
+
+/**
+ * 백엔드 DayViewModel(GET /days/{n}) 한 건 → Day 컬럼.
+ * 카드 순서/항공편 분리는 서버(DayViewService)가 이미 끝냈으므로 FE 는 재정렬하지 않고
+ * start_time_card(출국) → cards(나머지, createdAt 순) → end_time_card(귀국) 으로 펼치기만 한다.
+ */
+const dayViewModelToColumn = (
+  dvm: DayViewModel,
+  dayNumber: number,
+  startDate: Date | null
+): DayColumnViewModel => {
+  const ordered: Card[] = [
+    ...(dvm.start_time_card ? [dvm.start_time_card] : []),
+    ...dvm.cards,
+    ...(dvm.end_time_card ? [dvm.end_time_card] : []),
+  ];
+  return {
+    id: `day-${dayNumber}`,
+    dayLabel: `Day ${dayNumber}`,
+    dateLabel: startDate ? fmtDayLabel(addDays(startDate, dayNumber - 1)) : '',
+    cards: ordered.map(cardToScheduled),
+  };
+};
+
+/**
+ * 우측 Day 보드 = 백엔드 GET /days/{n} 결과(day 1..N 순서)를 그대로 컬럼으로 펼친 것.
+ * 좌측 stock(mapToArrangeViewModel)과 출처가 달라 함수를 분리한다.
+ */
+export const mapDayColumns = (
+  dayViewModels: DayViewModel[],
+  meta: TripMeta,
+  cardsRes: CardsResponse
+): DayColumnViewModel[] => {
+  const startDate = resolveStartDate(meta, cardsRes.cards);
+  return dayViewModels.map((dvm, index) =>
+    dayViewModelToColumn(dvm, index + 1, startDate)
+  );
 };
 
 export const mapToArrangeViewModel = (
@@ -269,22 +356,9 @@ export const mapToArrangeViewModel = (
     });
   }
 
-  // --- 우측 Day 보드 ---
-  const placed = cardsRes.cards.filter((c) => c.day != null);
-  const maxPlacedDay = placed.reduce((max, c) => Math.max(max, c.day ?? 0), 0);
-  const dayCount = Math.max(meta.travelDays || 0, maxPlacedDay);
-  const startDate = deriveStartDate(cardsRes.cards);
-
-  const days: DayColumnViewModel[] = [];
-  for (let n = 1; n <= dayCount; n += 1) {
-    const dayCards = orderDayCards(placed.filter((c) => c.day === n));
-    days.push({
-      id: `day-${n}`,
-      dayLabel: `Day ${n}`,
-      dateLabel: startDate ? fmtDayLabel(addDays(startDate, n - 1)) : '',
-      cards: dayCards.map(cardToScheduled),
-    });
-  }
+  // 우측 Day 보드는 mapDayColumns(GET /days/{n}) 로 별도 구성한다. 여기선 헤더용 날짜만.
+  const dayCount = meta.travelDays;
+  const startDate = resolveStartDate(meta, cardsRes.cards);
 
   // --- 헤더 summary / 헤딩 ---
   const fallbackDestination =
@@ -310,7 +384,6 @@ export const mapToArrangeViewModel = (
     },
     cardListTitle: '카드 목록',
     groups,
-    days,
   };
 };
 
