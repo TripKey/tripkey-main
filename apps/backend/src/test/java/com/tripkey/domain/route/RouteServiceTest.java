@@ -1,7 +1,9 @@
 package com.tripkey.domain.route;
 
+import com.tripkey.common.exception.TripNotFoundException;
 import com.tripkey.domain.place.PlaceCard;
 import com.tripkey.domain.place.PlaceCardRepository;
+import com.tripkey.domain.trip.TripRepository;
 import com.tripkey.dto.placement.RouteLeg;
 import com.tripkey.infra.aiengine.AiEngineClient;
 import com.tripkey.infra.aiengine.dto.AiRouteRequest;
@@ -21,8 +23,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -33,6 +37,7 @@ class RouteServiceTest {
     @Mock PlaceCardRepository placeCardRepository;
     @Mock RouteLegCacheRepository routeLegCacheRepository;
     @Mock AiEngineClient aiEngineClient;
+    @Mock TripRepository tripRepository;
 
     @InjectMocks RouteService routeService;
 
@@ -213,6 +218,57 @@ class RouteServiceTest {
         List<RouteLeg> legs = routeService.computeLegs(tripId);
 
         assertThat(legs).isEmpty();
+        verify(aiEngineClient, never()).route(any());
+    }
+
+    @Test
+    void readCachedLegsReturnsCachedLegsWithoutCallingAi() {
+        UUID tripId = UUID.randomUUID();
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        lenient().when(tripRepository.existsById(tripId)).thenReturn(true);
+        lenient().when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(
+                card(a, 1, 1, 34.70, 135.50),
+                card(b, 1, 2, 34.67, 135.49)
+        ));
+        lenient().when(routeLegCacheRepository.findByOriginLatAndOriginLngAndDestLatAndDestLng(
+                anyDouble(), anyDouble(), anyDouble(), anyDouble())).thenReturn(Optional.of(
+                RouteLegCache.of(34.70, 135.50, 34.67, 135.49, 900, 3000, "walking", "google")));
+
+        List<RouteLeg> legs = routeService.readCachedLegs(tripId);
+
+        assertThat(legs).hasSize(1);
+        assertThat(legs.get(0).day()).isEqualTo(1);
+        assertThat(legs.get(0).durationSeconds()).isEqualTo(900);
+        assertThat(legs.get(0).mode()).isEqualTo("walking");
+        verify(aiEngineClient, never()).route(any());
+        verify(routeLegCacheRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void readCachedLegsSkipsCacheMissesWithoutCallingAi() {
+        UUID tripId = UUID.randomUUID();
+        lenient().when(tripRepository.existsById(tripId)).thenReturn(true);
+        lenient().when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(
+                card(UUID.randomUUID(), 1, 1, 34.70, 135.50),
+                card(UUID.randomUUID(), 1, 2, 34.67, 135.49)
+        ));
+        lenient().when(routeLegCacheRepository.findByOriginLatAndOriginLngAndDestLatAndDestLng(
+                anyDouble(), anyDouble(), anyDouble(), anyDouble())).thenReturn(Optional.empty());
+
+        List<RouteLeg> legs = routeService.readCachedLegs(tripId);
+
+        assertThat(legs).isEmpty();
+        verify(aiEngineClient, never()).route(any());
+    }
+
+    @Test
+    void readCachedLegsThrowsWhenTripMissing() {
+        UUID tripId = UUID.randomUUID();
+        lenient().when(tripRepository.existsById(tripId)).thenReturn(false);
+
+        assertThatThrownBy(() -> routeService.readCachedLegs(tripId))
+                .isInstanceOf(TripNotFoundException.class);
         verify(aiEngineClient, never()).route(any());
     }
 }

@@ -12,6 +12,7 @@ import com.tripkey.dto.placement.PlacementDay;
 import com.tripkey.dto.placement.PlacementDayItem;
 import com.tripkey.dto.placement.PlacementSaveRequest;
 import com.tripkey.dto.placement.PlacementSaveResponse;
+import com.tripkey.dto.placement.RouteLeg;
 import com.tripkey.dto.placement.RouteWarning;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -218,6 +219,33 @@ class ConfirmServiceTest {
 
         assertThat(response.skippedInstanceIds()).containsExactly(stale);
         assertThat(response.routeWarnings()).containsExactly(warning);
+    }
+
+    @Test
+    void confirmAndSavePassesThroughVerifyServiceRouteLegs() {
+        UUID tripId = UUID.randomUUID();
+        Trip trip = new Trip((short) 3, (short) 2);
+        when(tripRepository.findById(tripId)).thenReturn(Optional.of(trip));
+
+        PlaceCard card = placeCard(tripId);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(card));
+
+        RouteLeg leg = new RouteLeg(
+                1, UUID.randomUUID(), UUID.randomUUID(), 2880, 5400, "transit", "google"
+        );
+        when(verifyService.verifyAndSave(eq(tripId), any())).thenReturn(
+                PlacementSaveResponse.of(tripId, List.of(), List.of(), List.of(leg))
+        );
+
+        PlacementSaveRequest request = new PlacementSaveRequest(List.of(
+                new PlacementDay(1, List.of(
+                        new PlacementDayItem(card.getInstanceId(), 1, null)
+                ))
+        ));
+
+        PlacementSaveResponse response = confirmService.confirmAndSave(tripId, request);
+
+        assertThat(response.routeLegs()).containsExactly(leg);
     }
 
     private PlaceCard placeCard(UUID tripId) {
