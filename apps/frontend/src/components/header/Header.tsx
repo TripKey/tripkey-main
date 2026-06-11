@@ -105,6 +105,13 @@ const Header = ({
 export default Header;
 
 const Stepper = ({ currentIndex }: { currentIndex: number }) => {
+  const renderStepLabel = (step: Step) =>
+    step.path && import.meta.env.MODE === 'development' ? (
+      <Link to={step.path}>{step.label}</Link>
+    ) : (
+      step.label
+    );
+
   return (
     <ol className="flex items-center gap-2 text-sm">
       {STEPS.map((step, index) => {
@@ -122,28 +129,16 @@ const Stepper = ({ currentIndex }: { currentIndex: number }) => {
                 aria-current="step"
                 className="rounded-full bg-primary px-3.5 py-1 font-medium text-primary-foreground"
               >
-                {step.path ? (
-                  <Link to={step.path}>{step.label}</Link> // 개발용 링크
-                ) : (
-                  step.label
-                )}
+                {renderStepLabel(step)}
               </span>
             ) : status === 'done' ? (
               <span className="flex items-center gap-1 font-medium text-primary">
                 <Check className="h-4 w-4" aria-hidden="true" />
-                {step.path ? (
-                  <Link to={step.path}>{step.label}</Link> // 개발용 링크
-                ) : (
-                  step.label
-                )}
+                {renderStepLabel(step)}
               </span>
             ) : (
               <span className="text-muted-foreground">
-                {step.path ? (
-                  <Link to={step.path}>{step.label}</Link> // 개발용 링크
-                ) : (
-                  step.label
-                )}
+                {renderStepLabel(step)}
               </span>
             )}
             {!isLast && (
