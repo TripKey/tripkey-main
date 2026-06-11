@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 import ProgressStat from '@/components/common/ProgressStat';
 import ActionGroupSection from '@/components/grouping/ActionGroupSection';
@@ -27,6 +27,7 @@ import type {
 } from '@/types/grouping';
 import type { Card, Groups03Response } from '@/types/grouping-api';
 
+import { useDumpStore } from '../utils/dump-store';
 import {
   addCard,
   fetchCards,
@@ -150,6 +151,13 @@ const logStub = (action: string) => () => {
 
 const GroupingPage = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const clearJob = useDumpStore((s) => s.actions.clearJob);
+
+  const handlePrev = () => {
+    clearJob(); // 완료된 jobId 제거 → dump 재진입 시 grouping으로 튕기는 것 방지
+    navigate('/dump');
+  };
   const urlTripId = searchParams.get('tripId');
   const storeTripId = useOnboardingStore((s) => s.tripId);
   const setStoreTripId = useOnboardingStore((s) => s.actions.setTripId);
@@ -485,7 +493,7 @@ const GroupingPage = () => {
             <TripSummaryCard
               {...summary}
               onNext={logStub('next-step')}
-              onPrev={logStub('prev-step')}
+              onPrev={handlePrev}
             />
           </aside>
         </div>
