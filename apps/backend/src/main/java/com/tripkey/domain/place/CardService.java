@@ -8,17 +8,20 @@ import com.tripkey.domain.alert.AlertCardRepository;
 import com.tripkey.domain.dump.DumpJob;
 import com.tripkey.domain.dump.DumpJobRepository;
 import com.tripkey.domain.trip.TripRepository;
+import com.tripkey.domain.verify.RouteValidator;
 import com.tripkey.dto.card.AlertCardDto;
 import com.tripkey.dto.card.CardAddRequest;
 import com.tripkey.dto.card.CardDto;
 import com.tripkey.dto.card.CardPatchRequest;
 import com.tripkey.dto.card.CardsResponse;
+import com.tripkey.dto.placement.RouteWarning;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -32,6 +35,7 @@ public class CardService {
     private final DumpJobRepository dumpJobRepository;
     private final CardInputParsingProcessor cardInputParsingProcessor;
     private final AlertCardRepository alertCardRepository;
+    private final RouteValidator routeValidator;
 
     @Transactional(readOnly = true)
     public CardsResponse getCards(UUID tripId) {
@@ -49,9 +53,14 @@ public class CardService {
                 .map(DumpJob::getContextSummary)
                 .orElse(null);
 
-        List<AlertCardDto> alertCards = alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId).stream()
-                .map(CardService::toAlertCardDto)
-                .toList();
+        List<AlertCardDto> alertCards = new ArrayList<>(
+                alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId).stream()
+                        .map(CardService::toAlertCardDto)
+                        .toList());
+        // Day 단위 conflict(route_warnings)를 scope=day 알림으로 조회 시점에 합성한다(미저장 → 항상 현재 배치 반영).
+        routeValidator.validate(tripId).stream()
+                .map(CardService::toDayAlertDto)
+                .forEach(alertCards::add);
 
         return new CardsResponse(cards, contextSummary, alertCards);
     }
@@ -166,5 +175,24 @@ public class CardService {
                 entity.getDay() == null ? null : entity.getDay().intValue(),
                 entity.getMessage(),
                 entity.relatedInstanceUuids());
+    }
+
+    private static AlertCardDto toDayAlertDto(RouteWarning warning) {
+        return new AlertCardDto(
+                dayAlertId(warning),
+                warning.type(),
+                "route",
+                "day",
+                warning.day(),
+                warning.message(),
+                warning.instanceIds());
+    }
+
+    private static String dayAlertId(RouteWarning warning) {
+        List<UUID> ids = warning.instanceIds();
+        if ("distance".equals(warning.type()) && ids != null && ids.size() >= 2) {
+            return "route:distance:" + warning.day() + ":" + ids.get(0) + ":" + ids.get(1);
+        }
+        return "route:" + warning.type() + ":" + warning.day();
     }
 }
