@@ -36,17 +36,10 @@ const DumpPage = () => {
 
   useEffect(() => {
     if (view.kind === 'done') {
-      // dump 페이지를 history에 남기지 않아 뒤로가기로 폴링이 재시작되는 것을 막는다.
+      clearJob();
       navigate('/grouping', { replace: true });
     }
-  }, [view.kind, navigate]);
-
-  useEffect(() => {
-    // 정상 흐름: tripId 없이 진입하면 온보딩부터 진행하도록 되돌린다.
-    if (!tripId) {
-      navigate('/onboarding', { replace: true });
-    }
-  }, [tripId, navigate]);
+  }, [view.kind, navigate, clearJob]);
 
   const dateRange = formatDateRangeLabel(type, exactDate, flexDate);
   const nights = exactDate?.nights ?? flexDate?.nights ?? 0;
@@ -90,11 +83,6 @@ const DumpPage = () => {
   const handleReset = () => {
     resetDump();
   };
-
-  // 온보딩으로 리다이렉트되는 동안 폼이 깜빡이지 않도록 렌더를 막는다.
-  if (!tripId) {
-    return null;
-  }
 
   const isInProgress =
     jobId !== null && view.kind !== 'idle' && view.kind !== 'done';
