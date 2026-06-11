@@ -64,29 +64,29 @@ type GroupingState =
   | { phase: 'idle' }
   | { phase: 'loading' }
   | {
-      phase: 'ready';
-      groups: Groups03Response;
-      contextSummary: string | null;
-      busy: boolean;
-      errorMessage: string | null;
-    }
+    phase: 'ready';
+    groups: Groups03Response;
+    contextSummary: string | null;
+    busy: boolean;
+    errorMessage: string | null;
+  }
   | { phase: 'error'; message: string };
 
 type GroupingAction =
   | { type: 'RESET' }
   | { type: 'LOAD_START' }
   | {
-      type: 'LOAD_SUCCESS';
-      groups: Groups03Response;
-      contextSummary: string | null;
-    }
+    type: 'LOAD_SUCCESS';
+    groups: Groups03Response;
+    contextSummary: string | null;
+  }
   | { type: 'LOAD_FAIL'; message: string }
   | { type: 'BUSY_START' }
   | {
-      type: 'REFRESH_SUCCESS';
-      groups: Groups03Response;
-      contextSummary: string | null;
-    }
+    type: 'REFRESH_SUCCESS';
+    groups: Groups03Response;
+    contextSummary: string | null;
+  }
   | { type: 'UPDATE_CARD'; card: Card }
   | { type: 'BUSY_FAIL'; message: string };
 
