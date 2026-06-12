@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import ProgressStat from '@/components/common/ProgressStat';
 import ActionGroupSection from '@/components/grouping/ActionGroupSection';
@@ -21,6 +21,7 @@ import SelectCardDetailPanel from '@/components/grouping/SelectCardDetailPanel';
 import TripSummaryCard from '@/components/grouping/TripSummaryCard';
 import Header from '@/components/header/Header';
 import { Button } from '@/components/ui/button';
+import { useTripDetailQuery } from '@/hooks/useTripDetail';
 import type {
   PlaceCardViewModel,
   TripSummaryViewModel,
@@ -149,6 +150,7 @@ const logStub = (action: string) => () => {
 };
 
 const GroupingPage = () => {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const urlTripId = searchParams.get('tripId');
   const storeTripId = useOnboardingStore((s) => s.tripId);
@@ -161,6 +163,9 @@ const GroupingPage = () => {
       setStoreTripId(urlTripId);
     }
   }, [urlTripId, storeTripId, setStoreTripId]);
+
+  // 여행 요약(여행지/일수/인원/기간)은 GET /trips/{id} 로 채운다.
+  const tripDetailQuery = useTripDetailQuery(tripId);
 
   const [state, dispatch] = useReducer(reducer, { phase: 'idle' });
 
@@ -322,12 +327,19 @@ const GroupingPage = () => {
     );
   };
 
-  const handleSaveMemo = (card: PlaceCardViewModel | null, memo: string) => {
-    if (!card || !tripId) return Promise.resolve(false);
-    return runCardMutation(
+  const handleSaveMemo = async (
+    card: PlaceCardViewModel | null,
+    memo: string
+  ) => {
+    if (!card || !tripId) return false;
+    const ok = await runCardMutation(
       () => patchCard(tripId, card.id, { memo }),
       '메모 저장에 실패했습니다.'
     );
+    if (ok) {
+      window.alert('메모가 저장되었습니다.');
+    }
+    return ok;
   };
 
   const handleConfirmSelect = (
@@ -365,8 +377,9 @@ const GroupingPage = () => {
     if (state.phase !== 'ready') return null;
     return mapToGroupingViewModel(state.groups, {
       contextSummary: state.contextSummary,
+      trip: tripDetailQuery.data,
     });
-  }, [state]);
+  }, [state, tripDetailQuery.data]);
 
   const tripMissingHint = !tripId
     ? 'tripId가 없습니다. /onboarding 으로 여행을 먼저 만들거나 URL에 ?tripId=… 를 추가하세요.'
@@ -484,8 +497,10 @@ const GroupingPage = () => {
           <aside className="sticky top-34">
             <TripSummaryCard
               {...summary}
-              onNext={logStub('next-step')}
-              onPrev={logStub('prev-step')}
+              onNext={() =>
+                navigate(tripId ? `/arrange?tripId=${tripId}` : '/arrange')
+              }
+              onPrev={() => navigate(-1)}
             />
           </aside>
         </div>

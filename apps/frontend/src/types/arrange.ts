@@ -25,6 +25,12 @@ export type ArrangeCardViewModel = {
   draggable?: boolean;
   /** 카드 클릭 시 우측에서 슬라이드되어 열리는 상세 패널(ArrangeCardDetailPanel) 데이터 */
   detail?: ArrangeCardDetailViewModel;
+  /**
+   * "처리가 필요한 카드"(배치 불가)에만 채워지는 안내 문구.
+   * 카드를 클릭하면 사용자가 무엇을 해야 하는지 브라우저 알림(window.alert)으로 띄운다.
+   * 배치 가능 카드/제외 카드에는 undefined.
+   */
+  actionGuide?: string;
 };
 
 /**
@@ -98,8 +104,8 @@ export type ArrangeViewModel = {
   cardListTitle: string;
   /** 좌측 카드 그룹 목록(렌더 순서 = 배열 순서) */
   groups: ArrangeCardGroup[];
-  /** 우측 보드의 Day 컬럼들 */
-  days: DayColumnViewModel[];
+  // 우측 Day 컬럼은 출처가 달라(GET /days/{n}) ArrangeViewModel 에 포함하지 않고
+  // arrange-mapper.mapDayColumns 로 별도 구성한다.
 };
 // 좌측 패널의 카드 수/미배치 수는 배치(드래그앤드롭)에 따라 바뀌므로
 // 고정 필드로 두지 않고 ArrangePage 에서 groups/days 상태로부터 파생한다.
