@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import ProgressStat from '@/components/common/ProgressStat';
 import ActionGroupSection from '@/components/grouping/ActionGroupSection';
@@ -21,12 +21,17 @@ import SelectCardDetailPanel from '@/components/grouping/SelectCardDetailPanel';
 import TripSummaryCard from '@/components/grouping/TripSummaryCard';
 import Header from '@/components/header/Header';
 import { Button } from '@/components/ui/button';
+import { useTripDetailQuery } from '@/hooks/useTripDetail';
 import type {
   PlaceCardViewModel,
   TripSummaryViewModel,
 } from '@/types/grouping';
 import type { Card, Groups03Response } from '@/types/grouping-api';
 
+import {
+  useCalendarStore,
+  formatDateRangeLabel,
+} from '../utils/calendar-store';
 import {
   addCard,
   fetchCards,
@@ -149,11 +154,17 @@ const logStub = (action: string) => () => {
 };
 
 const GroupingPage = () => {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const urlTripId = searchParams.get('tripId');
   const storeTripId = useOnboardingStore((s) => s.tripId);
   const setStoreTripId = useOnboardingStore((s) => s.actions.setTripId);
   const tripId: string | null = urlTripId ?? storeTripId;
+
+  // 여행지/일정/동행자 등 트립 메타데이터는 groups API 응답에 없으므로 온보딩/캘린더 스토어에서 채운다.
+  const destinations = useOnboardingStore((s) => s.form.destinations);
+  const companionCount = useOnboardingStore((s) => s.form.companion_count);
+  const { type: calendarType, exactDate, flexDate } = useCalendarStore();
 
   // URL의 tripId가 store와 다르면 store에 반영 (다른 페이지로 갔다 와도 일관)
   useEffect(() => {
@@ -161,6 +172,9 @@ const GroupingPage = () => {
       setStoreTripId(urlTripId);
     }
   }, [urlTripId, storeTripId, setStoreTripId]);
+
+  // 여행 요약(여행지/일수/인원/기간)은 GET /trips/{id} 로 채운다.
+  const tripDetailQuery = useTripDetailQuery(tripId);
 
   const [state, dispatch] = useReducer(reducer, { phase: 'idle' });
 
@@ -322,12 +336,19 @@ const GroupingPage = () => {
     );
   };
 
-  const handleSaveMemo = (card: PlaceCardViewModel | null, memo: string) => {
-    if (!card || !tripId) return Promise.resolve(false);
-    return runCardMutation(
+  const handleSaveMemo = async (
+    card: PlaceCardViewModel | null,
+    memo: string
+  ) => {
+    if (!card || !tripId) return false;
+    const ok = await runCardMutation(
       () => patchCard(tripId, card.id, { memo }),
       '메모 저장에 실패했습니다.'
     );
+    if (ok) {
+      window.alert('메모가 저장되었습니다.');
+    }
+    return ok;
   };
 
   const handleConfirmSelect = (
@@ -365,8 +386,9 @@ const GroupingPage = () => {
     if (state.phase !== 'ready') return null;
     return mapToGroupingViewModel(state.groups, {
       contextSummary: state.contextSummary,
+      trip: tripDetailQuery.data,
     });
-  }, [state]);
+  }, [state, tripDetailQuery.data]);
 
   const tripMissingHint = !tripId
     ? 'tripId가 없습니다. /onboarding 으로 여행을 먼저 만들거나 URL에 ?tripId=… 를 추가하세요.'
@@ -387,7 +409,15 @@ const GroupingPage = () => {
     doneCount: 0,
   };
   const groups = viewModel?.groups ?? [];
-  const summary = viewModel?.summary ?? FALLBACK_SUMMARY;
+  const nights = exactDate?.nights ?? flexDate?.nights ?? 0;
+  const summary: TripSummaryViewModel = {
+    ...(viewModel?.summary ?? FALLBACK_SUMMARY),
+    destinations: destinations.length ? destinations : ['-'],
+    dateRange: formatDateRangeLabel(calendarType, exactDate, flexDate),
+    nights,
+    days: nights + 1,
+    travelers: companionCount,
+  };
 
   return (
     <div className="min-h-screen bg-muted">
@@ -484,8 +514,10 @@ const GroupingPage = () => {
           <aside className="sticky top-34">
             <TripSummaryCard
               {...summary}
-              onNext={logStub('next-step')}
-              onPrev={logStub('prev-step')}
+              onNext={() =>
+                navigate(tripId ? `/arrange?tripId=${tripId}` : '/arrange')
+              }
+              onPrev={() => navigate(-1)}
             />
           </aside>
         </div>

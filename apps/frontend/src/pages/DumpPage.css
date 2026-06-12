@@ -49,6 +49,8 @@
 }
 
 .dump-page--progress {
+  display: flex;
   align-items: center;
+  justify-content: center;
   background-color: #fafafa;
 }
