@@ -29,6 +29,10 @@ import type {
 import type { Card, Groups03Response } from '@/types/grouping-api';
 
 import {
+  useCalendarStore,
+  formatDateRangeLabel,
+} from '../utils/calendar-store';
+import {
   addCard,
   fetchCards,
   fetchGroups03,
@@ -156,6 +160,11 @@ const GroupingPage = () => {
   const storeTripId = useOnboardingStore((s) => s.tripId);
   const setStoreTripId = useOnboardingStore((s) => s.actions.setTripId);
   const tripId: string | null = urlTripId ?? storeTripId;
+
+  // 여행지/일정/동행자 등 트립 메타데이터는 groups API 응답에 없으므로 온보딩/캘린더 스토어에서 채운다.
+  const destinations = useOnboardingStore((s) => s.form.destinations);
+  const companionCount = useOnboardingStore((s) => s.form.companion_count);
+  const { type: calendarType, exactDate, flexDate } = useCalendarStore();
 
   // URL의 tripId가 store와 다르면 store에 반영 (다른 페이지로 갔다 와도 일관)
   useEffect(() => {
@@ -400,7 +409,15 @@ const GroupingPage = () => {
     doneCount: 0,
   };
   const groups = viewModel?.groups ?? [];
-  const summary = viewModel?.summary ?? FALLBACK_SUMMARY;
+  const nights = exactDate?.nights ?? flexDate?.nights ?? 0;
+  const summary: TripSummaryViewModel = {
+    ...(viewModel?.summary ?? FALLBACK_SUMMARY),
+    destinations: destinations.length ? destinations : ['-'],
+    dateRange: formatDateRangeLabel(calendarType, exactDate, flexDate),
+    nights,
+    days: nights + 1,
+    travelers: companionCount,
+  };
 
   return (
     <div className="min-h-screen bg-muted">
