@@ -8,10 +8,13 @@ import com.tripkey.domain.alert.AlertCard;
 import com.tripkey.domain.alert.AlertCardRepository;
 import com.tripkey.domain.dump.DumpJobRepository;
 import com.tripkey.domain.trip.TripRepository;
+import com.tripkey.domain.verify.RouteValidator;
+import com.tripkey.dto.card.AlertCardDto;
 import com.tripkey.dto.card.CardAddRequest;
 import com.tripkey.dto.card.CardDto;
 import com.tripkey.dto.card.CardPatchRequest;
 import com.tripkey.dto.card.CardsResponse;
+import com.tripkey.dto.placement.RouteWarning;
 import com.tripkey.infra.aiengine.dto.AiParseResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,6 +52,9 @@ class CardServiceTest {
     
     @Mock
     private AlertCardRepository alertCardRepository;
+
+    @Mock
+    private RouteValidator routeValidator;
 
     @InjectMocks
     private CardService cardService;
@@ -127,6 +134,62 @@ class CardServiceTest {
 
         assertThat(response.alertCards()).hasSize(1);
         assertThat(response.alertCards().get(0).relatedInstanceIds()).isEmpty();
+    }
+
+    @Test
+    void getCardsIncludesDayScopeAlertsFromRouteWarnings() {
+        UUID tripId = UUID.randomUUID();
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
+        when(dumpJobRepository.findFirstByTripIdOrderByCreatedAtDesc(tripId)).thenReturn(Optional.empty());
+        when(alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId)).thenReturn(List.of());
+        lenient().when(routeValidator.validate(tripId)).thenReturn(List.of(
+                RouteWarning.distance(1, a, b, 12_000),
+                RouteWarning.duration(2, List.of(a, b), 700)
+        ));
+
+        CardsResponse response = cardService.getCards(tripId);
+
+        assertThat(response.alertCards()).hasSize(2);
+        assertThat(response.alertCards()).allMatch(ac -> "day".equals(ac.scope()));
+        assertThat(response.alertCards()).allMatch(ac -> "route".equals(ac.category()));
+
+        AlertCardDto distance = response.alertCards().stream()
+                .filter(ac -> "distance".equals(ac.type())).findFirst().orElseThrow();
+        assertThat(distance.day()).isEqualTo(1);
+        assertThat(distance.relatedInstanceIds()).containsExactly(a, b);
+        assertThat(distance.id()).isEqualTo("route:distance:1:" + a + ":" + b);
+
+        AlertCardDto duration = response.alertCards().stream()
+                .filter(ac -> "duration".equals(ac.type())).findFirst().orElseThrow();
+        assertThat(duration.day()).isEqualTo(2);
+        assertThat(duration.id()).isEqualTo("route:duration:2");
+    }
+
+    @Test
+    void getCardsMergesStoredAlertsWithDayScopeRouteAlerts() {
+        UUID tripId = UUID.randomUUID();
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
+        when(dumpJobRepository.findFirstByTripIdOrderByCreatedAtDesc(tripId)).thenReturn(Optional.empty());
+        AlertCard tripAlert = AlertCard.fromAiResponse(
+                new AiParseResponse.AlertCard(
+                        "alert-1", "festival", "insight", "trip", null, "축제 기간입니다", List.of()),
+                tripId, UUID.randomUUID());
+        when(alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId)).thenReturn(List.of(tripAlert));
+        lenient().when(routeValidator.validate(tripId)).thenReturn(List.of(
+                RouteWarning.distance(1, a, b, 12_000)));
+
+        CardsResponse response = cardService.getCards(tripId);
+
+        assertThat(response.alertCards()).hasSize(2);
+        assertThat(response.alertCards().get(0).id()).isEqualTo("alert-1");
+        assertThat(response.alertCards().get(0).scope()).isEqualTo("trip");
+        assertThat(response.alertCards().get(1).scope()).isEqualTo("day");
     }
 
     @Test
