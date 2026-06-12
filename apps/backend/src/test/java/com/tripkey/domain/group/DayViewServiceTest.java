@@ -4,9 +4,11 @@ import com.tripkey.common.exception.InvalidDayParamException;
 import com.tripkey.common.exception.TripNotFoundException;
 import com.tripkey.domain.place.PlaceCard;
 import com.tripkey.domain.place.PlaceCardRepository;
+import com.tripkey.domain.route.RouteService;
 import com.tripkey.domain.trip.TripRepository;
 import com.tripkey.dto.card.CardDto;
 import com.tripkey.dto.group.DayViewModel;
+import com.tripkey.dto.placement.RouteLeg;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -17,10 +19,13 @@ import java.lang.reflect.Field;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +36,9 @@ class DayViewServiceTest {
 
     @Mock
     private PlaceCardRepository placeCardRepository;
+
+    @Mock
+    private RouteService routeService;
 
     @InjectMocks
     private DayViewService dayViewService;
@@ -235,6 +243,36 @@ class DayViewServiceTest {
         assertThat(response.cards())
                 .extracting(CardDto::instanceId)
                 .containsExactly(earlier.getInstanceId(), later.getInstanceId());
+    }
+
+    @Test
+    void getDayViewModelAssignsScheduledTimesFromFixedStartWithTravel() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        PlaceCard first = activityCard(tripId, 1, (short) 60, at(10, 0));
+        PlaceCard second = activityCard(tripId, 2, (short) 30, at(11, 0));
+        when(placeCardRepository.findAllByTripIdAndDay(tripId, 1)).thenReturn(List.of(first, second));
+        lenient().when(routeService.readCachedLegs(tripId)).thenReturn(List.of(
+                new RouteLeg(1, first.getInstanceId(), second.getInstanceId(), 1800, 5000, "walking", "google")));
+
+        DayViewModel response = dayViewService.getDayViewModel(tripId, 1);
+
+        Map<UUID, String> times = response.cards().stream()
+                .collect(Collectors.toMap(CardDto::instanceId, CardDto::scheduledTime));
+        assertThat(times.get(first.getInstanceId())).isEqualTo("09:00");
+        assertThat(times.get(second.getInstanceId())).isEqualTo("10:30"); // 09:00 + 60분 + 30분 이동
+    }
+
+    private PlaceCard activityCard(UUID tripId, int dayOrder, Short durationMin, OffsetDateTime createdAt) {
+        PlaceCard card = PlaceCard.createUserCard(
+                tripId, "활동 카드", "place", null, durationMin, null, null, null, null, null
+        );
+        setField(card, "instanceId", UUID.randomUUID());
+        setField(card, "day", 1);
+        setField(card, "dayOrder", (short) dayOrder);
+        setField(card, "createdAt", createdAt);
+        return card;
     }
 
     private PlaceCard flightCard(UUID tripId, String flightNumber, String flightRole, int day, OffsetDateTime createdAt) {
