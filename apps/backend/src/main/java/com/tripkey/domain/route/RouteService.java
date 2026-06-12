@@ -1,13 +1,16 @@
 package com.tripkey.domain.route;
 
+import com.tripkey.common.exception.TripNotFoundException;
 import com.tripkey.domain.place.PlaceCard;
 import com.tripkey.domain.place.PlaceCardRepository;
+import com.tripkey.domain.trip.TripRepository;
 import com.tripkey.dto.placement.RouteLeg;
 import com.tripkey.infra.aiengine.AiEngineClient;
 import com.tripkey.infra.aiengine.dto.AiRouteRequest;
 import com.tripkey.infra.aiengine.dto.AiRouteResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -25,6 +28,7 @@ public class RouteService {
     private final PlaceCardRepository placeCardRepository;
     private final RouteLegCacheRepository routeLegCacheRepository;
     private final AiEngineClient aiEngineClient;
+    private final TripRepository tripRepository;
 
     private static final double COORD_PRECISION = 100_000.0; // 좌표 5자리(약 1m) 반올림
 
@@ -46,6 +50,39 @@ public class RouteService {
                 deduped.putIfAbsent(coordKey, row);
             }
             routeLegCacheRepository.saveAll(deduped.values());
+        }
+        return result;
+    }
+
+    /**
+     * 현재 배치(day/day_order) 기준 인접 카드쌍을 route_legs_cache 에서만 조회해 복원한다.
+     * computeLegs 와 달리 cache miss 시 AI 를 호출하지 않고(매 조회 비용 회피) 해당 구간을 생략하며,
+     * 캐시에 쓰지 않는 순수 읽기 전용이다. 확정 화면 재진입/새로고침에서 이동시간 복원에 사용한다.
+     */
+    @Transactional(readOnly = true)
+    public List<RouteLeg> readCachedLegs(UUID tripId) {
+        if (!tripRepository.existsById(tripId)) {
+            throw new TripNotFoundException(tripId);
+        }
+        Map<Integer, List<PlaceCard>> byDay = groupByDay(tripId);
+        List<RouteLeg> result = new ArrayList<>();
+        for (Map.Entry<Integer, List<PlaceCard>> entry : byDay.entrySet()) {
+            int day = entry.getKey();
+            List<PlaceCard> cards = entry.getValue();
+            for (int i = 0; i + 1 < cards.size(); i++) {
+                PlaceCard from = cards.get(i);
+                PlaceCard to = cards.get(i + 1);
+                Optional<RouteLegCache> cached = routeLegCacheRepository
+                        .findByOriginLatAndOriginLngAndDestLatAndDestLng(
+                                round(from.getLat()), round(from.getLng()),
+                                round(to.getLat()), round(to.getLng()));
+                if (cached.isPresent()) {
+                    RouteLegCache c = cached.get();
+                    result.add(new RouteLeg(day, from.getInstanceId(), to.getInstanceId(),
+                            c.getDurationSeconds(), c.getDistanceMeters(), c.getMode(), c.getSource()));
+                }
+                // cache miss → 생략 (AI 미호출, 캐시 미기록)
+            }
         }
         return result;
     }

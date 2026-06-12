@@ -49,7 +49,8 @@ public class ConfirmService {
         return PlacementSaveResponse.of(
                 tripId,
                 verifyResponse.skippedInstanceIds(),
-                verifyResponse.routeWarnings()
+                verifyResponse.routeWarnings(),
+                verifyResponse.routeLegs()
         );
     }
 
