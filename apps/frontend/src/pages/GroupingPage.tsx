@@ -32,6 +32,7 @@ import {
   useCalendarStore,
   formatDateRangeLabel,
 } from '../utils/calendar-store';
+import { useDumpStore } from '../utils/dump-store';
 import {
   addCard,
   fetchCards,
@@ -156,6 +157,12 @@ const logStub = (action: string) => () => {
 const GroupingPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const clearJob = useDumpStore((s) => s.actions.clearJob);
+
+  const handlePrev = () => {
+    clearJob(); // 완료된 jobId 제거 → dump 재진입 시 grouping으로 튕기는 것 방지
+    navigate('/dump');
+  };
   const urlTripId = searchParams.get('tripId');
   const storeTripId = useOnboardingStore((s) => s.tripId);
   const setStoreTripId = useOnboardingStore((s) => s.actions.setTripId);
@@ -517,7 +524,7 @@ const GroupingPage = () => {
               onNext={() =>
                 navigate(tripId ? `/arrange?tripId=${tripId}` : '/arrange')
               }
-              onPrev={() => navigate(-1)}
+              onPrev={handlePrev}
             />
           </aside>
         </div>
