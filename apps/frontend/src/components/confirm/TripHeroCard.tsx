@@ -1,7 +1,7 @@
 // TripHeroCard — 확정 화면(SCR-05) 중앙 상단 히어로 카드.
 // 여행 제목/메타 + 4-stat 그리드(여행 리듬/이동 성향/숙소 전략/남은 변수).
 
-import type { ConfirmStat } from '@/dev-fixtures/confirm-mock';
+import type { ConfirmStat } from '@/types/confirm';
 
 type TripHeroCardProps = {
   title: string;

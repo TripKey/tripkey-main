@@ -5,8 +5,8 @@ import { Pencil } from 'lucide-react';
 import { useState } from 'react';
 
 import { Checkbox } from '@/components/ui/checkbox';
-import type { ConfirmChecklistItem } from '@/dev-fixtures/confirm-mock';
 import { cn } from '@/lib/utils';
+import type { ConfirmChecklistItem } from '@/types/confirm';
 
 type TripChecklistProps = {
   items: ConfirmChecklistItem[];
@@ -23,8 +23,12 @@ const TripChecklist = ({ items }: TripChecklistProps) => {
   return (
     <section className="flex flex-col gap-3">
       <header className="flex items-center justify-between">
-        <h2 className="text-sm font-bold text-foreground">
+        <h2 className="flex items-center gap-1.5 text-sm font-bold text-foreground">
           여행 전반 체크리스트
+          {/* BE 컨트랙트 없는 FE 고정 목록 — 실데이터 연동 전까지 임시 표식 */}
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+            목데이터
+          </span>
         </h2>
         <button
           type="button"
