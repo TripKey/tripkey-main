@@ -21,8 +21,10 @@ export const useCalendarStore = create<CalendarStore>()(
       type: null,
       exactDate: null,
       flexDate: null,
-      setExactDate: (value) => set({ type: 'exact', exactDate: value }),
-      setFlexDate: (value) => set({ type: 'flexible', flexDate: value }),
+      setExactDate: (value) =>
+        set({ type: 'exact', exactDate: value, flexDate: null }),
+      setFlexDate: (value) =>
+        set({ type: 'flexible', flexDate: value, exactDate: null }),
       clearExactDate: () => set({ type: null, exactDate: null }),
       resetCalendar: () => set({ type: null, exactDate: null, flexDate: null }),
     }),
