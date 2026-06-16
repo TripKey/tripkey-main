@@ -61,9 +61,25 @@ export type RouteWarning = {
   total_minutes: number | null;
 };
 
+/**
+ * 인접 카드 쌍의 실측 이동 구간(verify 응답에 채워짐).
+ * POST /confirm 은 현재 항상 []; 백엔드 #187 머지 후 confirm 응답에도 채워질 예정(전방호환).
+ */
+export type RouteLeg = {
+  day: number;
+  from_instance_id: string;
+  to_instance_id: string;
+  duration_seconds: number | null;
+  distance_meters: number | null;
+  mode: string | null;
+  source: string | null;
+};
+
 export type PlacementSaveResponse = {
   saved: boolean;
   trip_id: string;
   skipped_instance_ids: string[];
   route_warnings: RouteWarning[];
+  /** #187 전까지는 confirm 응답에서 누락/빈 배열일 수 있어 옵셔널로 둔다. */
+  route_legs?: RouteLeg[];
 };

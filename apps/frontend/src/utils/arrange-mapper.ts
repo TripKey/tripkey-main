@@ -93,7 +93,8 @@ const fmtTime = (iso: string | null | undefined): string | undefined => {
   return `${hh}:${mm}`;
 };
 
-const formatDuration = (minutes: number | null): string | undefined => {
+// 분 → "N시간 M분". 확정 화면(Day 소요시간 합 등)에서도 재사용한다.
+export const formatDuration = (minutes: number | null): string | undefined => {
   if (minutes === null || minutes < 0) return undefined;
   if (minutes === 0) return '0분';
   if (minutes < 60) return `${minutes}분`;
@@ -114,7 +115,7 @@ const accentForCard = (card: Card): PlaceCardAccent => {
   }
 };
 
-const buildBadges = (card: Card): PlaceCardBadgeSpec[] => {
+export const buildBadges = (card: Card): PlaceCardBadgeSpec[] => {
   const badges: PlaceCardBadgeSpec[] = [
     { kind: 'category', category: CATEGORY_MAP[card.category] ?? 'place' },
   ];
@@ -258,8 +259,17 @@ const deriveStartDate = (cards: Card[]): Date | null => {
 };
 
 /** 옵션 A: trip 상세 start_date 우선, 없으면(온보딩 미전송) 출국 항공편에서 파생. */
-const resolveStartDate = (meta: TripMeta, cards: Card[]): Date | null =>
+export const resolveStartDate = (meta: TripMeta, cards: Card[]): Date | null =>
   parseDate(meta.startDate) ?? deriveStartDate(cards);
+
+/** 시작일 Date + 여행 일수 → "5월 10일 ~ 5월 14일". 시작일이 없으면 null. */
+export const formatTripDateRange = (
+  startDate: Date | null,
+  travelDays: number
+): string | null => {
+  if (!startDate || travelDays <= 0) return null;
+  return `${fmtShort(startDate)} ~ ${fmtShort(addDays(startDate, travelDays - 1))}`;
+};
 
 /**
  * 백엔드 DayViewModel(GET /days/{n}) 한 건 → Day 컬럼.

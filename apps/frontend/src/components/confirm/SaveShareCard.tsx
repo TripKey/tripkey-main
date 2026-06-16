@@ -12,7 +12,11 @@ const SaveShareCard = () => {
         실무 항목과 카드 맥락을 다시 묶어주는 단계예요.
       </p>
 
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex items-center gap-2">
+        {/* 저장(PDF)/공유는 아직 동작 미구현 — 임시 표식 */}
+        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+          미구현
+        </span>
         <button
           type="button"
           className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background"
