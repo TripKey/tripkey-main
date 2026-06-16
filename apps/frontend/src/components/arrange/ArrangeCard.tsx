@@ -10,6 +10,7 @@ import PlaceCardBadge from '@/components/grouping/PlaceCardBadge';
 import { cn } from '@/lib/utils';
 import type { ArrangeCardViewModel } from '@/types/arrange';
 import type { PlaceCardAccent } from '@/types/grouping';
+import { setArrangeDragData } from '@/utils/arrange-dnd';
 
 const ACCENT_BAR: Record<PlaceCardAccent, string> = {
   blue: 'bg-blue-500',
@@ -42,9 +43,9 @@ const ArrangeCard = ({
   isDragging = false,
 }: ArrangeCardProps) => {
   const handleDragStart = (event: DragEvent<HTMLButtonElement>) => {
-    // Day 컬럼 드롭 핸들러가 읽을 카드 식별자. (Firefox 는 setData 가 있어야 드래그가 시작됨)
-    event.dataTransfer.setData('text/plain', id);
-    event.dataTransfer.effectAllowed = 'move';
+    // Day 컬럼 드롭 핸들러가 읽을 카드 식별자 + 출처(좌측 목록 = fromDayId:null).
+    // (Firefox 는 setData 가 있어야 드래그가 시작됨)
+    setArrangeDragData(event.dataTransfer, { cardId: id, fromDayId: null });
     onDragStart?.();
   };
 
