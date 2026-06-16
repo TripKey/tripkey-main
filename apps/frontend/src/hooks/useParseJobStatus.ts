@@ -11,12 +11,28 @@ const POLLING_INTERVAL_MS = 1500;
 const POLLING_TIMEOUT_MS = 120_000;
 const MAX_CONSECUTIVE_ERRORS = 3;
 
+const STEP_2_DELAY_MS = 4000;
+const STEP_3_DELAY_MS = 8000;
+
 // jobId === null 이면 폴링을 멈추고 idle 로 돌아간다. (clearJob() 호출 시 동작)
 export const useParseJobStatus = (
   tripId: string | null,
   jobId: string | null
 ): ParseJobView => {
   const [view, setView] = useState<ParseJobView>({ kind: 'idle' });
+  const [timerStep, setTimerStep] = useState<1 | 2 | 3>(1);
+
+  const isLoading = view.kind === 'loading';
+  useEffect(() => {
+    if (!isLoading) return;
+    setTimerStep(1);
+    const t2 = setTimeout(() => setTimerStep(2), STEP_2_DELAY_MS);
+    const t3 = setTimeout(() => setTimerStep(3), STEP_3_DELAY_MS);
+    return () => {
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [isLoading]);
 
   useEffect(() => {
     if (!tripId || !jobId) {
@@ -71,5 +87,8 @@ export const useParseJobStatus = (
     };
   }, [tripId, jobId]);
 
+  if (view.kind === 'loading') {
+    return { kind: 'loading', step: timerStep };
+  }
   return view;
 };
