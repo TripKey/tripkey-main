@@ -5,8 +5,8 @@ import { Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Checkbox } from '@/components/ui/checkbox';
-import type { ConfirmDayChecklistItem } from '@/dev-fixtures/confirm-mock';
 import { cn } from '@/lib/utils';
+import type { ConfirmDayChecklistItem } from '@/types/confirm';
 
 type DayChecklistProps = {
   items: ConfirmDayChecklistItem[];

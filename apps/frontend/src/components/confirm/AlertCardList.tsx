@@ -1,8 +1,8 @@
 // AlertCardList — 확정 화면(SCR-05) 좌측 사이드 "Alert Cards".
 // kind 별 색 구분: 실무 알림 / 출발 준비(amber) · AI 인사이트(blue).
 
-import type { ConfirmAlertCard } from '@/dev-fixtures/confirm-mock';
 import { cn } from '@/lib/utils';
+import type { ConfirmAlertCard } from '@/types/confirm';
 
 type AlertCardListProps = {
   items: ConfirmAlertCard[];

@@ -2,7 +2,7 @@
 // Day 의 카드들을 번호 + 제목/시간/위치 + 사용자 맥락 + AI 팁으로 펼쳐서 보여준다.
 
 import PlaceCardBadge from '@/components/grouping/PlaceCardBadge';
-import type { ConfirmCardViewModel } from '@/dev-fixtures/confirm-mock';
+import type { ConfirmCardViewModel } from '@/types/confirm';
 
 type ContextCardListProps = {
   cards: ConfirmCardViewModel[];
