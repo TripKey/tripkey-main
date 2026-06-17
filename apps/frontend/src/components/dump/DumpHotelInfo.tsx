@@ -4,6 +4,8 @@ import { Input } from '@/components/ui/input';
 
 import { useDumpStore } from '../../utils/dump-store';
 
+import { DumpDateTimeField } from './DumpDateTimeField';
+
 const DumpHotelInfo = () => {
   const hotels = useDumpStore((s) => s.accommodations);
   const { addAccommodation, removeAccommodation, updateAccommodation } =
@@ -54,26 +56,21 @@ const DumpHotelInfo = () => {
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">체크인</label>
-              <Input
-                className="h-9 text-sm bg-white"
-                placeholder="예: 5월 10일 15:00"
+              <DumpDateTimeField
                 value={hotel.checkIn}
-                onChange={(e) =>
-                  updateAccommodation(hotel.id, 'checkIn', e.target.value)
-                }
+                onChange={(v) => updateAccommodation(hotel.id, 'checkIn', v)}
+                placeholder="날짜·시간 선택"
               />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">
                 체크아웃
               </label>
-              <Input
-                className="h-9 text-sm bg-white"
-                placeholder="예: 5월 12일 11:00"
+              <DumpDateTimeField
                 value={hotel.checkOut}
-                onChange={(e) =>
-                  updateAccommodation(hotel.id, 'checkOut', e.target.value)
-                }
+                onChange={(v) => updateAccommodation(hotel.id, 'checkOut', v)}
+                placeholder="날짜·시간 선택"
+                min={hotel.checkIn}
               />
             </div>
           </div>
