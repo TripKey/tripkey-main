@@ -161,16 +161,20 @@ export const useDumpStore = create<DumpStore>()(
 
           const trim = (v: string) => v.trim();
 
-          const flight: FlightInput = {
-            departure_airport: trim(flightForm.departure.airport) || undefined,
-            arrival_airport: trim(flightForm.return.airport) || undefined, //귀국 공항
-            flight_number: trim(flightForm.departure.flightNumber) || undefined,
-            datetime: trim(flightForm.departure.time) || undefined,
+          // 섹션(출발/귀국) 1개를 항공편 1편으로 매핑.
+          // arrival_airport는 UI에 입력칸이 없어 비움(나머지 3칸만 전송).
+          const buildFlight = (row: FlightRow): FlightInput | undefined => {
+            const flight: FlightInput = {
+              departure_airport: trim(row.airport) || undefined,
+              flight_number: trim(row.flightNumber) || undefined,
+              datetime: trim(row.time) || undefined,
+            };
+            // 입력이 하나도 없으면 통째로 생략
+            return Object.values(flight).some(Boolean) ? flight : undefined;
           };
-          // 4칸 다 비었으면 통째로 생략
-          const departure_flight = Object.values(flight).some(Boolean)
-            ? flight
-            : undefined;
+
+          const departure_flight = buildFlight(flightForm.departure);
+          const return_flight = buildFlight(flightForm.return);
 
           const accommodation_inputs: AccommodationInput[] = accommodations
             .map((a) => ({
@@ -185,6 +189,7 @@ export const useDumpStore = create<DumpStore>()(
             const response = await submitDumpText(tripId, {
               dump_text: dumpText,
               ...(departure_flight && { departure_flight }),
+              ...(return_flight && { return_flight }),
               ...(accommodation_inputs.length && { accommodation_inputs }),
             });
             set({ requestStatus: 'success', jobId: response.job_id });
