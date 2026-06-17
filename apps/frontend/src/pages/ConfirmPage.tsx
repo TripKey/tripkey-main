@@ -80,6 +80,21 @@ const ConfirmPage = () => {
   const safeIndex = Math.min(activeIndex, Math.max(days.length - 1, 0));
   const activeDay = days[safeIndex];
 
+  // 여행 세션 초기화: 새 탭을 연 것과 동일하게 sessionStorage를 비우고
+  // 전체 새로고침으로 모든 스토어를 초기 상태에서 다시 띄운다.
+  const handleResetSession = () => {
+    if (
+      !window.confirm(
+        '현재 여행 세션을 초기화할까요? 입력한 내용이 모두 삭제됩니다.'
+      )
+    ) {
+      return;
+    }
+
+    sessionStorage.clear();
+    window.location.href = '/onboarding';
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-muted">
       <Header
@@ -89,16 +104,21 @@ const ConfirmPage = () => {
         travelers={summary.travelers}
         dateRange={summary.dateRange}
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!tripId}
-            onClick={() =>
-              navigate(`/arrange${tripId ? `?tripId=${tripId}` : ''}`)
-            }
-          >
-            배치로 돌아가기
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!tripId}
+              onClick={() =>
+                navigate(`/arrange${tripId ? `?tripId=${tripId}` : ''}`)
+              }
+            >
+              배치로 돌아가기
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleResetSession}>
+              여행 세션 초기화
+            </Button>
+          </div>
         }
       />
 
