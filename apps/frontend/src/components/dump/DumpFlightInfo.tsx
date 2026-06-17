@@ -4,6 +4,10 @@ import { useDumpStore } from '../../utils/dump-store';
 
 import { DumpDateTimeField } from './DumpDateTimeField';
 
+// 항공편 코드: 영문·숫자만 허용하고 대문자로 통일 (예: ke123 → KE123)
+const sanitizeFlightNumber = (value: string) =>
+  value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
 type FlightSection = {
   key: 'departure' | 'return';
   label: string;
@@ -62,7 +66,11 @@ const DumpFlightInfo = () => {
                   placeholder="예: KE123"
                   value={row.flightNumber}
                   onChange={(e) =>
-                    updateFlight(section.key, 'flightNumber', e.target.value)
+                    updateFlight(
+                      section.key,
+                      'flightNumber',
+                      sanitizeFlightNumber(e.target.value)
+                    )
                   }
                 />
               </div>
