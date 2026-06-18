@@ -604,3 +604,33 @@ async def test_enrich_card_rejects_name_match_when_destination_mismatches() -> N
         assert all(region_code == "jp" for region_code in seen_region_codes)
     finally:
         core_parse._search_place = original
+
+
+@pytest.mark.asyncio
+async def test_search_place_caches_repeated_query(monkeypatch) -> None:
+    from app.services import places_cache
+
+    store: dict = {}
+
+    async def fake_get(cache_key):
+        return store.get(cache_key)
+
+    async def fake_put(cache_key, qn, rc, mv, response_json, result_count, expires_at_iso):
+        store[cache_key] = response_json
+
+    google_calls = {"n": 0}
+
+    async def fake_google(query, api_key, region_code=None):
+        google_calls["n"] += 1
+        return {"places": [{"id": "p1"}]}
+
+    monkeypatch.setattr(places_cache, "PLACES_CACHE_ENABLED", True)
+    monkeypatch.setattr(places_cache, "_http_get_cache", fake_get)
+    monkeypatch.setattr(places_cache, "_http_put_cache", fake_put)
+    monkeypatch.setattr(core_parse, "_search_place_google", fake_google)
+
+    r1 = await core_parse._search_place("도쿄타워", "key", "jp")
+    r2 = await core_parse._search_place("도쿄타워", "key", "jp")
+
+    assert r1 == r2 == {"places": [{"id": "p1"}]}
+    assert google_calls["n"] == 1  # 두 번째는 캐시 히트

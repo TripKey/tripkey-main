@@ -30,6 +30,7 @@ from app.schemas.parse import (
     ParseRequest,
     PlacementStatus,
 )
+from app.services import places_cache
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ PLACES_FIELD_MASK = ",".join(
         "places.shortFormattedAddress",
     ]
 )
+PLACES_CACHE_SHAPE = f"{PLACES_FIELD_MASK}|ps5"
 PLACES_HINT_MESSAGE = "장소 정보를 확인해주세요."
 PLACES_MAX_CONCURRENCY = int(os.getenv("PLACES_MAX_CONCURRENCY", "4"))
 PLACES_ELIGIBLE_CATEGORIES = {
@@ -465,7 +467,7 @@ def _can_accept_single_result_without_name_match(
     return False
 
 
-async def _search_place(query: str, api_key: str, region_code: str | None = None) -> dict | None:
+async def _search_place_google(query: str, api_key: str, region_code: str | None = None) -> dict | None:
     payload = {
         "textQuery": query,
         "pageSize": 5,
@@ -482,6 +484,15 @@ async def _search_place(query: str, api_key: str, region_code: str | None = None
         response = await client.post(PLACES_API_URL, json=payload, headers=headers)
         response.raise_for_status()
         return response.json()
+
+
+async def _search_place(query: str, api_key: str, region_code: str | None = None) -> dict | None:
+    async def _fetch() -> dict | None:
+        return await _search_place_google(query, api_key, region_code)
+
+    return await places_cache.cached_search(
+        query, region_code, PLACES_CACHE_SHAPE, fetch=_fetch
+    )
 
 
 def _apply_place_match(card: ParsedCard, place: dict) -> ParsedCard:
