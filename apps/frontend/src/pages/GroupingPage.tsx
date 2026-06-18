@@ -289,6 +289,20 @@ const GroupingPage = () => {
   }, [tripId]);
 
   const busy = state.phase === 'ready' && state.busy;
+
+  // 재파싱(processing) 중인 카드가 하나라도 있으면 다음 단계 진행 차단.
+  // (excluded 는 일정에서 빠지므로 검사 제외)
+  const hasProcessingCard =
+    state.phase === 'ready' &&
+    [
+      ...state.groups.input_required,
+      ...state.groups.select_required,
+      ...state.groups.fix_required,
+      ...state.groups.review_only,
+    ].some((card) => card.processing_status === 'processing');
+
+  const nextDisabled = busy || hasProcessingCard;
+
   const loading = state.phase === 'loading';
 
   // patch / add 응답으로 viewModel 부분 업데이트.
@@ -521,6 +535,8 @@ const GroupingPage = () => {
           <aside className="sticky top-34">
             <TripSummaryCard
               {...summary}
+              nextDisabled={nextDisabled}
+              guideText="카드 정보를 정리하는 중이에요. 잠시 후 다시 시도해 주세요."
               onNext={() =>
                 navigate(tripId ? `/arrange?tripId=${tripId}` : '/arrange')
               }
@@ -549,6 +565,7 @@ const GroupingPage = () => {
         open={selectOpen}
         onOpenChange={setSelectOpen}
         card={selectCard}
+        pending={busy}
         onConfirm={async (payload) => {
           const cardId = selectCard?.id;
           if (await handleConfirmSelect(selectCard, payload)) {
