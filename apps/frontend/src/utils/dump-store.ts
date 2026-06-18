@@ -27,6 +27,17 @@ const emptyAccommodation = (): Accommodation => ({
   checkOut: '',
 });
 
+// "yyyy-MM-dd HH:mm" 끼리 a가 b보다 명확히 이전인지 판단.
+// 같은 날인데 한쪽만 시간이 있으면 비교 불가 → false(정리하지 않음).
+const isDateTimeBefore = (a: string, b: string): boolean => {
+  const [aDate, aTime = ''] = a.trim().split(' ');
+  const [bDate, bTime = ''] = b.trim().split(' ');
+  if (!aDate || !bDate) return false;
+  if (aDate !== bDate) return aDate < bDate;
+  if (aTime && bTime) return aTime < bTime;
+  return false;
+};
+
 type DumpStore = {
   dumpText: string;
   flightForm: FlightForm;
@@ -71,12 +82,20 @@ export const useDumpStore = create<DumpStore>()(
         },
 
         updateFlight: (section, field, value) => {
-          set((s) => ({
-            flightForm: {
-              ...s.flightForm,
-              [section]: { ...s.flightForm[section], [field]: value },
-            },
-          }));
+          set((s) => {
+            const nextSection = { ...s.flightForm[section], [field]: value };
+            const next = { ...s.flightForm, [section]: nextSection };
+            // 출발 시각을 귀국보다 늦게 바꾸면 무효해진 귀국 시각 정리
+            if (
+              section === 'departure' &&
+              field === 'time' &&
+              next.return.time &&
+              isDateTimeBefore(next.return.time, value)
+            ) {
+              next.return = { ...next.return, time: '' };
+            }
+            return { flightForm: next };
+          });
         },
 
         addAccommodation: () => {
@@ -93,9 +112,19 @@ export const useDumpStore = create<DumpStore>()(
 
         updateAccommodation: (id, field, value) => {
           set((s) => ({
-            accommodations: s.accommodations.map((a) =>
-              a.id === id ? { ...a, [field]: value } : a
-            ),
+            accommodations: s.accommodations.map((a) => {
+              if (a.id !== id) return a;
+              const next = { ...a, [field]: value };
+              // 체크인을 체크아웃보다 늦게 바꾸면 무효해진 체크아웃 정리
+              if (
+                field === 'checkIn' &&
+                next.checkOut &&
+                isDateTimeBefore(next.checkOut, value)
+              ) {
+                next.checkOut = '';
+              }
+              return next;
+            }),
           }));
         },
 
@@ -132,16 +161,20 @@ export const useDumpStore = create<DumpStore>()(
 
           const trim = (v: string) => v.trim();
 
-          const flight: FlightInput = {
-            departure_airport: trim(flightForm.departure.airport) || undefined,
-            arrival_airport: trim(flightForm.return.airport) || undefined, //귀국 공항
-            flight_number: trim(flightForm.departure.flightNumber) || undefined,
-            datetime: trim(flightForm.departure.time) || undefined,
+          // 섹션(출발/귀국) 1개를 항공편 1편으로 매핑.
+          // arrival_airport는 UI에 입력칸이 없어 비움(나머지 3칸만 전송).
+          const buildFlight = (row: FlightRow): FlightInput | undefined => {
+            const flight: FlightInput = {
+              departure_airport: trim(row.airport) || undefined,
+              flight_number: trim(row.flightNumber) || undefined,
+              datetime: trim(row.time) || undefined,
+            };
+            // 입력이 하나도 없으면 통째로 생략
+            return Object.values(flight).some(Boolean) ? flight : undefined;
           };
-          // 4칸 다 비었으면 통째로 생략
-          const departure_flight = Object.values(flight).some(Boolean)
-            ? flight
-            : undefined;
+
+          const departure_flight = buildFlight(flightForm.departure);
+          const return_flight = buildFlight(flightForm.return);
 
           const accommodation_inputs: AccommodationInput[] = accommodations
             .map((a) => ({
@@ -156,6 +189,7 @@ export const useDumpStore = create<DumpStore>()(
             const response = await submitDumpText(tripId, {
               dump_text: dumpText,
               ...(departure_flight && { departure_flight }),
+              ...(return_flight && { return_flight }),
               ...(accommodation_inputs.length && { accommodation_inputs }),
             });
             set({ requestStatus: 'success', jobId: response.job_id });

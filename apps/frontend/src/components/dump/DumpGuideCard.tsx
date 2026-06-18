@@ -11,7 +11,10 @@ const DumpGuideCard = () => {
 
   return (
     <div className="dump-guide-card">
-      <h2 className="dump-guide-title">보조 정보 (선택)</h2>
+      <div className="dump-guide-header">
+        <h2 className="dump-guide-title">보조 정보 (선택)</h2>
+        <p className="dump-guide-description">이메일 연동 기능 구현 예정</p>
+      </div>
 
       <div className="dump-guide-list">
         <button

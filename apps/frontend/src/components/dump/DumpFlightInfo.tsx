@@ -2,6 +2,12 @@ import { Input } from '@/components/ui/input';
 
 import { useDumpStore } from '../../utils/dump-store';
 
+import { DumpDateTimeField } from './DumpDateTimeField';
+
+// 항공편 코드: 영문·숫자만 허용하고 대문자로 통일 (예: ke123 → KE123)
+const sanitizeFlightNumber = (value: string) =>
+  value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
 type FlightSection = {
   key: 'departure' | 'return';
   label: string;
@@ -60,18 +66,24 @@ const DumpFlightInfo = () => {
                   placeholder="예: KE123"
                   value={row.flightNumber}
                   onChange={(e) =>
-                    updateFlight(section.key, 'flightNumber', e.target.value)
+                    updateFlight(
+                      section.key,
+                      'flightNumber',
+                      sanitizeFlightNumber(e.target.value)
+                    )
                   }
                 />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">시간</label>
-                <Input
-                  className="h-9 text-sm bg-white"
-                  placeholder="예: 09:30"
+                <DumpDateTimeField
                   value={row.time}
-                  onChange={(e) =>
-                    updateFlight(section.key, 'time', e.target.value)
+                  onChange={(v) => updateFlight(section.key, 'time', v)}
+                  placeholder="날짜·시간 선택"
+                  min={
+                    section.key === 'return'
+                      ? flightForm.departure.time
+                      : undefined
                   }
                 />
               </div>
