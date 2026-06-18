@@ -317,6 +317,84 @@ class GroupServiceTest {
     }
 
     @Test
+    void getGroups04ShortensRawStreetAddressToWardLabel() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        PlaceCard a = stockCard(tripId, "ready_partial", "completed",
+                point(135.5063, 34.6543), "5-55 Chausuyamacho, Tennoji Ward, Osaka", at(10, 0));
+
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(a));
+        when(placeCardRepository.clusterAvailableCards(eq(tripId), anyDouble(), anyInt()))
+                .thenReturn(List.<Object[]>of(new Object[]{a.getInstanceId(), 0}));
+
+        Groups04Response response = groupService.getGroups04(tripId);
+
+        assertThat(response.available()).hasSize(1);
+        assertThat(response.available().get(0).label()).isEqualTo("Tennoji");
+    }
+
+    @Test
+    void getGroups04NormalizesDifferentStreetAddressesWithSameWardIntoOneLabel() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        PlaceCard a = stockCard(tripId, "ready_partial", "completed",
+                point(135.5063, 34.6543), "5-55 Chausuyamacho, Tennoji Ward, Osaka", at(10, 0));
+        PlaceCard b = stockCard(tripId, "ready_partial", "completed",
+                point(135.5100, 34.6550), "1-82 Kintaicho, Tennoji Ward, Osaka", at(10, 1));
+
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(a, b));
+        when(placeCardRepository.clusterAvailableCards(eq(tripId), anyDouble(), anyInt()))
+                .thenReturn(List.of(
+                        new Object[]{a.getInstanceId(), 0},
+                        new Object[]{b.getInstanceId(), 0}
+                ));
+
+        Groups04Response response = groupService.getGroups04(tripId);
+
+        assertThat(response.available()).hasSize(1);
+        assertThat(response.available().get(0).label()).isEqualTo("Tennoji");
+        assertThat(response.available().get(0).cards()).hasSize(2);
+    }
+
+    @Test
+    void getGroups04FallsBackToCityTokenWhenNoWardInAddress() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        PlaceCard a = stockCard(tripId, "ready_partial", "completed",
+                point(135.5010, 34.6687), "Dotonbori, Osaka", at(10, 0));
+
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(a));
+        when(placeCardRepository.clusterAvailableCards(eq(tripId), anyDouble(), anyInt()))
+                .thenReturn(List.<Object[]>of(new Object[]{a.getInstanceId(), 0}));
+
+        Groups04Response response = groupService.getGroups04(tripId);
+
+        assertThat(response.available()).hasSize(1);
+        assertThat(response.available().get(0).label()).isEqualTo("Osaka");
+    }
+
+    @Test
+    void getGroups04KeepsAlreadyShortLocationNameUnchanged() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        PlaceCard a = stockCard(tripId, "ready_partial", "completed",
+                point(139.7016, 35.6586), "시부야", at(10, 0));
+
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(a));
+        when(placeCardRepository.clusterAvailableCards(eq(tripId), anyDouble(), anyInt()))
+                .thenReturn(List.<Object[]>of(new Object[]{a.getInstanceId(), 0}));
+
+        Groups04Response response = groupService.getGroups04(tripId);
+
+        assertThat(response.available()).hasSize(1);
+        assertThat(response.available().get(0).label()).isEqualTo("시부야");
+    }
+
+    @Test
     void reorderGroupsThrowsTripNotFoundWhenTripMissing() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(false);

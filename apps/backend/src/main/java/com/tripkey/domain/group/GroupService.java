@@ -180,14 +180,44 @@ public class GroupService {
     private static String dominantLocation(List<PlaceCard> cards) {
         return cards.stream()
                 .map(PlaceCard::getLocation)
+                .map(GroupService::toRegionLabel)
                 .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
                 .collect(Collectors.groupingBy(s -> s, Collectors.counting()))
                 .entrySet().stream()
                 .max(Map.Entry.<String, Long>comparingByValue())
                 .map(Map.Entry::getKey)
                 .orElse(FALLBACK_LABEL);
+    }
+
+    /**
+     * 주소 원문을 그룹 라벨용 짧은 지역명으로 축약한다.
+     * 예: "5-55 Chausuyamacho, Tennoji Ward, Osaka" -> "Tennoji",
+     *     "Dotonbori, Osaka" -> "Osaka", "시부야" -> "시부야".
+     * 클러스터가 1장짜리여도 주소 원문이 그대로 그룹 제목이 되지 않도록 한다.
+     * 축약할 토큰이 없으면 null 을 반환해 상위 dominantLocation 의 폴백(기타)에 맡긴다.
+     */
+    private static String toRegionLabel(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        List<String> tokens = new ArrayList<>();
+        for (String part : raw.split(",")) {
+            String token = part.trim();
+            if (!token.isEmpty()) {
+                tokens.add(token);
+            }
+        }
+        if (tokens.isEmpty()) {
+            return null;
+        }
+        // 1순위: "~ Ward" 행정구 토큰 -> "Ward" 를 떼어낸 지역명 (예: "Tennoji Ward" -> "Tennoji")
+        for (String token : tokens) {
+            if (token.endsWith(" Ward")) {
+                return token.substring(0, token.length() - " Ward".length()).trim();
+            }
+        }
+        // 2순위: 마지막 토큰(보통 도시명). 콤마가 없으면 원문 그대로 — 이미 짧은 지역명.
+        return tokens.get(tokens.size() - 1);
     }
 
     private static List<CardDto> toSortedDtos(List<PlaceCard> cards) {
