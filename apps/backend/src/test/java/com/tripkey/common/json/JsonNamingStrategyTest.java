@@ -1,6 +1,7 @@
 package com.tripkey.common.json;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tripkey.dto.confirm.ConfirmSummaryResponse;
 import com.tripkey.dto.dump.ParseJobStatusResponse;
 import com.tripkey.dto.trip.TripCreateResponse;
 import com.tripkey.dto.trip.TripDetailResponse;
@@ -149,5 +150,28 @@ class JsonNamingStrategyTest {
                 .doesNotContain("travelDays")
                 .doesNotContain("companionCount")
                 .doesNotContain("createdAt");
+    }
+
+    @Test
+    void serializesConfirmSummaryResponseFieldsAsSnakeCase() throws Exception {
+        ConfirmSummaryResponse response = new ConfirmSummaryResponse(
+                UUID.randomUUID(),
+                "completed",
+                "rule_based",
+                objectMapper.readTree("{\"trip_checklist\":[],\"days\":[]}"),
+                OffsetDateTime.parse("2026-06-18T12:00:00+09:00")
+        );
+
+        String json = objectMapper.writeValueAsString(response);
+
+        assertThat(json)
+                .contains("trip_id")
+                .contains("generation_mode")
+                .contains("generated_at")
+                .contains("summary")
+                .contains("trip_checklist")
+                .doesNotContain("tripId")
+                .doesNotContain("generationMode")
+                .doesNotContain("generatedAt");
     }
 }

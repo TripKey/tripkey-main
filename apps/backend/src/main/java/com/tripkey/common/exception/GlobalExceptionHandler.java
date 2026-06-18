@@ -72,6 +72,12 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("CONFIRM_ALL_EXCLUDED", e.getMessage()));
     }
 
+    @ExceptionHandler(ConfirmSummaryNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleConfirmSummaryNotFound(ConfirmSummaryNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse("CONFIRM_SUMMARY_NOT_FOUND", "확정 요약을 찾을 수 없어요"));
+    }
+
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException e) {
         if ("view".equals(e.getParameterName())) {
