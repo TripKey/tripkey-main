@@ -87,3 +87,52 @@ def log_summary() -> None:
         scope.errors,
         scope.google_calls,
     )
+
+
+def _headers() -> dict:
+    return {
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": "application/json",
+    }
+
+
+async def _http_get_cache(cache_key: str) -> Optional[dict]:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    params = {
+        "cache_key": f"eq.{cache_key}",
+        "expires_at": f"gt.{now_iso}",
+        "select": "response_json",
+        "limit": "1",
+    }
+    async with httpx.AsyncClient(timeout=CACHE_READ_TIMEOUT) as client:
+        resp = await client.get(f"{SUPABASE_URL}{_TABLE_PATH}", params=params, headers=_headers())
+        resp.raise_for_status()
+        rows = resp.json()
+    if rows:
+        return rows[0].get("response_json")
+    return None
+
+
+async def _http_put_cache(
+    cache_key: str,
+    query_normalized: str,
+    region_code: str,
+    mask_version_str: str,
+    response_json: dict,
+    result_count: int,
+    expires_at_iso: str,
+) -> None:
+    body = {
+        "cache_key": cache_key,
+        "query_normalized": query_normalized,
+        "region_code": region_code,
+        "mask_version": mask_version_str,
+        "response_json": response_json,
+        "result_count": result_count,
+        "expires_at": expires_at_iso,
+    }
+    headers = {**_headers(), "Prefer": "resolution=merge-duplicates,return=minimal"}
+    async with httpx.AsyncClient(timeout=CACHE_WRITE_TIMEOUT) as client:
+        resp = await client.post(f"{SUPABASE_URL}{_TABLE_PATH}", json=body, headers=headers)
+        resp.raise_for_status()

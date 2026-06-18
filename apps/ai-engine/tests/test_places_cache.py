@@ -47,3 +47,74 @@ def test_log_summary_does_not_raise_with_active_scope() -> None:
     pc.begin_scope()
     pc.current_scope().google_calls = 2
     pc.log_summary()  # 예외 없이 동작하면 통과
+
+
+import httpx
+
+
+@pytest.mark.asyncio
+async def test_http_get_cache_returns_response_json_on_hit(monkeypatch) -> None:
+    monkeypatch.setattr(pc, "SUPABASE_URL", "https://proj.supabase.co")
+    monkeypatch.setattr(pc, "SUPABASE_SERVICE_ROLE_KEY", "svc-key")
+    captured: dict = {}
+
+    async def fake_get(self, url, params=None, headers=None, **kwargs):
+        captured["url"] = url
+        captured["params"] = params
+        captured["headers"] = headers
+        request = httpx.Request("GET", url)
+        return httpx.Response(
+            200, json=[{"response_json": {"places": [{"id": "p1"}]}}], request=request
+        )
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
+
+    out = await pc._http_get_cache("KEY123")
+
+    assert out == {"places": [{"id": "p1"}]}
+    assert captured["url"] == "https://proj.supabase.co/rest/v1/places_cache"
+    assert captured["params"]["cache_key"] == "eq.KEY123"
+    assert captured["params"]["expires_at"].startswith("gt.")
+    assert captured["headers"]["apikey"] == "svc-key"
+    assert captured["headers"]["Authorization"] == "Bearer svc-key"
+
+
+@pytest.mark.asyncio
+async def test_http_get_cache_returns_none_on_miss(monkeypatch) -> None:
+    monkeypatch.setattr(pc, "SUPABASE_URL", "https://proj.supabase.co")
+    monkeypatch.setattr(pc, "SUPABASE_SERVICE_ROLE_KEY", "svc-key")
+
+    async def fake_get(self, url, params=None, headers=None, **kwargs):
+        request = httpx.Request("GET", url)
+        return httpx.Response(200, json=[], request=request)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
+
+    out = await pc._http_get_cache("KEY123")
+    assert out is None
+
+
+@pytest.mark.asyncio
+async def test_http_put_cache_sends_upsert_body_and_prefer_header(monkeypatch) -> None:
+    monkeypatch.setattr(pc, "SUPABASE_URL", "https://proj.supabase.co")
+    monkeypatch.setattr(pc, "SUPABASE_SERVICE_ROLE_KEY", "svc-key")
+    captured: dict = {}
+
+    async def fake_post(self, url, json=None, headers=None, **kwargs):
+        captured["url"] = url
+        captured["json"] = json
+        captured["headers"] = headers
+        request = httpx.Request("POST", url)
+        return httpx.Response(201, json=[], request=request)
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+
+    await pc._http_put_cache(
+        "KEY123", "tokyo tower", "jp", "mv0", {"places": []}, 0, "2026-06-18T00:00:00+00:00"
+    )
+
+    assert captured["url"] == "https://proj.supabase.co/rest/v1/places_cache"
+    assert captured["json"]["cache_key"] == "KEY123"
+    assert captured["json"]["result_count"] == 0
+    assert captured["json"]["region_code"] == "jp"
+    assert "resolution=merge-duplicates" in captured["headers"]["Prefer"]
