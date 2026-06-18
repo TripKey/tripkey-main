@@ -634,3 +634,33 @@ async def test_search_place_caches_repeated_query(monkeypatch) -> None:
 
     assert r1 == r2 == {"places": [{"id": "p1"}]}
     assert google_calls["n"] == 1  # 두 번째는 캐시 히트
+
+
+@pytest.mark.asyncio
+async def test_enrich_cards_blocking_starts_cache_scope(monkeypatch) -> None:
+    began = {"n": 0}
+
+    monkeypatch.setattr(
+        core_parse.places_cache, "begin_scope", lambda: began.__setitem__("n", began["n"] + 1)
+    )
+    monkeypatch.setattr(core_parse.places_cache, "log_summary", lambda: None)
+    monkeypatch.setattr(core_parse, "_places_api_key", lambda: "test-key")
+
+    async def fake_enrich(card, req, api_key):
+        return card
+
+    monkeypatch.setattr(core_parse, "_enrich_card", fake_enrich)
+
+    card = ParsedCard(
+        name="도쿄타워",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+
+    out = await core_parse.enrich_cards_blocking(_request(), [card])
+
+    assert began["n"] == 1
+    assert out == [card]

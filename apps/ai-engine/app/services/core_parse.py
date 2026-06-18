@@ -600,6 +600,7 @@ async def enrich_cards_blocking(req: ParseRequest, cards: list[ParsedCard]) -> l
         logger.info("Skipping Places enrichment because API key is not configured.")
         return cards
 
+    places_cache.begin_scope()
     semaphore = asyncio.Semaphore(max(1, PLACES_MAX_CONCURRENCY))
     results = await asyncio.gather(
         *[_enrich_card_with_semaphore(semaphore, card, req, api_key) for card in cards],
@@ -613,6 +614,7 @@ async def enrich_cards_blocking(req: ParseRequest, cards: list[ParsedCard]) -> l
             enriched_cards.append(card)
             continue
         enriched_cards.append(result)
+    places_cache.log_summary()
     return enriched_cards
 
 
@@ -702,6 +704,7 @@ async def parse_card_level(req: CardParseRequest) -> ParsedCard:
         logger.info("Skipping card-level Places enrichment because API key is not configured.")
         return card
 
+    places_cache.begin_scope()
     enrichment_req = ParseRequest(
         trip_id=req.trip_id,
         dump_text=req.natural_language_input,
@@ -709,7 +712,9 @@ async def parse_card_level(req: CardParseRequest) -> ParsedCard:
         travel_days=req.travel_days or 1,
         companion_count=req.companion_count or 1,
     )
-    return await _enrich_card(card, enrichment_req, api_key)
+    enriched = await _enrich_card(card, enrichment_req, api_key)
+    places_cache.log_summary()
+    return enriched
 
 
 async def parse_with_blocking_enrichment(req: ParseRequest) -> CoreParseResult:
