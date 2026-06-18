@@ -82,7 +82,12 @@ def build_core_parse_prompt(req: ParseRequest) -> str:
   - the user asks for general recommendations without a specific type or category, or
   - the dump only contains destination-level context with no specific places at all.
 - Even then, generate at most 3 recommendation cards.
-- If recommendation cards are generated, classification must be open_question and question_text/options must stay null.
+- Do not create generic category cards such as "{{destination}} restaurants", "{{destination}} attractions",
+  "{{destination}} activities", "{{destination}} shopping", "{{destination}} cafes", or "{{destination}} nightlife" as open_question.
+- If a generated recommendation card is not a concrete venue/place, classify it as undecided:
+  - Use placement_status = ready_partial with 2~4 concrete venue options when possible.
+  - Use placement_status = needs_input with question_text and options = null only when concrete options cannot be suggested.
+- Use open_question for generated recommendation cards only when the card itself is a concrete venue/place that the user has not approved yet.
 - Recommendations, tips, options, and context_summary must be destination-aware.
 - Do not assume Japan, Japanese transit, Japanese venues, or Japanese naming unless the destinations or dump_text clearly indicate Japan.
 - If the destination is unclear or broad, use general travel guidance instead of country-specific facts.
@@ -116,8 +121,9 @@ def build_core_parse_prompt(req: ParseRequest) -> str:
 ### classification Rules
 - confirmed: 장소명이 명확히 특정되고 의도가 확정된 완성형 카드.
   Examples: "{{specific_venue}} 꼭 가야해", "{{specific_venue}} 예약했어"
-- open_question: 사용자가 특정 장소명을 언급했지만 갈지 말지 불확실하거나, AI가 자체 추가한 일반 추천 카드.
-  Examples: "{{specific_venue}} 있으면 좋겠다", is_ai_generated: true 카드
+- open_question: 구체 장소명은 있지만 사용자가 갈지 말지 불확실하거나, AI가 제안한 구체 venue/place를 아직 사용자가 승인하지 않은 카드.
+  Examples: "{{specific_venue}} 있으면 좋겠다", is_ai_generated: true + concrete venue card
+  - Generic recommendation/category cards must not be open_question.
 - undecided: 의도는 있지만 장소/내용이 특정되지 않은 카드.
   - AI가 후보 제시 가능하면 placement_status는 ready_partial, question_text와 options를 함께 생성
     Examples: "{{food_type}} 꼭 먹고 싶어", "{{venue_type}} 한 군데 가고 싶어"
