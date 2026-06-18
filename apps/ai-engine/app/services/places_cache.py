@@ -186,6 +186,10 @@ async def cached_search(
     if scope is not None:
         scope.google_calls += 1
 
+    # None 결과는 캐시/메모하지 않는다 (jsonb NOT NULL 위반 방지 + 같은 요청 내 재시도 허용)
+    if result is None:
+        return None
+
     # L2 write
     try:
         count = len(result.get("places") or []) if isinstance(result, dict) else 0

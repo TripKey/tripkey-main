@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from app.services import places_cache as pc
@@ -47,9 +48,6 @@ def test_log_summary_does_not_raise_with_active_scope() -> None:
     pc.begin_scope()
     pc.current_scope().google_calls = 2
     pc.log_summary()  # 예외 없이 동작하면 통과
-
-
-import httpx
 
 
 @pytest.mark.asyncio
@@ -246,3 +244,23 @@ async def test_cached_search_scope_counts_l1_hit(monkeypatch) -> None:
     assert calls["n"] == 1
     assert scope.google_calls == 1
     assert scope.l1_hits == 1
+
+
+@pytest.mark.asyncio
+async def test_cached_search_does_not_cache_none_result(monkeypatch) -> None:
+    _fake_store(monkeypatch)
+    put_called = {"n": 0}
+
+    async def fake_put(*args, **kwargs):
+        put_called["n"] += 1
+
+    monkeypatch.setattr(pc, "_http_put_cache", fake_put)
+    pc.begin_scope()
+
+    async def fetch():
+        return None
+
+    out = await pc.cached_search("x", None, "shape", fetch=fetch)
+    assert out is None
+    assert put_called["n"] == 0  # None은 L2에 쓰지 않음
+    assert pc.current_scope().memo == {}  # None은 메모하지 않음(재시도 허용)
