@@ -9,7 +9,7 @@
 //    (백엔드에 카드별 day 저장 API 가 없어 스냅샷 일괄 전송만 가능)
 
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import ArrangeCardDetailPanel from '@/components/arrange/ArrangeCardDetailPanel';
@@ -36,6 +36,7 @@ import type {
   ScheduledCardViewModel,
 } from '@/types/arrange';
 import type { RouteWarning } from '@/types/arrange-api';
+import type { ArrangeDragPayload } from '@/utils/arrange-dnd';
 
 import {
   buildPlacementRequest,
@@ -60,6 +61,22 @@ const toScheduledCard = (
   accent: card.accent,
   badges: card.badges,
 });
+
+// 배치 보드 카드 → 좌측 목록 카드로 되돌릴 때의 폴백 변환(원본 보존 실패 시).
+const toArrangeCard = (card: ScheduledCardViewModel): ArrangeCardViewModel => ({
+  id: card.id,
+  name: card.name,
+  accent: card.accent,
+  badges: card.badges,
+  draggable: true,
+});
+
+// index 위치에 item 삽입(미지정·범위 초과 시 맨 뒤).
+const insertAt = <T,>(arr: T[], item: T, index?: number): T[] => {
+  if (index == null || index >= arr.length) return [...arr, item];
+  const i = Math.max(0, index);
+  return [...arr.slice(0, i), item, ...arr.slice(i)];
+};
 
 const errorMessageOf = (error: unknown, fallback: string): string => {
   const apiBody = parseGroupingApiError(error);
@@ -142,6 +159,11 @@ const ArrangePage = () => {
   }, [dayColumns]);
 
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
+  // 좌측 → Day 배치 시 원본 카드를 보존한다. 좌측으로 되돌릴 때 detail/메모 등
+  // ScheduledCardViewModel 이 들고 있지 않은 필드까지 복원하기 위함.
+  const originalCardsRef = useRef<
+    Map<string, { card: ArrangeCardViewModel; groupId: string }>
+  >(new Map());
   const [detailCard, setDetailCard] = useState<ArrangeCardViewModel | null>(
     null
   );
@@ -172,30 +194,137 @@ const ArrangePage = () => {
     setDetailOpen(true);
   };
 
-  // 카드를 좌측 목록에서 빼고 해당 Day 컬럼에 추가한다(로컬).
-  const placeCardOnDay = (cardId: string, dayId: string) => {
-    const card = groups
-      .flatMap((group) => group.cards)
-      .find((item) => item.id === cardId);
+  // 좌측 목록 카드 → Day 에 배치(targetIndex 위치 삽입).
+  const placeFromList = (
+    cardId: string,
+    targetDayId: string,
+    targetIndex?: number
+  ) => {
+    const group = groups.find((g) => g.cards.some((c) => c.id === cardId));
+    const card = group?.cards.find((c) => c.id === cardId);
     // 드래그 불가(처리 필요/제외) 카드는 배치하지 않는다.
-    if (!card || card.draggable === false) {
-      setDraggingCardId(null);
-      return;
-    }
+    if (!card || group == null || card.draggable === false) return;
 
+    // 되돌리기 복원용으로 원본 카드 + 원래 그룹 id 보존.
+    originalCardsRef.current.set(cardId, { card, groupId: group.id });
     setGroups((prev) =>
-      prev.map((group) => ({
-        ...group,
-        cards: group.cards.filter((item) => item.id !== cardId),
+      prev.map((g) => ({
+        ...g,
+        cards: g.cards.filter((c) => c.id !== cardId),
       }))
     );
     setDays((prev) =>
       prev.map((day) =>
-        day.id === dayId
-          ? { ...day, cards: [...day.cards, toScheduledCard(card)] }
+        day.id === targetDayId
+          ? {
+              ...day,
+              cards: insertAt(day.cards, toScheduledCard(card), targetIndex),
+            }
           : day
       )
     );
+  };
+
+  // Day → Day 이동(또는 같은 Day 내 순서 재정렬). fromDayId 는 payload(non-null) 에서 온다.
+  const moveBetweenDays = (
+    { cardId, fromDayId }: { cardId: string; fromDayId: string },
+    targetDayId: string,
+    targetIndex?: number
+  ) => {
+    const fromDay = days.find((d) => d.id === fromDayId);
+    const scheduled = fromDay?.cards.find((c) => c.id === cardId);
+    // 고정 시작 시간 카드(항공권 등)는 이동 불가.
+    if (!scheduled || scheduled.fixedTime) return;
+
+    if (fromDayId === targetDayId) {
+      // 같은 Day 내 재정렬: 제거로 앞쪽 인덱스가 한 칸 당겨지므로 보정.
+      const oldIndex = fromDay!.cards.findIndex((c) => c.id === cardId);
+      let idx = targetIndex;
+      if (idx != null && oldIndex > -1 && oldIndex < idx) idx -= 1;
+      setDays((prev) =>
+        prev.map((d) => {
+          if (d.id !== targetDayId) return d;
+          const without = d.cards.filter((c) => c.id !== cardId);
+          return { ...d, cards: insertAt(without, scheduled, idx) };
+        })
+      );
+    } else {
+      setDays((prev) =>
+        prev.map((d) => {
+          if (d.id === fromDayId)
+            return { ...d, cards: d.cards.filter((c) => c.id !== cardId) };
+          if (d.id === targetDayId)
+            return { ...d, cards: insertAt(d.cards, scheduled, targetIndex) };
+          return d;
+        })
+      );
+    }
+  };
+
+  // Day 컬럼 드롭 핸들러 — 출처(좌측/다른 Day)에 따라 분기한다.
+  const handleDropOnDay = (
+    payload: ArrangeDragPayload,
+    targetDayId: string,
+    targetIndex?: number
+  ) => {
+    if (payload.fromDayId === null) {
+      placeFromList(payload.cardId, targetDayId, targetIndex);
+    } else {
+      moveBetweenDays(
+        { cardId: payload.cardId, fromDayId: payload.fromDayId },
+        targetDayId,
+        targetIndex
+      );
+    }
+    setDraggingCardId(null);
+    setConfirmed(false);
+  };
+
+  // 배치된 카드를 좌측 목록으로 되돌린다(미배치 복원).
+  const returnCardToList = (cardId: string) => {
+    const fromDay = days.find((d) => d.cards.some((c) => c.id === cardId));
+    const scheduled = fromDay?.cards.find((c) => c.id === cardId);
+    // 고정 시작 시간 카드는 좌측으로 되돌리지 않는다.
+    if (!scheduled || scheduled.fixedTime) {
+      setDraggingCardId(null);
+      return;
+    }
+
+    const saved = originalCardsRef.current.get(cardId);
+    const restored = saved?.card ?? toArrangeCard(scheduled);
+
+    setDays((prev) =>
+      prev.map((d) =>
+        d.id === fromDay!.id
+          ? { ...d, cards: d.cards.filter((c) => c.id !== cardId) }
+          : d
+      )
+    );
+    setGroups((prev) => {
+      // 원래 그룹이 남아 있으면 그곳으로, 아니면 "추가한 카드" 또는 첫 그룹으로 폴백.
+      const originGroupId = saved?.groupId;
+      const targetGroupId =
+        originGroupId && prev.some((g) => g.id === originGroupId)
+          ? originGroupId
+          : prev.some((g) => g.id === ADDED_GROUP_ID)
+            ? ADDED_GROUP_ID
+            : prev[0]?.id;
+      if (targetGroupId) {
+        return prev.map((g) =>
+          g.id === targetGroupId ? { ...g, cards: [...g.cards, restored] } : g
+        );
+      }
+      // 좌측이 완전히 비어 있던 경우 새 그룹 생성.
+      return [
+        {
+          id: 'restored',
+          title: '카드 목록',
+          description: '다시 Day에 배치할 수 있어요.',
+          cards: [restored],
+        },
+      ];
+    });
+    originalCardsRef.current.delete(cardId);
     setDraggingCardId(null);
     setConfirmed(false);
   };
@@ -458,8 +587,10 @@ const ArrangePage = () => {
               groups={groups}
               onSelectCard={openCardDetail}
               draggingCardId={draggingCardId}
+              dragActive={draggingCardId !== null}
               onDragCardStart={setDraggingCardId}
               onDragCardEnd={() => setDraggingCardId(null)}
+              onReturnCard={returnCardToList}
             />
 
             {/* 칸반 보드 — 가로 스크롤 */}
@@ -470,7 +601,12 @@ const ArrangePage = () => {
                     key={day.id}
                     {...day}
                     dragActive={draggingCardId !== null}
-                    onDropCard={(cardId) => placeCardOnDay(cardId, day.id)}
+                    draggingCardId={draggingCardId}
+                    onCardDragStart={setDraggingCardId}
+                    onCardDragEnd={() => setDraggingCardId(null)}
+                    onDropCard={(payload, index) =>
+                      handleDropOnDay(payload, day.id, index)
+                    }
                   />
                 ))}
               </div>
