@@ -301,7 +301,22 @@ const GroupingPage = () => {
       ...state.groups.review_only,
     ].some((card) => card.processing_status === 'processing');
 
-  const nextDisabled = busy || hasProcessingCard;
+  // 아직 입력/선택/수정이 필요한 카드가 남아 있으면(진행률 100% 미만) 다음 단계 차단.
+  const hasUnresolvedCards =
+    state.phase === 'ready' &&
+    state.groups.input_required.length +
+      state.groups.select_required.length +
+      state.groups.fix_required.length >
+      0;
+
+  const nextDisabled = busy || hasProcessingCard || hasUnresolvedCards;
+
+  // 차단 사유에 맞는 안내 문구. 미해결 카드가 우선(사용자가 할 일이 있음).
+  const nextGuideText = hasUnresolvedCards
+    ? '모든 카드를 확인·선택한 뒤 다음 단계로 진행할 수 있어요.'
+    : hasProcessingCard
+      ? '카드 정보를 정리하는 중이에요. 잠시 후 다시 시도해 주세요.'
+      : undefined;
 
   const loading = state.phase === 'loading';
 
@@ -536,7 +551,7 @@ const GroupingPage = () => {
             <TripSummaryCard
               {...summary}
               nextDisabled={nextDisabled}
-              guideText="카드 정보를 정리하는 중이에요. 잠시 후 다시 시도해 주세요."
+              guideText={nextGuideText}
               onNext={() =>
                 navigate(tripId ? `/arrange?tripId=${tripId}` : '/arrange')
               }
