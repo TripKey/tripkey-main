@@ -29,3 +29,21 @@ def test_build_cache_key_is_deterministic_and_region_sensitive() -> None:
 
 def test_expires_at_positive_is_later_than_negative() -> None:
     assert pc._expires_at(3) > pc._expires_at(0)
+
+
+def test_begin_scope_creates_fresh_zeroed_scope() -> None:
+    pc.begin_scope()
+    first = pc.current_scope()
+    assert isinstance(first, pc.RequestScope)
+    first.l2_hits = 5
+    pc.begin_scope()
+    second = pc.current_scope()
+    assert second is not first
+    assert second.l2_hits == 0
+    assert second.memo == {}
+
+
+def test_log_summary_does_not_raise_with_active_scope() -> None:
+    pc.begin_scope()
+    pc.current_scope().google_calls = 2
+    pc.log_summary()  # 예외 없이 동작하면 통과

@@ -49,3 +49,41 @@ def _expires_at(result_count: int) -> str:
     if result_count > 0:
         return (now + timedelta(days=PLACES_CACHE_TTL_POSITIVE_DAYS)).isoformat()
     return (now + timedelta(hours=PLACES_CACHE_TTL_NEGATIVE_HOURS)).isoformat()
+
+
+@dataclass
+class RequestScope:
+    memo: dict = field(default_factory=dict)
+    l1_hits: int = 0
+    l2_hits: int = 0
+    misses: int = 0
+    negatives: int = 0
+    errors: int = 0
+    google_calls: int = 0
+
+
+_scope: ContextVar[Optional[RequestScope]] = ContextVar("places_cache_scope", default=None)
+
+
+def begin_scope() -> None:
+    """파싱 요청 진입부에서 호출. 이후 asyncio.gather 자식 태스크가 같은 스코프를 공유한다."""
+    _scope.set(RequestScope())
+
+
+def current_scope() -> Optional[RequestScope]:
+    return _scope.get()
+
+
+def log_summary() -> None:
+    scope = current_scope()
+    if scope is None:
+        return
+    logger.info(
+        "places_cache summary | l1_hits=%d l2_hits=%d misses=%d negatives=%d errors=%d google_calls=%d",
+        scope.l1_hits,
+        scope.l2_hits,
+        scope.misses,
+        scope.negatives,
+        scope.errors,
+        scope.google_calls,
+    )
