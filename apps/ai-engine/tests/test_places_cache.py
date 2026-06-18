@@ -118,3 +118,131 @@ async def test_http_put_cache_sends_upsert_body_and_prefer_header(monkeypatch) -
     assert captured["json"]["result_count"] == 0
     assert captured["json"]["region_code"] == "jp"
     assert "resolution=merge-duplicates" in captured["headers"]["Prefer"]
+
+
+def _fake_store(monkeypatch):
+    """L2를 dict로 대체하는 fake repository를 설치하고 store를 반환."""
+    store: dict = {}
+
+    async def fake_get(cache_key):
+        return store.get(cache_key)
+
+    async def fake_put(cache_key, qn, rc, mv, response_json, result_count, expires_at_iso):
+        store[cache_key] = response_json
+
+    monkeypatch.setattr(pc, "PLACES_CACHE_ENABLED", True)
+    monkeypatch.setattr(pc, "_http_get_cache", fake_get)
+    monkeypatch.setattr(pc, "_http_put_cache", fake_put)
+    return store
+
+
+@pytest.mark.asyncio
+async def test_cached_search_calls_fetch_once_for_identical_queries(monkeypatch) -> None:
+    _fake_store(monkeypatch)
+    calls = {"n": 0}
+
+    async def fetch():
+        calls["n"] += 1
+        return {"places": [{"id": "x"}]}
+
+    # 정규화로 두 쿼리가 같은 키로 접힘 ("Tokyo Tower" / "tokyo  tower")
+    a = await pc.cached_search("Tokyo Tower", "jp", "shape", fetch=fetch)
+    b = await pc.cached_search("tokyo  tower", "jp", "shape", fetch=fetch)
+
+    assert a == b == {"places": [{"id": "x"}]}
+    assert calls["n"] == 1
+
+
+@pytest.mark.asyncio
+async def test_cached_search_negative_result_is_stored(monkeypatch) -> None:
+    store = _fake_store(monkeypatch)
+    put_counts: list[int] = []
+
+    async def fake_put(cache_key, qn, rc, mv, response_json, result_count, expires_at_iso):
+        put_counts.append(result_count)
+        store[cache_key] = response_json
+
+    monkeypatch.setattr(pc, "_http_put_cache", fake_put)
+
+    async def fetch():
+        return {"places": []}
+
+    out = await pc.cached_search("nowhere place", None, "shape", fetch=fetch)
+    assert out == {"places": []}
+    assert put_counts == [0]  # negative로 저장됨
+
+
+@pytest.mark.asyncio
+async def test_cached_search_does_not_cache_http_errors(monkeypatch) -> None:
+    _fake_store(monkeypatch)
+    put_called = {"n": 0}
+
+    async def fake_put(*args, **kwargs):
+        put_called["n"] += 1
+
+    monkeypatch.setattr(pc, "_http_put_cache", fake_put)
+
+    async def fetch():
+        raise httpx.HTTPError("boom")
+
+    with pytest.raises(httpx.HTTPError):
+        await pc.cached_search("x", None, "shape", fetch=fetch)
+    assert put_called["n"] == 0
+
+
+@pytest.mark.asyncio
+async def test_cached_search_falls_back_to_fetch_when_read_errors(monkeypatch) -> None:
+    _fake_store(monkeypatch)
+
+    async def failing_get(cache_key):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(pc, "_http_get_cache", failing_get)
+    calls = {"n": 0}
+
+    async def fetch():
+        calls["n"] += 1
+        return {"places": [{"id": "y"}]}
+
+    out = await pc.cached_search("x", None, "shape", fetch=fetch)
+    assert out == {"places": [{"id": "y"}]}
+    assert calls["n"] == 1  # read 실패에도 Google로 폴백
+
+
+@pytest.mark.asyncio
+async def test_cached_search_disabled_bypasses_cache(monkeypatch) -> None:
+    _fake_store(monkeypatch)
+    monkeypatch.setattr(pc, "PLACES_CACHE_ENABLED", False)
+    get_called = {"n": 0}
+
+    async def fake_get(cache_key):
+        get_called["n"] += 1
+        return {"places": []}
+
+    monkeypatch.setattr(pc, "_http_get_cache", fake_get)
+
+    async def fetch():
+        return {"places": [{"id": "z"}]}
+
+    out = await pc.cached_search("x", None, "shape", fetch=fetch)
+    assert out == {"places": [{"id": "z"}]}
+    assert get_called["n"] == 0  # 캐시 완전 우회
+
+
+@pytest.mark.asyncio
+async def test_cached_search_scope_counts_l1_hit(monkeypatch) -> None:
+    _fake_store(monkeypatch)
+    pc.begin_scope()
+    calls = {"n": 0}
+
+    async def fetch():
+        calls["n"] += 1
+        return {"places": [{"id": "a"}]}
+
+    await pc.cached_search("same query", None, "shape", fetch=fetch)  # miss -> fetch
+    await pc.cached_search("same query", None, "shape", fetch=fetch)  # L1 hit
+
+    scope = pc.current_scope()
+    assert calls["n"] == 1
+    assert scope.google_calls == 1
+    assert scope.l1_hits == 1

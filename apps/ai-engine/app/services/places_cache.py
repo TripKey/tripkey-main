@@ -136,3 +136,67 @@ async def _http_put_cache(
     async with httpx.AsyncClient(timeout=CACHE_WRITE_TIMEOUT) as client:
         resp = await client.post(f"{SUPABASE_URL}{_TABLE_PATH}", json=body, headers=headers)
         resp.raise_for_status()
+
+
+async def cached_search(
+    query: str,
+    region_code: Optional[str],
+    shape: str,
+    *,
+    fetch: Callable[[], Awaitable[Optional[dict]]],
+) -> Optional[dict]:
+    """Places 검색을 캐시로 감싼다. fetch는 캐시 미스 시 호출되는 실제 Google 호출.
+
+    안전 원칙: L2(read/write) 실패는 절대 enrichment를 깨뜨리지 않고 fetch로 폴백한다.
+    fetch 자체의 httpx 에러는 캐시하지 않고 그대로 전파한다(호출부가 catch).
+    """
+    if not PLACES_CACHE_ENABLED:
+        return await fetch()
+
+    scope = current_scope()
+    qn = normalize_query(query)
+    rc = region_code or ""
+    mv = mask_version(shape)
+    key = build_cache_key(qn, rc, mv)
+
+    # L1 메모
+    if scope is not None and key in scope.memo:
+        scope.l1_hits += 1
+        return scope.memo[key]
+
+    # L2 read
+    cached: Optional[dict] = None
+    try:
+        cached = await _http_get_cache(key)
+    except Exception as exc:  # noqa: BLE001 - 캐시는 enrichment를 깨뜨리면 안 됨
+        logger.warning("places_cache read failed | key=%s | error=%s", key, exc)
+        if scope is not None:
+            scope.errors += 1
+    if cached is not None:
+        if scope is not None:
+            scope.memo[key] = cached
+            scope.l2_hits += 1
+        return cached
+
+    if scope is not None:
+        scope.misses += 1
+
+    # fetch (httpx 에러는 전파, 실패는 캐시하지 않음)
+    result = await fetch()
+    if scope is not None:
+        scope.google_calls += 1
+
+    # L2 write
+    try:
+        count = len(result.get("places") or []) if isinstance(result, dict) else 0
+        await _http_put_cache(key, qn, rc, mv, result, count, _expires_at(count))
+        if scope is not None and count == 0:
+            scope.negatives += 1
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("places_cache write failed | key=%s | error=%s", key, exc)
+        if scope is not None:
+            scope.errors += 1
+
+    if scope is not None:
+        scope.memo[key] = result
+    return result
