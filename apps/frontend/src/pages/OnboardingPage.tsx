@@ -118,7 +118,7 @@ const OnboardingPage = () => {
             </section>
 
             <section className="onboarding-page__card onboarding-page__traveler">
-              <TravelerCount title="동행자 수" />
+              <TravelerCount title="여행 인원" />
               <TravelerReservation title="여행 예약 상태" />
             </section>
           </div>

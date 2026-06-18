@@ -63,7 +63,7 @@ const TripSummaryCard = ({
           </span>
         </SummaryRow>
 
-        <SummaryRow icon={User} label="동행자">
+        <SummaryRow icon={User} label="여행 인원">
           <span className="font-semibold text-foreground">{travelers}명</span>
         </SummaryRow>
 
