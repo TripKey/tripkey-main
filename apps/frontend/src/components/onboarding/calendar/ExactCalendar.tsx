@@ -35,7 +35,7 @@ export const ExactCalendar = () => {
     if (from && to) {
       const nights = differenceInDays(to, from);
       setExactDate({ from, to, nights });
-      setForm({ travel_days: nights });
+      setForm({ travel_days: nights + 1 });
     } else {
       clearExactDate();
       setForm({ travel_days: 0 });

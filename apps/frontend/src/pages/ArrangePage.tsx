@@ -8,6 +8,7 @@
 //  - "동선 검증하기" = POST /verify, "일정 확정하기" = POST /confirm 로 전체 배치 스냅샷을 전송한다.
 //    (백엔드에 카드별 day 저장 API 가 없어 스냅샷 일괄 전송만 가능)
 
+import { format } from 'date-fns';
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -45,6 +46,10 @@ import {
   mapToArrangeViewModel,
 } from '../utils/arrange-mapper';
 import type { TripMeta } from '../utils/arrange-mapper';
+import {
+  useCalendarStore,
+  formatDateRangeLabel,
+} from '../utils/calendar-store';
 import { parseGroupingApiError } from '../utils/grouping-api';
 import { toCardAddRequest } from '../utils/grouping-mapper';
 import { useOnboardingStore } from '../utils/onboarding-store';
@@ -91,6 +96,7 @@ const ArrangePage = () => {
   const storeTripId = useOnboardingStore((s) => s.tripId);
   const setStoreTripId = useOnboardingStore((s) => s.actions.setTripId);
   const form = useOnboardingStore((s) => s.form);
+  const { type: calendarType, exactDate, flexDate } = useCalendarStore();
   const tripId: string | null = urlTripId ?? storeTripId;
 
   useEffect(() => {
@@ -114,9 +120,19 @@ const ArrangePage = () => {
       travelDays: detail?.travel_days ?? form.travel_days,
       destinations: detail?.destinations ?? form.destinations,
       travelers: detail?.companion_count ?? form.companion_count,
-      startDate: detail?.start_date ?? null,
+      // start_date 는 온보딩에서 백엔드로 전송하지 않아 보통 null 이다.
+      // 다른 화면(정리)과 동일하게 캘린더 스토어(사용자가 고른 날짜)로 폴백한다.
+      startDate:
+        detail?.start_date ??
+        (exactDate ? format(exactDate.from, 'yyyy-MM-dd') : null),
     }),
-    [detail, form.travel_days, form.destinations, form.companion_count]
+    [
+      detail,
+      form.travel_days,
+      form.destinations,
+      form.companion_count,
+      exactDate,
+    ]
   );
 
   // 좌측 stock + 헤더 메타. (Day 보드 로딩과 무관하게 먼저 그릴 수 있다.)
@@ -472,11 +488,22 @@ const ArrangePage = () => {
     ? 'tripId가 없습니다. /onboarding 으로 여행을 먼저 만들거나 URL에 ?tripId=… 를 추가하세요.'
     : null;
 
-  const summary = viewModel?.summary ?? {
+  const baseSummary = viewModel?.summary ?? {
     destination: form.destinations[0] ?? '여행',
     extraDestinations: Math.max(form.destinations.length - 1, 0),
     travelers: form.companion_count,
     dateRange: '-',
+  };
+  // 날짜 표기는 정리 화면과 동일하게 캘린더 스토어를 우선으로 쓰고,
+  // 스토어가 비어 있으면(새로고침 등) 백엔드 start_date 로 만든 범위로 폴백한다.
+  const storeDateRange = formatDateRangeLabel(
+    calendarType,
+    exactDate,
+    flexDate
+  );
+  const summary = {
+    ...baseSummary,
+    dateRange: storeDateRange !== '-' ? storeDateRange : baseSummary.dateRange,
   };
   const heading = viewModel?.heading ?? {
     title: '일정 배치',

@@ -37,7 +37,7 @@ const FlexCalendar = () => {
     setSelectedMonth(month);
     if (durationNights !== null) {
       setFlexDate({ year: selectedYear, month, nights: durationNights });
-      setForm({ travel_days: durationNights });
+      setForm({ travel_days: durationNights + 1 });
     }
   };
 
@@ -46,7 +46,7 @@ const FlexCalendar = () => {
 
     if (selectedMonth) {
       setFlexDate({ year: selectedYear, month: selectedMonth, nights });
-      setForm({ travel_days: nights });
+      setForm({ travel_days: nights + 1 });
     }
   };
 
