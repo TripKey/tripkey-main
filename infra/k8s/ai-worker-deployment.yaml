@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tripkey-ai-worker
+  namespace: tripkey
+  labels:
+    app.kubernetes.io/name: tripkey
+    app.kubernetes.io/component: ai-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tripkey
+      app.kubernetes.io/component: ai-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tripkey
+        app.kubernetes.io/component: ai-worker
+    spec:
+      containers:
+        - name: ai-worker
+          image: 000000000000.dkr.ecr.ap-northeast-2.amazonaws.com/tripkey-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: tripkey-config
+                optional: true
+            - secretRef:
+                name: tripkey-secrets
+                optional: true
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            - name: APP_ROLE
+              value: ai-worker
+            - name: AI_ENGINE_URL
+              value: http://tripkey-ai-engine:8000
+            - name: ENRICHMENT_CONCURRENCY
+              value: "3"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
