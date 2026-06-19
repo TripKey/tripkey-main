@@ -27,7 +27,7 @@ export type ArrangeCardViewModel = {
   detail?: ArrangeCardDetailViewModel;
   /**
    * "처리가 필요한 카드"(배치 불가)에만 채워지는 안내 문구.
-   * 카드를 클릭하면 사용자가 무엇을 해야 하는지 브라우저 알림(window.alert)으로 띄운다.
+   * 카드를 클릭하면 상세 패널 안에 "무엇을 해야 하는지" 안내로 표시한다(인플레이스 해결).
    * 배치 가능 카드/제외 카드에는 undefined.
    */
   actionGuide?: string;
@@ -55,6 +55,17 @@ export type ArrangeCardDetailViewModel = {
   aiHint?: string;
   /** "사용자 메모" textarea 초기값. 보통 ''. 입력값이 달라지면 "메모 저장"이 활성화된다 */
   memo?: string;
+  /**
+   * 자연어 재파싱(notes)으로 해결 가능한 "처리 필요" 카드의 현재 notes 값.
+   * 해결 패널의 "장소 정보 보완" textarea 초기값으로 쓰인다.
+   */
+  notes?: string;
+  /**
+   * true면 notes 보완 입력 → 카드 레벨 AI 재파싱(self-heal)으로 배치 가능 상태로 승격될 수 있다.
+   * (BE canStartNaturalLanguageParsingFromNotes 조건을 FE 에서 미러링)
+   * 처리 필요(unavailable) 카드에만 true 일 수 있고, 그 외에는 undefined/false.
+   */
+  canResolveByNotes?: boolean;
 };
 
 /** 좌측 카드 그룹 한 덩어리(항공권 / 숙소 / 지역 그룹 등). */
