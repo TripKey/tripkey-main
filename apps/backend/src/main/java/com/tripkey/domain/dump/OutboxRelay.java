@@ -2,11 +2,13 @@ package com.tripkey.domain.dump;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "app.role", havingValue = "ai-worker", matchIfMissing = true)
 public class OutboxRelay {
 
     private final OutboxRelayService relayService;
