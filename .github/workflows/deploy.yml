@@ -21,9 +21,6 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    outputs:
-      ecr-registry: ${{ steps.login-ecr.outputs.registry }}
-      image-tag: ${{ steps.image-meta.outputs.image-tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -98,13 +95,19 @@ jobs:
             --region "$AWS_REGION" \
             --name "$EKS_CLUSTER_NAME"
 
+      - name: Resolve ECR registry
+        id: ecr-meta
+        run: |
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "registry=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> "$GITHUB_OUTPUT"
+
       - name: Apply Kubernetes manifests
         run: kubectl apply -k infra/k8s/
 
       - name: Deploy pushed images
         env:
-          ECR_REGISTRY: ${{ needs.build-and-push.outputs.ecr-registry }}
-          IMAGE_TAG: ${{ needs.build-and-push.outputs.image-tag }}
+          ECR_REGISTRY: ${{ steps.ecr-meta.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           kubectl -n "$K8S_NAMESPACE" set image deployment/tripkey-frontend \
             frontend="$ECR_REGISTRY/tripkey-frontend:$IMAGE_TAG"
