@@ -54,6 +54,38 @@ kubectl apply -k infra/k8s/
 
 frontend Nginx 이미지 안에도 `/api` proxy fallback이 남아 있을 수 있지만, EKS 운영 환경의 외부 트래픽은 기본적으로 ALB Ingress에서 먼저 라우팅한다.
 
+## GitHub Actions 배포
+
+`.github/workflows/deploy.yml`은 `develop` branch push 시 ECR 이미지를 build/push한 뒤 EKS Deployment를 갱신한다.
+
+배포 흐름:
+
+1. GitHub Actions가 AWS IAM Role을 OIDC로 assume한다.
+2. frontend, backend, ai-engine 이미지를 ECR에 push한다.
+3. 각 이미지는 `latest`와 `GITHUB_SHA` 태그를 함께 push한다.
+4. `kubectl apply -k infra/k8s/`로 매니페스트를 적용한다.
+5. `kubectl set image`로 Deployment 이미지를 `GITHUB_SHA` 태그로 갱신한다.
+6. `kubectl rollout status`로 rollout 성공 여부를 확인한다.
+
+필요한 GitHub 설정:
+
+- Repository secret
+  - `AWS_ROLE_TO_ASSUME`: GitHub Actions가 assume할 AWS IAM Role ARN
+- Repository variable 또는 secret
+  - `AWS_REGION`: `ap-northeast-2`
+  - `EKS_CLUSTER_NAME`: `tripkey-prod`
+
+권장 AWS 권한 구성:
+
+- GitHub OIDC provider를 IAM에 등록한다.
+- GitHub Actions용 IAM Role을 만든다.
+- 해당 Role에 ECR image push 권한과 EKS cluster 조회 권한을 부여한다.
+- EKS Access Entry 또는 `aws-auth` ConfigMap을 통해 해당 IAM Role이 Kubernetes 리소스를 apply/patch/get 할 수 있게 한다.
+
+이 workflow는 Kubernetes Secret 값을 생성하거나 갱신하지 않는다. 앱 Secret은 기존 EKS `tripkey-secrets`, `tripkey-config`를 계속 사용한다.
+
+기존 EC2 SSM 기반 Docker Compose 배포는 더 이상 수행하지 않는다. `usetripkey.com`이 EKS Ingress ALB를 바라보므로, ECR에 이미지를 push하는 것만으로는 실행 중인 EKS Pod가 바뀌지 않는다. 따라서 workflow에서 `kubectl set image`와 `kubectl rollout status`를 실행해 EKS Deployment를 자동 갱신한다.
+
 ## Secret / ConfigMap 주의사항
 
 `tripkey-config`와 `tripkey-secrets`의 실제 값은 이 디렉터리의 YAML에 커밋하지 않는다. 특히 DB URL, API key, Supabase key는 Kubernetes Secret 또는 별도 Secret 관리 도구에서 주입한다.
