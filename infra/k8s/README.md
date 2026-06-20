@@ -84,7 +84,7 @@ frontend Nginx 이미지 안에도 `/api` proxy fallback이 남아 있을 수 �
 
 이 workflow는 Kubernetes Secret 값을 생성하거나 갱신하지 않는다. 앱 Secret은 기존 EKS `tripkey-secrets`, `tripkey-config`를 계속 사용한다.
 
-기존 EC2 SSM 기반 Docker Compose 배포는 더 이상 수행하지 않는다. `usetripkey.com`이 EKS Ingress ALB를 바라보는 상태에서는 ECR push만으로는 Pod가 자동 갱신되지 않으므로, EKS rollout 단계가 필요하다.
+기존 EC2 SSM 기반 Docker Compose 배포는 더 이상 수행하지 않는다. `usetripkey.com`이 EKS Ingress ALB를 바라보므로, ECR에 이미지를 push하는 것만으로는 실행 중인 EKS Pod가 바뀌지 않는다. 따라서 workflow에서 `kubectl set image`와 `kubectl rollout status`를 실행해 EKS Deployment를 자동 갱신한다.
 
 ## Secret / ConfigMap 주의사항
 
