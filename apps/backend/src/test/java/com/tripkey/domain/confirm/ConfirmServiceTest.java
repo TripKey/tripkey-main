@@ -48,6 +48,9 @@ class ConfirmServiceTest {
     @Mock
     private VerifyService verifyService;
 
+    @Mock
+    private ConfirmSummaryService confirmSummaryService;
+
     @InjectMocks
     private ConfirmService confirmService;
 
@@ -144,6 +147,7 @@ class ConfirmServiceTest {
         assertThat(response.tripId()).isEqualTo(tripId);
         assertThat(trip.getConfirmedAt()).isNotNull();
         verify(verifyService).verifyAndSave(eq(tripId), eq(request));
+        verify(confirmSummaryService).generateRuleBasedSummary(eq(tripId), any(), any());
     }
 
     @Test
@@ -166,6 +170,7 @@ class ConfirmServiceTest {
         assertThat(response.saved()).isTrue();
         assertThat(trip.getConfirmedAt()).isNotNull();
         verify(verifyService).verifyAndSave(tripId, request);
+        verify(confirmSummaryService).generateRuleBasedSummary(eq(tripId), any(), any());
     }
 
     @Test
@@ -190,6 +195,7 @@ class ConfirmServiceTest {
         assertThat(second.saved()).isTrue();
         assertThat(trip.getConfirmedAt()).isNotNull();
         verify(verifyService, times(2)).verifyAndSave(tripId, request);
+        verify(confirmSummaryService, times(2)).generateRuleBasedSummary(eq(tripId), any(), any());
     }
 
     @Test
@@ -219,6 +225,7 @@ class ConfirmServiceTest {
 
         assertThat(response.skippedInstanceIds()).containsExactly(stale);
         assertThat(response.routeWarnings()).containsExactly(warning);
+        verify(confirmSummaryService).generateRuleBasedSummary(eq(tripId), eq(List.of(warning)), any());
     }
 
     @Test
@@ -246,6 +253,7 @@ class ConfirmServiceTest {
         PlacementSaveResponse response = confirmService.confirmAndSave(tripId, request);
 
         assertThat(response.routeLegs()).containsExactly(leg);
+        verify(confirmSummaryService).generateRuleBasedSummary(eq(tripId), any(), eq(List.of(leg)));
     }
 
     private PlaceCard placeCard(UUID tripId) {

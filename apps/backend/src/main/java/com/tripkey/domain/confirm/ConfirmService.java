@@ -30,6 +30,7 @@ public class ConfirmService {
     private final TripRepository tripRepository;
     private final PlaceCardRepository placeCardRepository;
     private final VerifyService verifyService;
+    private final ConfirmSummaryService confirmSummaryService;
 
     @Transactional
     public PlacementSaveResponse confirmAndSave(UUID tripId, PlacementSaveRequest request) {
@@ -45,6 +46,11 @@ public class ConfirmService {
 
         PlacementSaveResponse verifyResponse = verifyService.verifyAndSave(tripId, request);
         trip.confirm();
+        confirmSummaryService.generateRuleBasedSummary(
+                tripId,
+                verifyResponse.routeWarnings(),
+                verifyResponse.routeLegs()
+        );
 
         return PlacementSaveResponse.of(
                 tripId,
