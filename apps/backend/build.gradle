@@ -49,6 +49,7 @@ dependencies {
     // ── AWS SQS (Spring Cloud AWS) ───────────────────────
     implementation platform('io.awspring.cloud:spring-cloud-aws-dependencies:3.3.0')
     implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs'
+    implementation 'software.amazon.awssdk:sts'
 
     // ── Test: LocalStack ─────────────────────────────────
     testImplementation 'org.testcontainers:localstack'
