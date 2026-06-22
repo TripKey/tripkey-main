@@ -45,6 +45,7 @@ const ConfirmPage = () => {
   const daysQuery = useDaysQuery(tripId, dayCount);
 
   const [activeIndex, setActiveIndex] = useState(0);
+  const [showMap, setShowMap] = useState(true);
 
   const viewModel = useMemo(() => {
     const rawFallback = formatDateRangeLabel(calType, exactDate, flexDate);
@@ -173,7 +174,7 @@ const ConfirmPage = () => {
             <>
               <TripHeroCard {...hero} />
 
-              <MapCard markers={mapMarkers} />
+              {showMap && <MapCard markers={mapMarkers} />}
 
               {isLoading ? (
                 <EmptyState
@@ -191,6 +192,8 @@ const ConfirmPage = () => {
                     days={days}
                     activeIndex={safeIndex}
                     onSelect={setActiveIndex}
+                    mapVisible={showMap}
+                    onToggleMap={() => setShowMap((v) => !v)}
                   />
 
                   {activeDay && (
