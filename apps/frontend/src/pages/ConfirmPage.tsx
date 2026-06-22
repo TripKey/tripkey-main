@@ -96,6 +96,17 @@ const ConfirmPage = () => {
     window.location.href = '/onboarding';
   };
 
+  // 활성 Day 카드 중 좌표 있는 것만 마커로 (좌표 없는 카드는 스킵).
+  const mapMarkers = (activeDay?.contextCards ?? [])
+    .filter((card) => card.coordinates)
+    .map((card) => ({
+      id: card.id,
+      order: card.order,
+      name: card.name,
+      lat: card.coordinates!.lat,
+      lng: card.coordinates!.lng,
+    }));
+
   return (
     <div className="flex min-h-screen flex-col bg-muted">
       <Header
@@ -162,7 +173,7 @@ const ConfirmPage = () => {
             <>
               <TripHeroCard {...hero} />
 
-              <MapCard />
+              <MapCard markers={mapMarkers} />
 
               {isLoading ? (
                 <EmptyState
