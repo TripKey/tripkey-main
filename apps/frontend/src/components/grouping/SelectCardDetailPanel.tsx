@@ -1,6 +1,6 @@
 // SelectCardDetailPanel — "선택이 필요한 카드들"상세보기 사이드 패널
 
-import { Clock, Info, MapPin, User, X } from 'lucide-react';
+import { Clock, Info, Loader2, MapPin, User, X } from 'lucide-react';
 import { Dialog } from 'radix-ui';
 import { useState } from 'react';
 
@@ -25,6 +25,8 @@ type SelectCardDetailPanelProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   card: PlaceCardViewModel | null;
+  /** 확인/메모/제외 요청이 진행 중이면 true — 버튼 비활성 + 스피너 표시. */
+  pending?: boolean;
   onConfirm?: (payload: { choices: string[]; answer: string }) => void;
   onExclude?: () => void;
   onSaveMemo?: (memo: string) => void;
@@ -34,6 +36,7 @@ const SelectCardDetailPanel = ({
   open,
   onOpenChange,
   card,
+  pending = false,
   onConfirm,
   onExclude,
   onSaveMemo,
@@ -44,6 +47,7 @@ const SelectCardDetailPanel = ({
         <SelectCardDetailBody
           key={card.id}
           card={card}
+          pending={pending}
           onClose={() => onOpenChange(false)}
           onConfirm={onConfirm}
           onExclude={onExclude}
@@ -59,12 +63,14 @@ export default SelectCardDetailPanel;
 //패널 본문
 const SelectCardDetailBody = ({
   card,
+  pending,
   onClose,
   onConfirm,
   onExclude,
   onSaveMemo,
 }: {
   card: PlaceCardViewModel;
+  pending: boolean;
   onClose: () => void;
   onConfirm?: (payload: { choices: string[]; answer: string }) => void;
   onExclude?: () => void;
@@ -83,12 +89,9 @@ const SelectCardDetailBody = ({
 
   const canConfirm = selectedChoices.length > 0 || answer.trim().length > 0;
 
+  // 단일 선택 — 카드 1장 = 장소 1개이므로 하나만 유지. 같은 칩을 다시 누르면 해제.
   const toggleChoice = (choice: string) =>
-    setSelectedChoices((prev) =>
-      prev.includes(choice)
-        ? prev.filter((value) => value !== choice)
-        : [...prev, choice]
-    );
+    setSelectedChoices((prev) => (prev.includes(choice) ? [] : [choice]));
 
   const categoryBadge = card.badges?.find((badge) => badge.kind === 'category');
   const hint = detail.aiHint ?? card.reminder;
@@ -235,18 +238,25 @@ const SelectCardDetailBody = ({
         <Button
           type="button"
           className="h-11 flex-1 text-sm font-semibold"
-          disabled={!canConfirm}
+          disabled={!canConfirm || pending}
           onClick={() =>
             onConfirm?.({ choices: selectedChoices, answer: answer.trim() })
           }
         >
-          확인하기
+          {pending ? (
+            <>
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              처리 중...
+            </>
+          ) : (
+            '확인하기'
+          )}
         </Button>
         <Button
           type="button"
           variant="outline"
           className="h-11 flex-1 text-sm font-semibold"
-          disabled={!memoDirty}
+          disabled={!memoDirty || pending}
           onClick={() => onSaveMemo?.(memo)}
         >
           메모 저장
