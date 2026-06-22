@@ -173,7 +173,7 @@ curl -G 'http://<EC2_PUBLIC_IP>/api/trips/destinations/search' --data-urlencode 
 backend와 ai-engine이 EC2 외부에서 직접 접근되지 않는지 확인합니다.
 
 ```bash
-curl --connect-timeout 5 http://<EC2_PUBLIC_IP>:8080/v1/trips/destinations/search?q=health
+curl --connect-timeout 5 http://<EC2_PUBLIC_IP>:8080/v1/health
 curl --connect-timeout 5 http://<EC2_PUBLIC_IP>:8000/health
 ```
 
