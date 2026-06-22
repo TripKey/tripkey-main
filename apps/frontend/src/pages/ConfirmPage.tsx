@@ -10,6 +10,7 @@ import ContextCardList from '@/components/confirm/ContextCardList';
 import DayChecklist from '@/components/confirm/DayChecklist';
 import DaySummary from '@/components/confirm/DaySummary';
 import DayTabs from '@/components/confirm/DayTabs';
+import MapCard from '@/components/confirm/MapCard';
 import SaveShareCard from '@/components/confirm/SaveShareCard';
 import TripChecklist from '@/components/confirm/TripChecklist';
 import TripHeroCard from '@/components/confirm/TripHeroCard';
@@ -160,6 +161,8 @@ const ConfirmPage = () => {
           ) : (
             <>
               <TripHeroCard {...hero} />
+
+              <MapCard />
 
               {isLoading ? (
                 <EmptyState
