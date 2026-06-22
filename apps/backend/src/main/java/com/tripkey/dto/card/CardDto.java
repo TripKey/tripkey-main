@@ -41,6 +41,8 @@ public record CardDto(
         String flightNumber,
         String flightDatetime,
         String flightRole,
+        String departureAirport,
+        String arrivalAirport,
         String scheduledTime
 ) {
 
@@ -52,7 +54,8 @@ public record CardDto(
                 instanceId, placeId, name, category, classification, placementStatus, processingStatus, actionType,
                 canExclude, allowDuplicate, isExcluded, isAiGenerated, estimatedDurationMin, coordinates, location,
                 address, timeConstraint, questionText, options, blockedReason, userContext, tips, tags, source, day,
-                dayOrder, notes, memo, checkIn, checkOut, flightNumber, flightDatetime, flightRole, scheduledTime);
+                dayOrder, notes, memo, checkIn, checkOut, flightNumber, flightDatetime, flightRole,
+                departureAirport, arrivalAirport, scheduledTime);
     }
 
     public static CardDto from(PlaceCard card) {
@@ -94,6 +97,8 @@ public record CardDto(
                 card.getFlightNumber(),
                 card.getFlightDatetime(),
                 card.getFlightRole(),
+                card.getDepartureAirport(),
+                card.getArrivalAirport(),
                 null
         );
     }

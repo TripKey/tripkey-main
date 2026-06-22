@@ -97,6 +97,8 @@ create table if not exists public.place_cards (
   flight_number          text,                                     -- 항공편 번호
   flight_datetime        text,                                     -- 항공편 출발 ISO datetime
   flight_role            text,                                     -- outbound / inbound / null
+  departure_airport      text,                                     -- 항공편 출발 공항(구조화 입력)
+  arrival_airport        text,                                     -- 항공편 도착 공항(구조화 입력)
   search_alias           text,                                     -- Places API 검색용 내부 별칭 (외부 응답 비노출)
 
   -- 공간 (lat/lng 기반 generated column, SRID 4326)

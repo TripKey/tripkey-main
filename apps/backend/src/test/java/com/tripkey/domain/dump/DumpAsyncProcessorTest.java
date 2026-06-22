@@ -263,4 +263,130 @@ class DumpAsyncProcessorTest {
         assertThat(sent.accommodationInputs().get(0).checkIn()).isEqualTo("2026-07-01");
         assertThat(sent.accommodationInputs().get(0).checkOut()).isEqualTo("2026-07-03");
     }
+
+    @Test
+    void processCreatesDeterministicFlightCardsAndDropsAiFlightCards() {
+        UUID tripId = UUID.randomUUID();
+        String depJson = "{\"departure_airport\":\"ICN\",\"arrival_airport\":\"KIX\",\"flight_number\":\"KE723\",\"datetime\":\"2026-07-01T09:00:00+09:00\"}";
+        String retJson = "{\"departure_airport\":\"KIX\",\"arrival_airport\":\"ICN\",\"flight_number\":\"KE724\",\"datetime\":\"2026-07-04T18:00:00+09:00\"}";
+        DumpJob job = DumpJob.create(tripId, "오사카 3박4일 여행입니다.", depJson, retJson);
+        Trip trip = new Trip((short) 4, (short) 2);
+        TripDestination destination = new TripDestination(trip, "오사카", (short) 0);
+
+        // AI 도 flight_role 있는 transport 카드를 만들지만(프롬프트 규약) 결정론 생성으로 대체되어 버려져야 한다.
+        AiPlaceCardDto aiFlight = new AiPlaceCardDto(
+                null, "AI가만든항공편", "transport", "confirmed", "ready_partial",
+                false, false, null, null, null,
+                null, null, null, null, null, List.of(), null, List.of(),
+                null, null, "KE723", "2026-07-01T09:00:00+09:00", "outbound");
+        AiParseResponse response = new AiParseResponse(
+                List.of(placeCard("도톤보리"), aiFlight), "요약", List.of(), "3.2.0");
+
+        stubProcess(job, trip, destination, response);
+
+        dumpAsyncProcessor.process(job.getJobId());
+
+        List<PlaceCard> saved = captureSavedCards();
+        List<PlaceCard> flights = saved.stream()
+                .filter(c -> "transport".equals(c.getCategory())).toList();
+        assertThat(flights).hasSize(2);
+        assertThat(saved).extracting(PlaceCard::getName).doesNotContain("AI가만든항공편");
+
+        PlaceCard outbound = flights.stream()
+                .filter(c -> "outbound".equals(c.getFlightRole())).findFirst().orElseThrow();
+        assertThat(outbound.getDepartureAirport()).isEqualTo("ICN");
+        assertThat(outbound.getArrivalAirport()).isEqualTo("KIX");
+        assertThat(outbound.getFlightNumber()).isEqualTo("KE723");
+        assertThat(outbound.getFlightDatetime()).isEqualTo("2026-07-01T09:00:00+09:00");
+        assertThat(outbound.getSource()).isEqualTo("user_input");
+
+        PlaceCard inbound = flights.stream()
+                .filter(c -> "inbound".equals(c.getFlightRole())).findFirst().orElseThrow();
+        assertThat(inbound.getDepartureAirport()).isEqualTo("KIX");
+        assertThat(inbound.getArrivalAirport()).isEqualTo("ICN");
+        assertThat(inbound.getFlightNumber()).isEqualTo("KE724");
+    }
+
+    @Test
+    void processCreatesDeterministicAccommodationCardAndDropsAiAccommodationCards() {
+        UUID tripId = UUID.randomUUID();
+        String accJson = "[{\"name\":\"호텔 그란비아 오사카\",\"location\":\"오사카\",\"check_in\":\"2026-07-01\",\"check_out\":\"2026-07-03\"}]";
+        DumpJob job = DumpJob.create(tripId, "오사카 3박4일 여행입니다.", null, null, accJson);
+        Trip trip = new Trip((short) 4, (short) 2);
+        TripDestination destination = new TripDestination(trip, "오사카", (short) 0);
+
+        AiPlaceCardDto aiAccommodation = new AiPlaceCardDto(
+                null, "AI가만든숙소", "accommodation", "confirmed", "ready_partial",
+                false, false, null, null, "오사카",
+                null, null, null, null, null, List.of(), null, List.of(),
+                "2026-07-01", "2026-07-03", null, null, null);
+        AiParseResponse response = new AiParseResponse(
+                List.of(placeCard("도톤보리"), aiAccommodation), "요약", List.of(), "3.2.0");
+
+        stubProcess(job, trip, destination, response);
+
+        dumpAsyncProcessor.process(job.getJobId());
+
+        List<PlaceCard> saved = captureSavedCards();
+        List<PlaceCard> accommodations = saved.stream()
+                .filter(c -> "accommodation".equals(c.getCategory())).toList();
+        assertThat(accommodations).hasSize(1);
+        assertThat(saved).extracting(PlaceCard::getName).doesNotContain("AI가만든숙소");
+
+        PlaceCard acc = accommodations.get(0);
+        assertThat(acc.getName()).isEqualTo("호텔 그란비아 오사카");
+        assertThat(acc.getLocation()).isEqualTo("오사카");
+        assertThat(acc.getCheckIn()).isEqualTo("2026-07-01");
+        assertThat(acc.getCheckOut()).isEqualTo("2026-07-03");
+        assertThat(acc.getSource()).isEqualTo("user_input");
+    }
+
+    @Test
+    void processExcludesDeterministicFlightCardsFromEnrichmentButKeepsAccommodation() {
+        UUID tripId = UUID.randomUUID();
+        String depJson = "{\"departure_airport\":\"ICN\",\"arrival_airport\":\"KIX\",\"flight_number\":\"KE723\",\"datetime\":\"2026-07-01T09:00:00+09:00\"}";
+        String accJson = "[{\"name\":\"호텔 그란비아 오사카\",\"location\":\"오사카\",\"check_in\":\"2026-07-01\",\"check_out\":\"2026-07-03\"}]";
+        DumpJob job = DumpJob.create(tripId, "오사카 3박4일 여행입니다.", depJson, null, accJson);
+        Trip trip = new Trip((short) 4, (short) 2);
+        TripDestination destination = new TripDestination(trip, "오사카", (short) 0);
+
+        AiParseResponse response = new AiParseResponse(
+                List.of(placeCard("도톤보리")), "요약", List.of(), "3.2.0");
+
+        stubProcess(job, trip, destination, response);
+
+        dumpAsyncProcessor.process(job.getJobId());
+
+        // 저장 카드 = place 1 + 결정론 항공 1 + 결정론 숙박 1 = 3
+        assertThat(captureSavedCards()).hasSize(3);
+
+        // enrichment 큐 = place + 숙박 (결정론 항공은 제외) = 2
+        ArgumentCaptor<List<EnrichmentOutbox>> outboxCaptor = ArgumentCaptor.forClass(List.class);
+        verify(enrichmentOutboxRepository).saveAll(outboxCaptor.capture());
+        assertThat(outboxCaptor.getValue()).hasSize(2);
+    }
+
+    private void stubProcess(DumpJob job, Trip trip, TripDestination destination, AiParseResponse response) {
+        when(dumpJobRepository.findById(job.getJobId())).thenReturn(Optional.of(job));
+        when(dumpJobRepository.save(any(DumpJob.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(tripRepository.findById(job.getTripId())).thenReturn(Optional.of(trip));
+        when(tripDestinationRepository.findByTripTripIdOrderBySortOrder(job.getTripId()))
+                .thenReturn(List.of(destination));
+        when(aiEngineClient.parseDump(any())).thenReturn(response);
+        when(placeCardRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<PlaceCard> captureSavedCards() {
+        ArgumentCaptor<List<PlaceCard>> captor = ArgumentCaptor.forClass(List.class);
+        verify(placeCardRepository).saveAll(captor.capture());
+        return captor.getValue();
+    }
+
+    private static AiPlaceCardDto placeCard(String name) {
+        return new AiPlaceCardDto(
+                "place-1", name, "place", "confirmed", "ready_partial",
+                false, false, (short) 90, new AiPlaceCardDto.Coordinates(34.6687, 135.5013), "오사카 중앙구",
+                null, null, null, null, null, null, null, List.of(), null, null, null);
+    }
 }

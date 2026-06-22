@@ -146,6 +146,12 @@ public class PlaceCard {
     @Column(name = "flight_role")
     private String flightRole;
 
+    @Column(name = "departure_airport")
+    private String departureAirport;
+
+    @Column(name = "arrival_airport")
+    private String arrivalAirport;
+
     @Column(name = "search_alias", columnDefinition = "text")
     private String searchAlias;
 
@@ -189,6 +195,91 @@ public class PlaceCard {
         card.flightNumber = trimToNull(flightNumber);
         card.source = "manual";
         return card;
+    }
+
+    /**
+     * 덤프 제출 시 구조화 입력으로 받은 항공편을 그대로 transport 카드로 영속한다.
+     * AI 받아적기에 의존하지 않고 입력값(편명/시간/공항/방향)을 결정론적으로 보존한다.
+     * 좌표가 필요 없는 교통 카드이므로 enrichment 대상에서 제외된다(processingStatus=completed).
+     */
+    public static PlaceCard createFlightCard(
+            UUID tripId,
+            String flightNumber,
+            String flightDatetime,
+            String flightRole,
+            String departureAirport,
+            String arrivalAirport
+    ) {
+        PlaceCard card = new PlaceCard();
+        card.tripId = tripId;
+        card.flightNumber = trimToNull(flightNumber);
+        card.flightDatetime = normalizeFlightDatetime(flightDatetime);
+        card.flightRole = normalizeFlightRole(flightRole);
+        card.departureAirport = trimToNull(departureAirport);
+        card.arrivalAirport = trimToNull(arrivalAirport);
+        card.name = buildFlightName(card.flightNumber, card.departureAirport, card.arrivalAirport, card.flightRole);
+        card.category = "transport";
+        card.classification = "confirmed";
+        card.placementStatus = "ready_partial";
+        card.processingStatus = "completed";
+        card.actionType = computeActionType(card.classification, card.placementStatus);
+        card.canExclude = false;
+        card.allowDuplicate = true;
+        card.isExcluded = false;
+        card.isAiGenerated = false;
+        card.pendingReorder = false;
+        card.source = "user_input";
+        return card;
+    }
+
+    /**
+     * 덤프 제출 시 구조화 입력으로 받은 숙소를 그대로 accommodation 카드로 영속한다.
+     * 체크인/체크아웃/이름/위치를 결정론적으로 보존한다. 좌표 확보를 위해 enrichment 대상이며,
+     * enrichment 는 AI 가 null 을 주면 기존 값을 보존하므로 입력한 체크인/아웃이 덮어써지지 않는다.
+     */
+    public static PlaceCard createAccommodationCard(
+            UUID tripId,
+            String name,
+            String location,
+            String checkIn,
+            String checkOut
+    ) {
+        PlaceCard card = new PlaceCard();
+        card.tripId = tripId;
+        card.name = defaultString(name, "숙소");
+        card.location = trimToNull(location);
+        card.checkIn = trimToNull(checkIn);
+        card.checkOut = trimToNull(checkOut);
+        card.category = "accommodation";
+        card.classification = "confirmed";
+        card.placementStatus = "ready_partial";
+        card.processingStatus = "pending";
+        card.actionType = computeActionType(card.classification, card.placementStatus);
+        card.canExclude = false;
+        card.allowDuplicate = true;
+        card.isExcluded = false;
+        card.isAiGenerated = false;
+        card.pendingReorder = false;
+        card.source = "user_input";
+        return card;
+    }
+
+    private static String buildFlightName(
+            String flightNumber, String departureAirport, String arrivalAirport, String flightRole) {
+        if (departureAirport != null && arrivalAirport != null) {
+            return departureAirport + " → " + arrivalAirport;
+        }
+        String label = "inbound".equals(flightRole) ? "귀국편" : "출발편";
+        if (flightNumber != null) {
+            return flightNumber + " " + label;
+        }
+        if (departureAirport != null) {
+            return departureAirport + " " + label;
+        }
+        if (arrivalAirport != null) {
+            return arrivalAirport + " " + label;
+        }
+        return label;
     }
 
     public void changeClassification(String newClassification) {
