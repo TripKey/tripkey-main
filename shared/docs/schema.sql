@@ -166,3 +166,15 @@ create table if not exists public.route_legs_cache (
   created_at       timestamptz not null default now(),
   constraint uq_route_legs unique (origin_lat, origin_lng, dest_lat, dest_lng)
 );
+
+-- SCR-05 확정 일정 요약 Snapshot
+-- 기존 parse/enrichment alert_cards 와 분리된 확정 화면 전용 저장본
+create table if not exists public.confirm_summaries (
+  trip_id          uuid        primary key references public.trips(trip_id),
+  status           text        not null,                       -- completed | pending | fallback | failed
+  generation_mode  text        not null,                       -- rule_based | ai | mixed
+  summary_json     jsonb       not null,                       -- SCR-05 내부 Snapshot payload
+  generated_at     timestamptz,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now()
+);

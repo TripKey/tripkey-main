@@ -7,6 +7,7 @@ import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentResponse;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -19,6 +20,7 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "app.role", havingValue = "ai-worker", matchIfMissing = true)
 public class EnrichmentSqsListener {
 
     private final AiEngineClient aiEngineClient;

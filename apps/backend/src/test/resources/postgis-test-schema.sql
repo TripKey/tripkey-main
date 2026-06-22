@@ -137,3 +137,13 @@ create table route_legs_cache (
   created_at       timestamptz not null default now(),
   constraint uq_route_legs unique (origin_lat, origin_lng, dest_lat, dest_lng)
 );
+
+create table confirm_summaries (
+  trip_id          uuid        primary key references trips(trip_id),
+  status           text        not null,
+  generation_mode  text        not null,
+  summary_json     jsonb       not null,
+  generated_at     timestamptz,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now()
+);
