@@ -156,22 +156,35 @@ const attentionLabel = (card: Card): string => {
 const attentionGuide = (card: Card): string => {
   const name = card.name?.trim() || '이 카드';
   if (card.processing_status === 'failed') {
-    return `'${name}' 카드는 처리 중 문제가 생겨 일정에 배치할 수 없어요.\n\n정리 화면에서 카드를 열어 장소 정보를 다시 입력한 뒤 시도해 주세요.`;
+    return `'${name}' 카드는 처리 중 문제가 생겨 일정에 배치할 수 없어요.\n\n아래에 장소명·주소 등 장소 정보를 다시 입력한 뒤 확인해 주세요.`;
   }
   if (card.placement_status === 'needs_input') {
-    return `'${name}' 카드는 배치에 필요한 정보가 부족해요.\n\n정리 화면에서 카드를 열어 빠진 정보를 입력해 주세요.`;
+    return `'${name}' 카드는 배치에 필요한 정보가 부족해요.\n\n아래에 빠진 장소명·주소를 입력한 뒤 확인해 주세요.`;
   }
   if (card.placement_status === 'blocked') {
-    return `'${name}' 카드는 먼저 확인이 필요해요.\n\n정리 화면에서 카드 내용을 확인·정리한 뒤 다시 배치해 주세요.`;
+    return `'${name}' 카드는 먼저 확인이 필요해요.\n\n카드 내용을 확인·정리한 뒤 다시 배치해 주세요.`;
   }
   // 좌표(지도 위치)가 없어 배치 불가인 케이스. placement_status 추론 대신
   // API 가 내려주는 coordinates 로 직접 판정한다(ready/ready_partial 모두 포함).
   if (card.coordinates == null) {
-    return `'${name}' 카드는 지도 위치를 찾지 못해 일정에 배치할 수 없어요.\n\n정리 화면에서 카드를 열어 장소명·주소를 더 정확히 입력한 뒤 다시 시도해 주세요.`;
+    return `'${name}' 카드는 지도 위치를 찾지 못해 일정에 배치할 수 없어요.\n\n아래에 장소명·주소를 더 정확히 입력한 뒤 확인해 주세요.`;
   }
   // 위 어느 사유에도 해당하지 않는 경우(정상 동작 시 도달하지 않음) — 일반 안내.
-  return `'${name}' 카드는 아직 일정에 배치할 수 없어요.\n\n정리 화면에서 카드 상태를 확인해 주세요.`;
+  return `'${name}' 카드는 아직 일정에 배치할 수 없어요.\n\n카드 상태를 확인해 주세요.`;
 };
+
+/**
+ * BE canStartNaturalLanguageParsingFromNotes(PlaceCard.java:259-263) 미러링.
+ * notes 보완 입력으로 카드 레벨 AI 재파싱(self-heal)을 트리거할 수 있는 카드인지 판정한다.
+ *  - undecided && (needs_input | ready_partial)
+ *  - failed && classification != open_question
+ */
+const canResolveByNotes = (card: Card): boolean =>
+  (card.classification === 'undecided' &&
+    (card.placement_status === 'needs_input' ||
+      card.placement_status === 'ready_partial')) ||
+  (card.processing_status === 'failed' &&
+    card.classification !== 'open_question');
 
 const flightLabel = (card: Card): string | undefined => {
   const date = parseDate(card.flight_datetime);
@@ -200,6 +213,7 @@ const cardToDetail = (card: Card): ArrangeCardDetailViewModel => ({
   userIntent: card.user_context ?? undefined,
   aiHint: card.tips ?? card.blocked_reason ?? undefined,
   memo: card.memo ?? '',
+  notes: card.notes ?? '',
 });
 
 /** 좌측 목록의 배치 가능 카드(드래그 가능). add 응답 등에서도 재사용한다. */
@@ -232,7 +246,11 @@ const cardToAttentionCard = (
     accent: kind === 'excluded' ? 'muted' : 'red',
     badges: [...buildBadges(card), statusBadge],
     draggable: false,
-    detail: cardToDetail(card),
+    // 처리필요 카드만 notes 재파싱(self-heal) 가능 플래그를 채운다. 제외 카드는 해결 대상이 아니다.
+    detail:
+      kind === 'unavailable'
+        ? { ...cardToDetail(card), canResolveByNotes: canResolveByNotes(card) }
+        : cardToDetail(card),
     // 제외 카드는 의도적으로 뺀 항목이므로 안내하지 않는다.
     actionGuide: kind === 'unavailable' ? attentionGuide(card) : undefined,
   };

@@ -39,6 +39,7 @@ import type {
 import type { RouteWarning } from '@/types/arrange-api';
 import type { ArrangeDragPayload } from '@/utils/arrange-dnd';
 
+import { fetchGroups04 } from '../utils/arrange-api';
 import {
   buildPlacementRequest,
   cardToStockCard,
@@ -50,12 +51,17 @@ import {
   useCalendarStore,
   formatDateRangeLabel,
 } from '../utils/calendar-store';
-import { parseGroupingApiError } from '../utils/grouping-api';
+import { fetchCards, parseGroupingApiError } from '../utils/grouping-api';
 import { toCardAddRequest } from '../utils/grouping-mapper';
 import { useOnboardingStore } from '../utils/onboarding-store';
 
 // 직접 추가한 카드가 모이는 좌측 그룹(첫 추가 시 생성).
 const ADDED_GROUP_ID = 'added';
+
+// 처리필요 카드 해결(재파싱) 후 processing 이 풀릴 때까지의 폴링 주기/타임아웃.
+// 정리 화면(GroupingPage)의 pollUntilCardSettled 와 동일한 값.
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 30000;
 
 // 좌측 목록 카드 → Day 보드에 배치되는 일정 카드로 변환(로컬 드래그앤드롭용).
 const toScheduledCard = (
@@ -184,6 +190,9 @@ const ArrangePage = () => {
     null
   );
   const [detailOpen, setDetailOpen] = useState(false);
+  // 처리필요 카드 해결(notes 재파싱) 상태: 재처리 진행 중 / 실패·미해결 안내.
+  const [resolving, setResolving] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
   const [addCardOpen, setAddCardOpen] = useState(false);
   const [routeWarnings, setRouteWarnings] = useState<RouteWarning[] | null>(
     null
@@ -191,6 +200,19 @@ const ArrangePage = () => {
   const [notice, setNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+
+  // 진행 중인 재처리 폴링 취소 핸들. 카드 전환/언마운트 시 정리한다.
+  const resolvePollRef = useRef<(() => void) | null>(null);
+  // 폴링 콜백(비동기)이 최신 보드/패널 상태를 읽도록 ref 로 보관한다.
+  const daysRef = useRef<DayColumnViewModel[]>([]);
+  const detailCardIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    daysRef.current = days;
+  }, [days]);
+  useEffect(() => {
+    detailCardIdRef.current = detailCard?.id ?? null;
+  }, [detailCard]);
+  useEffect(() => () => resolvePollRef.current?.(), [tripId]);
 
   // 좌측 패널 카운트(전체/미배치)는 현재 상태에서 파생한다.
   const remainingCards = groups.reduce(
@@ -202,10 +224,11 @@ const ArrangePage = () => {
     .filter((card) => card.draggable !== false).length;
 
   const openCardDetail = (card: ArrangeCardViewModel) => {
-    // "처리가 필요한 카드"(배치 불가)는 사용자가 무엇을 해야 하는지 먼저 브라우저 알림으로 안내한다.
-    if (card.actionGuide) {
-      window.alert(card.actionGuide);
-    }
+    // 처리필요 카드도 alert 로 끝내지 않고, 해결 패널을 그대로 열어 인플레이스로 해결한다.
+    // (안내 문구 card.actionGuide 는 패널 안에서 표시)
+    resolvePollRef.current?.();
+    setResolving(false);
+    setResolveError(null);
     setDetailCard(card);
     setDetailOpen(true);
   };
@@ -410,6 +433,106 @@ const ArrangePage = () => {
     } catch (error) {
       setActionError(errorMessageOf(error, '메모 저장에 실패했습니다.'));
     }
+  };
+
+  // 좌측 그룹을 서버 최신(groups04)으로 다시 그린다.
+  // 단, 우측 보드에 배치(로컬·미저장)된 카드는 좌측에 다시 나타나지 않도록 제외해
+  // "mutation 후 query invalidate 안 함" 불변식(미저장 배치 보존)을 깨지 않는다.
+  const refreshLeftGroupsPreservingBoard = async (): Promise<{
+    groups: ArrangeCardGroup[];
+    unavailableIds: Set<string>;
+  } | null> => {
+    if (!tripId) return null;
+    const [groupsRes, cardsRes] = await Promise.all([
+      fetchGroups04(tripId),
+      fetchCards(tripId),
+    ]);
+    const placedIds = new Set(
+      daysRef.current.flatMap((day) => day.cards.map((card) => card.id))
+    );
+    const fresh = mapToArrangeViewModel(groupsRes, cardsRes, meta).groups.map(
+      (group) => ({
+        ...group,
+        cards: group.cards.filter((card) => !placedIds.has(card.id)),
+      })
+    );
+    setGroups(fresh);
+    return {
+      groups: fresh,
+      unavailableIds: new Set(groupsRes.unavailable.map((c) => c.instance_id)),
+    };
+  };
+
+  // 처리필요 카드 해결 — 자연어(notes) 보완 입력으로 카드 레벨 AI 재파싱을 트리거하고,
+  // 재처리(processing)가 끝날 때까지 폴링한 뒤 결과를 좌측 목록에 반영한다.
+  // 성공(배치 가능 승격) → 패널 닫기 / 미해결·타임아웃 → 패널 유지(재시도 가능).
+  const handleResolveByNotes = async (notes: string) => {
+    if (!tripId || !detailCard) return;
+    const instanceId = detailCard.id;
+    setResolveError(null);
+    setResolving(true);
+    resolvePollRef.current?.();
+
+    try {
+      await patchCardMutation.mutateAsync({
+        instanceId,
+        payload: { notes },
+      });
+    } catch (error) {
+      setResolving(false);
+      setResolveError(errorMessageOf(error, '재처리 요청에 실패했습니다.'));
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    resolvePollRef.current = () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+    const startedAt = Date.now();
+
+    // 폴링 종료 처리: 좌측 목록을 갱신하고, 승격 여부에 따라 패널을 닫거나 재시도 안내를 띄운다.
+    const settle = async (timedOut: boolean) => {
+      const result = await refreshLeftGroupsPreservingBoard().catch(() => null);
+      if (cancelled) return;
+      setResolving(false);
+      const promoted = result != null && !result.unavailableIds.has(instanceId);
+      if (promoted) {
+        setNotice('카드가 배치 가능 목록으로 이동했어요.');
+        // 패널이 아직 이 카드를 보여주는 중일 때만 닫는다.
+        if (detailCardIdRef.current === instanceId) setDetailOpen(false);
+        return;
+      }
+      // 아직 해결 안 됨 — 패널을 열어둔 채 최신 카드 상태로 갱신해 다시 시도할 수 있게 한다.
+      if (detailCardIdRef.current === instanceId) {
+        const refreshed = result?.groups
+          .flatMap((group) => group.cards)
+          .find((card) => card.id === instanceId);
+        if (refreshed) setDetailCard(refreshed);
+        setResolveError(
+          timedOut
+            ? '재처리가 시간 내에 끝나지 않았어요. 잠시 후 다시 시도해 주세요.'
+            : '아직 배치할 수 없어요. 장소명·주소를 더 정확히 입력해 다시 시도해 주세요.'
+        );
+      }
+    };
+
+    const tick = async () => {
+      if (cancelled) return;
+      try {
+        const cardsRes = await fetchCards(tripId);
+        if (cancelled) return;
+        const card = cardsRes.cards.find((c) => c.instance_id === instanceId);
+        const done = !card || card.processing_status !== 'processing';
+        if (done) return void settle(false);
+      } catch {
+        // 일시적 조회 실패는 다음 tick 에서 재시도(타임아웃 내라면).
+      }
+      if (Date.now() - startedAt > POLL_TIMEOUT_MS) return void settle(true);
+      if (!cancelled) timer = setTimeout(tick, POLL_INTERVAL_MS);
+    };
+    timer = setTimeout(tick, POLL_INTERVAL_MS);
   };
 
   // 정리 반영 — POST /groups/reorder. "재정렬이 필요한 카드"를 클러스터로 재편입한 뒤
@@ -671,6 +794,9 @@ const ArrangePage = () => {
         onOpenChange={setDetailOpen}
         card={detailCard}
         onSaveMemo={handleSaveMemo}
+        onResolveByNotes={handleResolveByNotes}
+        resolving={resolving}
+        resolveError={resolveError}
       />
 
       {/* "카드 추가하기" 모달 — 정리 화면(SCR-03)의 AddCardModal 재사용 */}
