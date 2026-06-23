@@ -186,6 +186,21 @@ const canResolveByNotes = (card: Card): boolean =>
   (card.processing_status === 'failed' &&
     card.classification !== 'open_question');
 
+/**
+ * 좌표(지도 위치)만 없을 뿐, 그 외에는 배치 가능한 카드인지 판정한다.
+ * 백엔드 GroupService.getGroups04 의 버킷 순서를 그대로 미러링한다:
+ * blocked/needs_input/failed 가 아니면서 geom 만 null 이라 unavailable 로 분류된 케이스.
+ *
+ * 기획상 위치/좌표 없음은 자동 묶기·동선 검증의 제약 사유일 뿐, 사용자가 Day 에
+ * 직접 올려 확인하는 행위 자체를 막는 사유는 아니다. 이런 카드는 드래그 가능한
+ * 스톡 카드("위치 확인 필요" 배지)로 노출한다. (needs_input 은 PRD 상 배치 불가이므로 제외)
+ */
+const isPlaceableDespiteMissingLocation = (card: Card): boolean =>
+  card.coordinates == null &&
+  card.placement_status !== 'needs_input' &&
+  card.placement_status !== 'blocked' &&
+  card.processing_status !== 'failed';
+
 const flightLabel = (card: Card): string | undefined => {
   const date = parseDate(card.flight_datetime);
   const time = fmtTime(card.flight_datetime);
@@ -360,8 +375,25 @@ export const mapToArrangeViewModel = (
     });
   }
 
-  const unavailable = groups04.unavailable
-    .filter(isUnplaced)
+  // 백엔드 unavailable 은 (a) 좌표만 없는 배치 가능 카드와 (b) 입력·확인이 필요한
+  // 진짜 처리 필요 카드가 섞여 있다. (a)는 드래그 가능한 스톡 카드로, (b)는 기존대로
+  // 드래그 불가 안내 카드로 분리한다.
+  const unavailableCards = groups04.unavailable.filter(isUnplaced);
+
+  const placeableNoLocation = unavailableCards
+    .filter(isPlaceableDespiteMissingLocation)
+    .map(cardToStockCard);
+  if (placeableNoLocation.length > 0) {
+    groups.push({
+      id: 'needs-location',
+      title: '위치 확인이 필요한 카드',
+      description: '지도 위치만 아직 없어요. 직접 Day에 올려 확인할 수 있어요.',
+      cards: placeableNoLocation,
+    });
+  }
+
+  const unavailable = unavailableCards
+    .filter((card) => !isPlaceableDespiteMissingLocation(card))
     .map((card) => cardToAttentionCard(card, 'unavailable'));
   if (unavailable.length > 0) {
     groups.push({

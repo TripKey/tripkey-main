@@ -562,6 +562,32 @@ const ArrangePage = () => {
     }
   };
 
+  // 배치된 카드 중 좌표(지도 위치)가 없는 카드에 대한 안내 경고를 합성한다.
+  // 백엔드 RouteValidator 는 geom 이 null 인 카드를 거리 검증에서 조용히 제외하고
+  // 경고를 내려주지 않으므로(배치 자체는 허용), FE 가 검증 흐름에서 보완 안내한다.
+  const buildMissingLocationWarnings = (): RouteWarning[] => {
+    const noCoordsNames = new Map(
+      (cardsQuery.data?.cards ?? [])
+        .filter((card) => card.coordinates == null)
+        .map((card) => [card.instance_id, card.name])
+    );
+    const warnings: RouteWarning[] = [];
+    days.forEach((day, index) => {
+      day.cards.forEach((card) => {
+        if (!noCoordsNames.has(card.id)) return;
+        warnings.push({
+          type: 'missing_location',
+          day: index + 1,
+          instance_ids: [card.id],
+          message: `'${noCoordsNames.get(card.id) ?? card.name}' 카드는 위치 정보가 없어 거리 검증에서 제외됐어요. 정확한 장소를 확인해 주세요.`,
+          distance_meters: null,
+          total_minutes: null,
+        });
+      });
+    });
+    return warnings;
+  };
+
   // 동선 검증 — POST /verify. 경고 목록을 배너로 표시.
   const handleVerify = async () => {
     if (!tripId) return;
@@ -571,11 +597,13 @@ const ArrangePage = () => {
       const result = await verifyMutation.mutateAsync(
         buildPlacementRequest(days, durationByInstance)
       );
-      setRouteWarnings(result.route_warnings);
+      const warnings = [
+        ...result.route_warnings,
+        ...buildMissingLocationWarnings(),
+      ];
+      setRouteWarnings(warnings);
       setNotice(
-        result.route_warnings.length === 0
-          ? '동선 문제가 발견되지 않았어요.'
-          : null
+        warnings.length === 0 ? '동선 문제가 발견되지 않았어요.' : null
       );
     } catch (error) {
       setActionError(errorMessageOf(error, '동선 검증에 실패했습니다.'));
@@ -591,7 +619,10 @@ const ArrangePage = () => {
       const result = await confirmMutation.mutateAsync(
         buildPlacementRequest(days, durationByInstance)
       );
-      setRouteWarnings(result.route_warnings);
+      setRouteWarnings([
+        ...result.route_warnings,
+        ...buildMissingLocationWarnings(),
+      ]);
       setConfirmed(true);
       setNotice('일정이 확정되었습니다.');
     } catch (error) {
