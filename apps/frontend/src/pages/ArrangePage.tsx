@@ -11,7 +11,7 @@
 import { format } from 'date-fns';
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import ArrangeCardDetailPanel from '@/components/arrange/ArrangeCardDetailPanel';
 import CardListPanel from '@/components/arrange/CardListPanel';
@@ -97,6 +97,7 @@ const errorMessageOf = (error: unknown, fallback: string): string => {
 };
 
 const ArrangePage = () => {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const urlTripId = searchParams.get('tripId');
   const storeTripId = useOnboardingStore((s) => s.tripId);
@@ -625,6 +626,8 @@ const ArrangePage = () => {
       ]);
       setConfirmed(true);
       setNotice('일정이 확정되었습니다.');
+      // 확정 성공 → SCR-05(확정 전 최종 점검) 화면으로 이동.
+      navigate(`/confirm${tripId ? `?tripId=${tripId}` : ''}`);
     } catch (error) {
       setActionError(errorMessageOf(error, '일정 확정에 실패했습니다.'));
     }
