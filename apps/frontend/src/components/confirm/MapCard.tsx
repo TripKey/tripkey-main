@@ -99,6 +99,9 @@ const MapCard = ({ markers }: MapCardProps) => {
           gestureHandling="cooperative"
           mapId="tripkey-confirm-map"
           style={{ width: '100%', height: '360px' }}
+          disableDefaultUI
+          zoomControl
+          clickableIcons={false}
         >
           {markers.map((m) => {
             const isTransport = m.category === 'transport';
