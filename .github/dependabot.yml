@@ -1,0 +1,107 @@
+version: 2
+updates:
+    #Frontend npm dependencies
+  - package-ecosystem: "npm"
+    directory: "/apps/frontend"
+    schedule:
+      interval: "weekly" #Check for updates every week
+    open-pull-requests-limit: 0 #Disable normal version updates to focus on security updates
+    groups:
+      frontend-security:
+        applies-to: security-updates # Group only security updates together
+        patterns:
+          - "*" # Apply to all security updates
+    labels:
+      - "type: chore"
+      - "area: frontend"
+
+    #Backend Gradle dependencies
+  - package-ecosystem: "gradle"
+    directory: "/apps/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      backend-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    labels:
+      - "type: chore"
+      - "area: backend"
+
+    #AI Engine pip dependencies
+  - package-ecosystem: "pip"
+    directory: "/apps/ai-engine"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      ai-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    labels:
+      - "type: chore"
+      - "area: ai"
+
+    #GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    labels:
+      - "type: chore"
+      - "area: infra"
+
+    #Docker dependencies for all services
+  - package-ecosystem: "docker"
+    directory: "/apps/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      frontend-docker-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    labels:
+      - "type: chore"
+      - "area: frontend"
+      - "area: infra"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      backend-docker-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    labels:
+      - "type: chore"
+      - "area: backend"
+      - "area: infra"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/ai-engine"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      ai-docker-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    labels:
+      - "type: chore"
+      - "area: ai"
+      - "area: infra"

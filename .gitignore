@@ -17,6 +17,9 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 
+# --- Claude Code ---
+.playwright-mcp/
+
 
 # --- Language Specific (Monorepo) ---
 
@@ -40,6 +43,7 @@ Thumbs.db
 # Node(React)
 **/node_modules/
 **/dist/
+**/*.tsbuildinfo
 **/.eslintcache
 **/.next/
 **/out/
@@ -48,5 +52,10 @@ Thumbs.db
 **/*.log
 **/docker/data/ # 로컬 DB 대비
 
-# docs
+# docs (schema.sql / migrations 는 예외 — 그 외 내부 문서는 외부 관리)
 docs/
+!shared/docs/
+shared/docs/*
+!shared/docs/schema.sql
+!shared/docs/migrations/
+!shared/docs/migrations/**

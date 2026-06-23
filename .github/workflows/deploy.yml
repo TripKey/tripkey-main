@@ -1,0 +1,134 @@
+name: Deploy to EKS
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-eks-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION }}
+  EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'tripkey-prod' }}
+  K8S_NAMESPACE: tripkey
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Prepare image metadata
+        id: image-meta
+        run: echo "image-tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push frontend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.image-meta.outputs.image-tag }}
+        run: |
+          docker build \
+            --build-arg VITE_API_BASE_URL=/api \
+            -t "$ECR_REGISTRY/tripkey-frontend:$IMAGE_TAG" \
+            -t "$ECR_REGISTRY/tripkey-frontend:latest" \
+            apps/frontend
+          docker push "$ECR_REGISTRY/tripkey-frontend:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/tripkey-frontend:latest"
+
+      - name: Build and push backend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.image-meta.outputs.image-tag }}
+        run: |
+          docker build \
+            -t "$ECR_REGISTRY/tripkey-backend:$IMAGE_TAG" \
+            -t "$ECR_REGISTRY/tripkey-backend:latest" \
+            apps/backend
+          docker push "$ECR_REGISTRY/tripkey-backend:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/tripkey-backend:latest"
+
+      - name: Build and push ai-engine
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.image-meta.outputs.image-tag }}
+        run: |
+          docker build \
+            -t "$ECR_REGISTRY/tripkey-ai-engine:$IMAGE_TAG" \
+            -t "$ECR_REGISTRY/tripkey-ai-engine:latest" \
+            apps/ai-engine
+          docker push "$ECR_REGISTRY/tripkey-ai-engine:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/tripkey-ai-engine:latest"
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region "$AWS_REGION" \
+            --name "$EKS_CLUSTER_NAME"
+
+      - name: Resolve ECR registry
+        id: ecr-meta
+        run: |
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "registry=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> "$GITHUB_OUTPUT"
+
+      - name: Apply Kubernetes manifests
+        run: kubectl apply -k infra/k8s/
+
+      - name: Deploy pushed images
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-meta.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          kubectl -n "$K8S_NAMESPACE" set image deployment/tripkey-frontend \
+            frontend="$ECR_REGISTRY/tripkey-frontend:$IMAGE_TAG"
+
+          kubectl -n "$K8S_NAMESPACE" set image deployment/tripkey-backend \
+            backend="$ECR_REGISTRY/tripkey-backend:$IMAGE_TAG"
+
+          kubectl -n "$K8S_NAMESPACE" set image deployment/tripkey-ai-engine \
+            ai-engine="$ECR_REGISTRY/tripkey-ai-engine:$IMAGE_TAG"
+
+          kubectl -n "$K8S_NAMESPACE" set image deployment/tripkey-ai-worker \
+            ai-worker="$ECR_REGISTRY/tripkey-backend:$IMAGE_TAG"
+
+      - name: Wait for rollout
+        run: |
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/tripkey-frontend --timeout=5m
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/tripkey-backend --timeout=8m
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/tripkey-ai-engine --timeout=8m
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/tripkey-ai-worker --timeout=8m
+
+      - name: Show deployed resources
+        if: always()
+        run: |
+          kubectl -n "$K8S_NAMESPACE" get deploy,pods,svc,ingress,hpa

@@ -60,7 +60,7 @@ docs: 로컬 실행 가이드 업데이트
 ## PR 규칙
 
 - PR 제목은 커밋 컨벤션과 동일한 형식을 사용합니다.
-- PR 본문에 `Closes #이슈번호`를 반드시 포함합니다.
+- PR 본문에 관련 이슈를 반드시 포함합니다. 작업 성격에 따라 `Closes #이슈번호` 또는 `Refs #이슈번호`를 사용합니다.
 - 최소 1명 이상 리뷰 승인 후 merge 합니다.
 - PR 템플릿은 `.github/PULL_REQUEST_TEMPLATE.md`를 사용합니다.
 - PR 범위는 하나의 기능 또는 하나의 목적 단위로 잘라주세요.
@@ -72,7 +72,7 @@ docs: 로컬 실행 가이드 업데이트
 <!-- 변경사항 간단히 설명 -->
 
 ## 관련 이슈
-Closes #
+Closes # 또는 Refs #
 
 ## 변경 범위
 - [ ] Frontend
@@ -126,15 +126,15 @@ cp apps/ai-engine/.env.example apps/ai-engine/.env
 ### 전체 서비스 실행
 
 ```bash
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
 ### 개별 서비스 실행
 
 ```bash
-docker compose up frontend
-docker compose up backend
-docker compose up ai-engine
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up frontend
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up backend
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up ai-engine
 ```
 
 ### 개별 앱 로컬 실행
@@ -145,10 +145,55 @@ cd apps/backend && ./gradlew bootRun
 cd apps/ai-engine && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+### Frontend lint
+
+```bash
+cd apps/frontend
+npm run lint
+npm run lint:fix
+```
+
+- `npm run lint`: 프론트엔드 lint 규칙 검사
+- `npm run lint:fix`: 자동 수정 가능한 항목 정리
+- 초기 도입 단계이므로 warning 중심으로 운영하며, 추후 점진적으로 강화할 수 있습니다.
+
 ### 동작 확인
 
 - Frontend: `http://localhost:3000`
 - Backend: `http://localhost:8080` 접속 시 404가 보여도 서버가 떠 있으면 정상입니다.
-- AI Engine: `docker compose logs --tail=50 ai-engine` 또는 컨테이너 내부 `/health`로 확인합니다.
+- AI Engine: `docker compose -f docker-compose.yml -f docker-compose.dev.yml logs --tail=50 ai-engine` 또는 컨테이너 내부 `/health`로 확인합니다.
+
+---
+
+## Claude Code 개발 도구 (선택)
+
+Claude Code 를 함께 사용하는 팀원을 위한 안내입니다. 사용하지 않으면 건너뛰어도 됩니다.
+
+### MCP 서버
+
+repo 루트의 `.mcp.json` 에 stitch / shadcn / playwright 3종이 등록되어 있어,
+Claude Code 가 이 디렉터리에서 실행되면 자동으로 연결됩니다. 별도 설치는 필요 없습니다.
+
+### Skills
+
+`.claude/skills/shadcn-ui/` 는 repo 에 vendor 되어 있어 자동으로 사용 가능합니다.
+stitch 관련 skill 묶음은 외부 플러그인이라 1회 설치가 필요합니다:
+
+```bash
+# Claude Code 안에서
+/plugin marketplace add https://github.com/gabelul/stitch-kit.git
+/plugin install stitch-kit@stitch-kit
+```
+
+### (선택) ShadcnBlocks 프리미엄 API
+
+shadcn-ui skill 의 프리미엄 블록 기능을 쓰려면 본인 API key 가 필요합니다.
+무료 컴포넌트는 키 없이도 동작합니다.
+
+```bash
+export SHADCNBLOCKS_API_KEY=...
+```
+
+또는 1Password CLI (`op`) 를 쓰는 경우 `OP_SHADCNBLOCKS_REF` 환경변수로 reference path 를 지정합니다.
 
 ---

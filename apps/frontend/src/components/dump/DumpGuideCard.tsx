@@ -1,0 +1,71 @@
+import { ChevronDown, Home, Plane } from 'lucide-react';
+import { useState } from 'react';
+
+import './DumpGuideCard.css';
+import DumpFlightInfo from './DumpFlightInfo';
+import DumpHotelInfo from './DumpHotelInfo';
+
+const DumpGuideCard = () => {
+  const [openFlight, setOpenFlight] = useState(false);
+  const [openReservation, setOpenReservation] = useState(false);
+
+  return (
+    <div className="dump-guide-card">
+      <div className="dump-guide-header">
+        <h2 className="dump-guide-title">보조 정보 (선택)</h2>
+        <p className="dump-guide-description">이메일 연동 기능 구현 예정</p>
+      </div>
+
+      <div className="dump-guide-list">
+        <button
+          type="button"
+          className="dump-guide-item"
+          onClick={() => setOpenFlight((prev) => !prev)}
+        >
+          <span className="dump-guide-item__icon dump-guide-item__icon--flight">
+            <Plane size={16} />
+          </span>
+          <span className="dump-guide-item__label">
+            항공편 정보{' '}
+            <span className="dump-guide-item__optional">(선택)</span>
+          </span>
+          <ChevronDown
+            className="dump-guide-item__chevron"
+            data-open={openFlight}
+            size={18}
+          />
+        </button>
+        {openFlight && (
+          <div className="dump-guide-item__content">
+            <DumpFlightInfo />
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="dump-guide-item"
+          onClick={() => setOpenReservation((prev) => !prev)}
+        >
+          <span className="dump-guide-item__icon dump-guide-item__icon--reservation">
+            <Home size={16} />
+          </span>
+          <span className="dump-guide-item__label">
+            숙박 정보 <span className="dump-guide-item__optional">(선택)</span>
+          </span>
+          <ChevronDown
+            className="dump-guide-item__chevron"
+            data-open={openReservation}
+            size={18}
+          />
+        </button>
+        {openReservation && (
+          <div className="dump-guide-item__content">
+            <DumpHotelInfo />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default DumpGuideCard;

@@ -1,0 +1,17 @@
+.onboarding-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.onboarding-form__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333333;
+}
+
+.onboarding-form__subtitle {
+  font-size: 12px;
+  color: #aaaaaa;
+  margin-top: -4px;
+}
