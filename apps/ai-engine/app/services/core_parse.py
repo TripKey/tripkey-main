@@ -221,6 +221,7 @@ def _parse_cards(raw_cards: list[dict]) -> list[ParsedCard]:
     for index, raw_card in enumerate(raw_cards):
         try:
             normalized_card = _ensure_card_name(raw_card)
+            normalized_card = _normalize_generic_open_question(normalized_card)
             cards.append(ParsedCard.model_validate(normalized_card))
         except Exception as exc:
             logger.warning("Skipping invalid card at index=%d | error=%s | raw=%s", index, exc, raw_card)
@@ -243,6 +244,89 @@ def _normalize_for_match(value: str | None) -> str:
     if not value:
         return ""
     return re.sub(r"[^0-9a-zA-Z가-힣ぁ-ゔァ-ヴー々〆〤一-龥]", "", value).lower()
+
+
+GENERIC_RECOMMENDATION_TERMS = {
+    "attractions",
+    "activities",
+    "cafes",
+    "coffee",
+    "dining",
+    "food",
+    "foods",
+    "landmarks",
+    "markets",
+    "museums",
+    "nightlife",
+    "restaurants",
+    "shopping",
+    "sightseeing",
+    "things to do",
+    "tours",
+    "관광",
+    "관광지",
+    "랜드마크",
+    "맛집",
+    "먹거리",
+    "미식",
+    "박물관",
+    "쇼핑",
+    "시장",
+    "야경",
+    "액티비티",
+    "음식",
+    "음식점",
+    "주요 관광지",
+    "체험",
+    "카페",
+    "현지 맛집",
+}
+
+
+def _contains_generic_recommendation_term(value: str | None) -> bool:
+    if not value:
+        return False
+    normalized = re.sub(r"\s+", " ", value.strip().lower())
+    squashed = _normalize_for_match(value)
+    return any(
+        term in normalized or _normalize_for_match(term) in squashed
+        for term in GENERIC_RECOMMENDATION_TERMS
+    )
+
+
+def _is_generic_recommendation_card(card: ParsedCard) -> bool:
+    return (
+        card.is_ai_generated
+        and card.classification == Classification.OPEN_QUESTION
+        and not card.place_id
+        and not card.coordinates
+        and _contains_generic_recommendation_term(card.name)
+    )
+
+
+def _normalize_generic_open_question(raw_card: dict) -> dict:
+    if raw_card.get("classification") != Classification.OPEN_QUESTION.value:
+        return raw_card
+    if raw_card.get("is_ai_generated") is not True:
+        return raw_card
+    if raw_card.get("place_id") or raw_card.get("coordinates"):
+        return raw_card
+    if not _contains_generic_recommendation_term(raw_card.get("name")):
+        return raw_card
+
+    patched = dict(raw_card)
+    patched["classification"] = Classification.UNDECIDED.value
+    if patched.get("options"):
+        patched["placement_status"] = PlacementStatus.READY_PARTIAL.value
+    else:
+        patched["placement_status"] = PlacementStatus.NEEDS_INPUT.value
+        patched["options"] = None
+    patched["question_text"] = patched.get("question_text") or f"{patched.get('name', '장소')} 중 어떤 곳을 원하시나요?"
+    patched["place_id"] = None
+    patched["coordinates"] = None
+    patched["address"] = None
+    logger.info("Normalized generic open_question card to undecided | name=%s", patched.get("name"))
+    return patched
 
 
 def _is_name_match(card: ParsedCard, place_name: str) -> bool:
@@ -508,6 +592,8 @@ async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> Par
     if card.classification == Classification.UNASSIGNED:
         return card
     if card.classification == Classification.UNDECIDED:
+        return card
+    if _is_generic_recommendation_card(card):
         return card
     if card.placement_status == PlacementStatus.NEEDS_INPUT:
         return card

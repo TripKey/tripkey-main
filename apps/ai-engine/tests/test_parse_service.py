@@ -145,6 +145,7 @@ def test_core_parse_prompt_requires_destination_aware_responses() -> None:
     assert "create one undecided card for that requested type" in prompt
     assert "Treat requested recommendation types as user intent" in prompt
     assert "Do not satisfy a requested recommendation type by choosing only one concrete venue" in prompt
+    assert "Generic recommendation/category cards must not be open_question" in prompt
     assert "classification Decision Tree" in prompt
     assert "Day placement alone must not promote it to confirmed" in prompt
     assert "Do not invent aliases for generic category cards or undecided cards" in prompt
@@ -434,6 +435,60 @@ def test_ensure_card_name_infers_from_question_text() -> None:
     assert normalized["name"] == "오코노미야끼 맛집"
 
 
+def test_parse_cards_normalizes_generic_ai_open_question_to_needs_input() -> None:
+    raw_cards = [
+        {
+            "name": "오사카 맛집",
+            "category": "food",
+            "classification": "open_question",
+            "placement_status": "ready_partial",
+            "is_ai_generated": True,
+            "allow_duplicate": False,
+            "estimated_duration_min": 60,
+            "place_id": None,
+            "coordinates": None,
+            "address": None,
+            "question_text": None,
+            "options": None,
+        }
+    ]
+
+    cards = core_parse._parse_cards(raw_cards)
+
+    assert len(cards) == 1
+    assert cards[0].classification == Classification.UNDECIDED
+    assert cards[0].placement_status == PlacementStatus.NEEDS_INPUT
+    assert cards[0].question_text == "오사카 맛집 중 어떤 곳을 원하시나요?"
+    assert cards[0].options is None
+
+
+def test_parse_cards_normalizes_generic_ai_open_question_with_options_to_selectable() -> None:
+    raw_cards = [
+        {
+            "name": "Bangkok restaurants",
+            "category": "food",
+            "classification": "open_question",
+            "placement_status": "ready_partial",
+            "is_ai_generated": True,
+            "allow_duplicate": False,
+            "estimated_duration_min": 60,
+            "place_id": None,
+            "coordinates": None,
+            "address": None,
+            "question_text": None,
+            "options": ["Nai Mong Hoi Thod", "Jay Fai"],
+        }
+    ]
+
+    cards = core_parse._parse_cards(raw_cards)
+
+    assert len(cards) == 1
+    assert cards[0].classification == Classification.UNDECIDED
+    assert cards[0].placement_status == PlacementStatus.READY_PARTIAL
+    assert cards[0].question_text == "Bangkok restaurants 중 어떤 곳을 원하시나요?"
+    assert cards[0].options == ["Nai Mong Hoi Thod", "Jay Fai"]
+
+
 def test_apply_place_match_keeps_original_name() -> None:
     card = ParsedCard(
         name="도톤보리",
@@ -546,6 +601,37 @@ async def test_enrich_card_skips_undecided_lookup() -> None:
             allow_duplicate=False,
             question_text="어떤 스시집에 가시겠어요?",
             options=["스시 다이", "스시잔마이"],
+        )
+
+        updated = await core_parse._enrich_card(card, _request(), "test-key")
+
+        assert updated == card
+        assert called is False
+    finally:
+        core_parse._search_place = original
+
+
+@pytest.mark.asyncio
+async def test_enrich_card_skips_generic_ai_open_question_lookup() -> None:
+    called = False
+
+    async def fake_search_place(
+        query: str, api_key: str, region_code: str | None = None
+    ) -> dict | None:
+        nonlocal called
+        called = True
+        return {"places": []}
+
+    original = core_parse._search_place
+    core_parse._search_place = fake_search_place
+    try:
+        card = ParsedCard(
+            name="Paris attractions",
+            category=Category.PLACE,
+            classification=Classification.OPEN_QUESTION,
+            placement_status=PlacementStatus.READY_PARTIAL,
+            is_ai_generated=True,
+            allow_duplicate=False,
         )
 
         updated = await core_parse._enrich_card(card, _request(), "test-key")
