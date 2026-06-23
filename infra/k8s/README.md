@@ -48,25 +48,38 @@ Route53에서는 `usetripkey.com`의 `A` Alias record가 이 ALB를 바라보도
 
 ## 적용 순서
 
+production:
+
 ```bash
-kubectl apply -k infra/k8s/
+kubectl apply -k infra/k8s/overlays/prod
 ```
+
+staging:
+
+```bash
+kubectl apply -k infra/k8s/overlays/staging
+```
+
+`infra/k8s/` 루트 kustomization은 기존 명령 호환성을 위해 production overlay를 가리킨다. 신규 작업에서는 환경을 명확히 하기 위해 `overlays/prod` 또는 `overlays/staging` 경로를 직접 사용한다.
 
 frontend Nginx 이미지 안에도 `/api` proxy fallback이 남아 있을 수 있지만, EKS 운영 환경의 외부 트래픽은 기본적으로 ALB Ingress에서 먼저 라우팅한다.
 
 ## GitHub Actions 배포
 
-`.github/workflows/deploy.yml`은 `main` branch push 시 ECR 이미지를 build/push한 뒤 EKS production Deployment를 갱신한다.
+`.github/workflows/deploy.yml`은 branch에 따라 ECR 이미지를 build/push한 뒤 EKS Deployment를 갱신한다.
 
 현재 `tripkey-prod` EKS 클러스터와 `usetripkey.com`은 production 환경으로 간주한다. 따라서 production 배포는 `main` 기준으로만 수행한다.
 
 브랜치별 역할:
 
 - `feature/*`: 기능 작업 브랜치. PR을 통해 CI 검증을 받는다.
-- `develop`: 통합 브랜치. 현재는 CI 검증 중심으로 사용하며, production 배포를 수행하지 않는다.
+- `develop`: staging 배포 브랜치. `tripkey-staging` namespace와 `staging.usetripkey.com`에 반영한다.
 - `main`: production 배포 브랜치. `usetripkey.com`에 반영되는 EKS 배포는 이 브랜치 push 기준으로 실행한다.
 
-향후 staging 환경을 구성하면 `develop` push는 staging 배포 트리거로 사용할 수 있다. staging은 같은 EKS 클러스터의 별도 namespace와 `staging.usetripkey.com` 같은 별도 도메인으로 분리하는 방향을 우선 검토한다.
+환경별 배포 대상:
+
+- `develop`: `infra/k8s/overlays/staging`, namespace `tripkey-staging`.
+- `main`: `infra/k8s/overlays/prod`, namespace `tripkey`.
 
 배포 흐름:
 
@@ -97,9 +110,48 @@ frontend Nginx 이미지 안에도 `/api` proxy fallback이 남아 있을 수 �
 
 기존 EC2 SSM 기반 Docker Compose 배포는 더 이상 수행하지 않는다. `usetripkey.com`이 EKS Ingress ALB를 바라보므로, ECR에 이미지를 push하는 것만으로는 실행 중인 EKS Pod가 바뀌지 않는다. 따라서 workflow에서 `kubectl set image`와 `kubectl rollout status`를 실행해 EKS Deployment를 자동 갱신한다.
 
+### production 배포 후 확인
+
+GitHub Actions가 성공하더라도 운영 관점에서는 새 Pod가 `Running`과 `Ready` 상태가 되었는지 별도로 확인한다. `kubectl apply`와 `kubectl set image`가 성공해도, 애플리케이션이 시작되는 과정에서 DB migration 누락, Secret 값 오류, 외부 서비스 연결 문제로 새 Pod가 `CrashLoopBackOff`가 될 수 있다.
+
+production 배포 후에는 최소한 아래 명령을 확인한다.
+
+```bash
+kubectl -n tripkey get deploy
+kubectl -n tripkey get pods
+kubectl -n tripkey get hpa
+curl -i https://usetripkey.com/api/health
+```
+
+Kubernetes Deployment는 새 Pod가 정상 기동하지 못하면 기존 Ready Pod를 가능한 한 유지한다. 따라서 서비스가 계속 응답하더라도 rollout이 완전히 성공한 것은 아닐 수 있다. 새 Pod가 실패하는 경우에는 실패한 Pod를 직접 지정해 로그를 확인한다.
+
+```bash
+kubectl -n tripkey logs pod/<crashloop-pod-name> --tail=150
+```
+
+`kubectl logs deploy/<deployment-name>`은 Deployment에 속한 Pod 중 하나를 선택하므로, 기존 정상 Pod 로그가 보일 수 있다. CrashLoop 원인을 볼 때는 `kubectl get pods`에서 새로 실패한 Pod 이름을 확인한 뒤 직접 조회한다.
+
 ## Secret / ConfigMap 주의사항
 
 `tripkey-config`와 `tripkey-secrets`의 실제 값은 이 디렉터리의 YAML에 커밋하지 않는다. 특히 DB URL, API key, Supabase key는 Kubernetes Secret 또는 별도 Secret 관리 도구에서 주입한다.
+
+production과 staging은 namespace가 다르므로 Secret도 따로 만든다.
+
+- production: namespace `tripkey`, Secret `tripkey-secrets`.
+- staging: namespace `tripkey-staging`, Secret `tripkey-secrets`.
+
+staging overlay는 non-secret 값만 담은 `tripkey-config` ConfigMap을 생성한다. staging Secret에는 기존 dev/staging Supabase DB와 API key를 넣고, production Secret에는 production Supabase DB와 운영 API key를 넣는다.
+
+Supabase 관련 URL은 용도가 다르므로 혼동하지 않는다.
+
+- `SUPABASE_URL`: Supabase API URL. `https://...supabase.co` 형식이다.
+- `SUPABASE_DB_URL`: Spring datasource URL. `jdbc:postgresql://...` 형식이다.
+
+`SUPABASE_DB_URL`에 `https://...supabase.co` 값을 넣으면 PostgreSQL driver가 URL을 인식하지 못해 backend와 ai-worker Pod가 시작되지 않는다.
+
+```text
+Driver org.postgresql.Driver claims to not accept jdbcUrl, https://...supabase.co
+```
 
 Supabase pooler를 사용하는 경우 `SUPABASE_DB_URL`에는 PostgreSQL JDBC 옵션 `prepareThreshold=0`을 포함해야 한다.
 
@@ -123,6 +175,34 @@ ERROR: prepared statement "S_1" does not exist
 ```
 
 현재 EKS 클러스터에는 Secret을 수동으로 patch해서 이 옵션을 반영했다. 하지만 Secret을 다시 만들거나 새 클러스터에 배포할 때는 이 옵션이 빠지지 않도록 주의해야 한다.
+
+Secret 값을 수정한 뒤에는 기존 Pod가 자동으로 새 환경변수를 읽지 않는다. 변경을 반영하려면 Deployment를 재시작한다.
+
+```bash
+kubectl -n tripkey rollout restart deployment/tripkey-backend
+kubectl -n tripkey rollout restart deployment/tripkey-ai-worker
+```
+
+## DB migration 운영 규칙
+
+production 프로필의 Spring Boot backend는 Hibernate `ddl-auto=validate`를 사용한다. 앱 코드가 기대하는 테이블 또는 컬럼이 DB에 없으면 애플리케이션이 시작되지 않고 Pod가 `CrashLoopBackOff` 상태가 된다.
+
+예시:
+
+```text
+Schema-validation: missing column [distance_meters] in table [route_legs_cache]
+```
+
+따라서 DB schema 변경이 포함된 배포는 아래 순서를 따른다.
+
+1. migration SQL을 PR에 포함한다.
+2. staging DB에 migration을 먼저 적용한다.
+3. staging 배포와 smoke test를 통과시킨다.
+4. production DB에 같은 migration을 적용한다.
+5. `main` 배포를 진행한다.
+6. production Pod 상태와 `/api/health`를 확인한다.
+
+현재 migration 파일의 기준 위치는 `shared/docs/migrations/`이다. Supabase 실제 스키마를 직접 수정했다면 동일한 변경을 migration 파일에도 남겨 코드 기준 스키마와 실제 DB 스키마가 벌어지지 않게 한다.
 
 ## ai-worker
 
@@ -162,6 +242,23 @@ backend 로그에는 SQS listener 소비 로그가 없어야 한다. worker 로�
 
 Ingress 도입 전에 수동으로 만든 ALB가 있더라도, EKS 운영 환경에서는 AWS Load Balancer Controller가 생성한 ALB를 사용하는 것을 권장한다. 기존 ALB를 재사용하려면 TargetGroupBinding 등 추가 구성이 필요해서 초기 운영 구성에는 적합하지 않다.
 
+### staging 사전 준비
+
+`develop` branch에서 staging 배포를 실행하기 전에 AWS에서 아래 항목을 준비한다.
+
+1. ACM 인증서가 `staging.usetripkey.com`을 포함하는지 확인한다.
+   - 기존 인증서에 `*.usetripkey.com` 또는 `staging.usetripkey.com`이 있어야 한다.
+   - 현재 인증서가 `usetripkey.com`, `www.usetripkey.com`만 포함한다면 staging용 ACM 인증서를 새로 발급하거나 SAN을 추가한 인증서로 교체해야 한다.
+2. staging Ingress가 생성한 ALB DNS 이름을 확인한다.
+3. Route53에서 `staging.usetripkey.com` A Alias record를 staging ALB로 연결한다.
+4. `tripkey-staging` namespace에 `tripkey-secrets`를 생성한다.
+5. staging SQS queue와 DLQ를 생성한다.
+   - `tripkey-staging-enrichment`
+   - `tripkey-staging-enrichment-dlq`
+6. ai-worker IAM Role 또는 SQS policy가 staging queue에 접근할 수 있게 권한을 추가한다.
+
+staging은 production과 별도 ALB를 사용한다. 운영 초기에는 비용보다 격리와 장애 원인 추적을 우선한다.
+
 ## 오토스케일링
 
 현재 HPA 설정은 다음과 같다.
@@ -179,13 +276,15 @@ HPA가 동작하려면 EKS 클러스터에 `metrics-server`가 설치되어 있�
 로컬 dry-run:
 
 ```bash
-kubectl apply --dry-run=client -k infra/k8s/
+kubectl apply --dry-run=client -k infra/k8s/overlays/prod
+kubectl apply --dry-run=client -k infra/k8s/overlays/staging
 ```
 
 렌더링 결과 확인:
 
 ```bash
-kubectl kustomize infra/k8s/
+kubectl kustomize infra/k8s/overlays/prod
+kubectl kustomize infra/k8s/overlays/staging
 ```
 
 배포 후 기본 상태 확인:

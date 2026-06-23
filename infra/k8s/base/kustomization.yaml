@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: tripkey-base
+
+resources:
+  - frontend-deployment.yaml
+  - frontend-service.yaml
+  - backend-deployment.yaml
+  - backend-service.yaml
+  - ai-engine-deployment.yaml
+  - ai-engine-service.yaml
+  - ai-worker-service-account.yaml
+  - ai-worker-deployment.yaml
+  - ai-worker-service.yaml
+  - ingress.yaml
+
+images:
+  - name: 000000000000.dkr.ecr.ap-northeast-2.amazonaws.com/tripkey-frontend
+    newName: 400524748280.dkr.ecr.ap-northeast-2.amazonaws.com/tripkey-frontend
+    newTag: latest
+  - name: 000000000000.dkr.ecr.ap-northeast-2.amazonaws.com/tripkey-backend
+    newName: 400524748280.dkr.ecr.ap-northeast-2.amazonaws.com/tripkey-backend
+    newTag: latest
+  - name: 000000000000.dkr.ecr.ap-northeast-2.amazonaws.com/tripkey-ai-engine
+    newName: 400524748280.dkr.ecr.ap-northeast-2.amazonaws.com/tripkey-ai-engine
+    newTag: latest

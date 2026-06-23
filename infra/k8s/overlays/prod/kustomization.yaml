@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: tripkey-prod
+
+namespace: tripkey
+
+resources:
+  - ../../base
+  - namespace.yaml
+  - backend-hpa.yaml
+  - ai-engine-hpa.yaml
+  - ai-worker-hpa.yaml

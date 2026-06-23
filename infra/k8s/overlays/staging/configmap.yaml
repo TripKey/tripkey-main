@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tripkey-config
+  labels:
+    app.kubernetes.io/name: tripkey
+    app.kubernetes.io/environment: staging
+data:
+  AWS_REGION: ap-northeast-2
+  AI_ENGINE_TIMEOUT_SECONDS: "180"
+  ENRICHMENT_QUEUE_NAME: tripkey-staging-enrichment
+  ENRICHMENT_DLQ_NAME: tripkey-staging-enrichment-dlq
