@@ -3,6 +3,7 @@ name: Deploy to EKS
 on:
   push:
     branches:
+      - develop
       - main
 
 permissions:
@@ -16,7 +17,6 @@ concurrency:
 env:
   AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION }}
   EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'tripkey-prod' }}
-  K8S_NAMESPACE: tripkey
 
 jobs:
   build-and-push:
@@ -101,13 +101,30 @@ jobs:
           AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           echo "registry=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve deploy target
+        id: deploy-target
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "namespace=tripkey" >> "$GITHUB_OUTPUT"
+            echo "overlay=infra/k8s/overlays/prod" >> "$GITHUB_OUTPUT"
+          elif [ "${GITHUB_REF_NAME}" = "develop" ]; then
+            echo "namespace=tripkey-staging" >> "$GITHUB_OUTPUT"
+            echo "overlay=infra/k8s/overlays/staging" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unsupported branch: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
       - name: Apply Kubernetes manifests
-        run: kubectl apply -k infra/k8s/
+        env:
+          K8S_OVERLAY: ${{ steps.deploy-target.outputs.overlay }}
+        run: kubectl apply -k "$K8S_OVERLAY"
 
       - name: Deploy pushed images
         env:
           ECR_REGISTRY: ${{ steps.ecr-meta.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
+          K8S_NAMESPACE: ${{ steps.deploy-target.outputs.namespace }}
         run: |
           kubectl -n "$K8S_NAMESPACE" set image deployment/tripkey-frontend \
             frontend="$ECR_REGISTRY/tripkey-frontend:$IMAGE_TAG"
@@ -122,6 +139,8 @@ jobs:
             ai-worker="$ECR_REGISTRY/tripkey-backend:$IMAGE_TAG"
 
       - name: Wait for rollout
+        env:
+          K8S_NAMESPACE: ${{ steps.deploy-target.outputs.namespace }}
         run: |
           kubectl -n "$K8S_NAMESPACE" rollout status deployment/tripkey-frontend --timeout=5m
           kubectl -n "$K8S_NAMESPACE" rollout status deployment/tripkey-backend --timeout=8m
@@ -130,5 +149,7 @@ jobs:
 
       - name: Show deployed resources
         if: always()
+        env:
+          K8S_NAMESPACE: ${{ steps.deploy-target.outputs.namespace }}
         run: |
           kubectl -n "$K8S_NAMESPACE" get deploy,pods,svc,ingress,hpa

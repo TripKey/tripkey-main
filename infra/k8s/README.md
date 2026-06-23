@@ -48,25 +48,38 @@ Route53에서는 `usetripkey.com`의 `A` Alias record가 이 ALB를 바라보도
 
 ## 적용 순서
 
+production:
+
 ```bash
-kubectl apply -k infra/k8s/
+kubectl apply -k infra/k8s/overlays/prod
 ```
+
+staging:
+
+```bash
+kubectl apply -k infra/k8s/overlays/staging
+```
+
+`infra/k8s/` 루트 kustomization은 기존 명령 호환성을 위해 production overlay를 가리킨다. 신규 작업에서는 환경을 명확히 하기 위해 `overlays/prod` 또는 `overlays/staging` 경로를 직접 사용한다.
 
 frontend Nginx 이미지 안에도 `/api` proxy fallback이 남아 있을 수 있지만, EKS 운영 환경의 외부 트래픽은 기본적으로 ALB Ingress에서 먼저 라우팅한다.
 
 ## GitHub Actions 배포
 
-`.github/workflows/deploy.yml`은 `main` branch push 시 ECR 이미지를 build/push한 뒤 EKS production Deployment를 갱신한다.
+`.github/workflows/deploy.yml`은 branch에 따라 ECR 이미지를 build/push한 뒤 EKS Deployment를 갱신한다.
 
 현재 `tripkey-prod` EKS 클러스터와 `usetripkey.com`은 production 환경으로 간주한다. 따라서 production 배포는 `main` 기준으로만 수행한다.
 
 브랜치별 역할:
 
 - `feature/*`: 기능 작업 브랜치. PR을 통해 CI 검증을 받는다.
-- `develop`: 통합 브랜치. 현재는 CI 검증 중심으로 사용하며, production 배포를 수행하지 않는다.
+- `develop`: staging 배포 브랜치. `tripkey-staging` namespace와 `staging.usetripkey.com`에 반영한다.
 - `main`: production 배포 브랜치. `usetripkey.com`에 반영되는 EKS 배포는 이 브랜치 push 기준으로 실행한다.
 
-향후 staging 환경을 구성하면 `develop` push는 staging 배포 트리거로 사용할 수 있다. staging은 같은 EKS 클러스터의 별도 namespace와 `staging.usetripkey.com` 같은 별도 도메인으로 분리하는 방향을 우선 검토한다.
+환경별 배포 대상:
+
+- `develop`: `infra/k8s/overlays/staging`, namespace `tripkey-staging`.
+- `main`: `infra/k8s/overlays/prod`, namespace `tripkey`.
 
 배포 흐름:
 
@@ -121,6 +134,13 @@ kubectl -n tripkey logs pod/<crashloop-pod-name> --tail=150
 ## Secret / ConfigMap 주의사항
 
 `tripkey-config`와 `tripkey-secrets`의 실제 값은 이 디렉터리의 YAML에 커밋하지 않는다. 특히 DB URL, API key, Supabase key는 Kubernetes Secret 또는 별도 Secret 관리 도구에서 주입한다.
+
+production과 staging은 namespace가 다르므로 Secret도 따로 만든다.
+
+- production: namespace `tripkey`, Secret `tripkey-secrets`.
+- staging: namespace `tripkey-staging`, Secret `tripkey-secrets`.
+
+staging overlay는 non-secret 값만 담은 `tripkey-config` ConfigMap을 생성한다. staging Secret에는 기존 dev/staging Supabase DB와 API key를 넣고, production Secret에는 production Supabase DB와 운영 API key를 넣는다.
 
 Supabase 관련 URL은 용도가 다르므로 혼동하지 않는다.
 
@@ -222,6 +242,23 @@ backend 로그에는 SQS listener 소비 로그가 없어야 한다. worker 로�
 
 Ingress 도입 전에 수동으로 만든 ALB가 있더라도, EKS 운영 환경에서는 AWS Load Balancer Controller가 생성한 ALB를 사용하는 것을 권장한다. 기존 ALB를 재사용하려면 TargetGroupBinding 등 추가 구성이 필요해서 초기 운영 구성에는 적합하지 않다.
 
+### staging 사전 준비
+
+`develop` branch에서 staging 배포를 실행하기 전에 AWS에서 아래 항목을 준비한다.
+
+1. ACM 인증서가 `staging.usetripkey.com`을 포함하는지 확인한다.
+   - 기존 인증서에 `*.usetripkey.com` 또는 `staging.usetripkey.com`이 있어야 한다.
+   - 현재 인증서가 `usetripkey.com`, `www.usetripkey.com`만 포함한다면 staging용 ACM 인증서를 새로 발급하거나 SAN을 추가한 인증서로 교체해야 한다.
+2. staging Ingress가 생성한 ALB DNS 이름을 확인한다.
+3. Route53에서 `staging.usetripkey.com` A Alias record를 staging ALB로 연결한다.
+4. `tripkey-staging` namespace에 `tripkey-secrets`를 생성한다.
+5. staging SQS queue와 DLQ를 생성한다.
+   - `tripkey-staging-enrichment`
+   - `tripkey-staging-enrichment-dlq`
+6. ai-worker IAM Role 또는 SQS policy가 staging queue에 접근할 수 있게 권한을 추가한다.
+
+staging은 production과 별도 ALB를 사용한다. 운영 초기에는 비용보다 격리와 장애 원인 추적을 우선한다.
+
 ## 오토스케일링
 
 현재 HPA 설정은 다음과 같다.
@@ -239,13 +276,15 @@ HPA가 동작하려면 EKS 클러스터에 `metrics-server`가 설치되어 있�
 로컬 dry-run:
 
 ```bash
-kubectl apply --dry-run=client -k infra/k8s/
+kubectl apply --dry-run=client -k infra/k8s/overlays/prod
+kubectl apply --dry-run=client -k infra/k8s/overlays/staging
 ```
 
 렌더링 결과 확인:
 
 ```bash
-kubectl kustomize infra/k8s/
+kubectl kustomize infra/k8s/overlays/prod
+kubectl kustomize infra/k8s/overlays/staging
 ```
 
 배포 후 기본 상태 확인:

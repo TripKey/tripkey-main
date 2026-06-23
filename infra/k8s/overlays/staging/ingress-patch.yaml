@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tripkey
+  annotations:
+    alb.ingress.kubernetes.io/tags: Environment=staging,Project=tripkey
+spec:
+  rules:
+    - host: staging.usetripkey.com
+      http:
+        paths:
+          - path: /api/
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tripkey-frontend
+                port:
+                  number: 80
