@@ -6,11 +6,11 @@ import {
   AdvancedMarker,
   APIProvider,
   Map,
-  Pin,
   useMap,
 } from '@vis.gl/react-google-maps';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
+import type { CardCategory } from '@/types/grouping-api';
 import { GOOGLE_MAPS_API_KEY } from '@/utils/constants';
 
 export type MapMarker = {
@@ -19,6 +19,8 @@ export type MapMarker = {
   name: string;
   lat: number;
   lng: number;
+  category?: CardCategory;
+  region?: string;
 };
 
 type MapCardProps = {
@@ -50,7 +52,36 @@ const FitBounds = ({ markers }: { markers: MapMarker[] }) => {
   return null;
 };
 
+// 장소 마커를 순서대로 잇는 단순 동선 폴리라인 (vis.gl 2D Polyline 미제공 → 직접 생성).
+const RoutePolyline = ({ path }: { path: { lat: number; lng: number }[] }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || path.length < 2) return;
+
+    const line = new google.maps.Polyline({
+      path,
+      geodesic: true,
+      strokeColor: '#7c3aed',
+      strokeOpacity: 0.8,
+      strokeWeight: 3,
+    });
+    line.setMap(map);
+    return () => line.setMap(null);
+  }, [map, path]);
+
+  return null;
+};
+
 const MapCard = ({ markers }: MapCardProps) => {
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  // 동선은 모든 마커를 순서대로 연결 (교통/공항 포함).
+  const routePath = useMemo(
+    () => markers.map((m) => ({ lat: m.lat, lng: m.lng })),
+    [markers]
+  );
+
   if (!GOOGLE_MAPS_API_KEY) {
     return (
       <div className="rounded-2xl bg-card p-6 text-center text-xs text-muted-foreground ring-1 ring-foreground/10">
@@ -68,22 +99,63 @@ const MapCard = ({ markers }: MapCardProps) => {
           gestureHandling="cooperative"
           mapId="tripkey-confirm-map"
           style={{ width: '100%', height: '360px' }}
+          disableDefaultUI
+          zoomControl
+          clickableIcons={false}
         >
-          {markers.map((m) => (
-            <AdvancedMarker
-              key={m.id}
-              position={{ lat: m.lat, lng: m.lng }}
-              title={m.name}
-            >
-              <Pin
-                background="#7c3aed"
-                borderColor="#5b21b6"
-                glyphColor="#ffffff"
+          {markers.map((m) => {
+            const isTransport = m.category === 'transport';
+            const isActive = activeId === m.id;
+            return (
+              <AdvancedMarker
+                key={m.id}
+                position={{ lat: m.lat, lng: m.lng }}
+                title={m.name}
               >
-                {m.order}
-              </Pin>
-            </AdvancedMarker>
-          ))}
+                <div className="relative flex flex-col items-center">
+                  {/* 호버 카드 — 핀 위에 떠서 레이아웃에 영향 안 줌 (핀 고정) */}
+                  {isActive && (
+                    <div className="absolute bottom-full left-1/2 mb-2 flex w-max max-w-50 -translate-x-1/2 items-center gap-2 rounded-xl bg-card px-2.5 py-1.5 shadow-md ring-1 ring-foreground/10">
+                      <span
+                        aria-hidden="true"
+                        className="flex size-5 shrink-0 items-center justify-center rounded-full bg-foreground text-[10px] font-bold text-background"
+                      >
+                        {m.order}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold text-foreground">
+                          {m.name}
+                        </p>
+                        {m.region && (
+                          <p className="truncate text-[10px] text-muted-foreground">
+                            {m.region}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 숫자 원형 마커 — 교통(항공편 등)은 ✈, 일반 장소는 순서 번호 */}
+                  <div
+                    className={`flex size-7 items-center justify-center rounded-full font-bold text-white shadow-md ring-2 ring-white ${
+                      isTransport ? 'bg-blue-600' : 'bg-violet-600'
+                    }`}
+                    onMouseEnter={() => setActiveId(m.id)}
+                    onMouseLeave={() =>
+                      setActiveId((id) => (id === m.id ? null : id))
+                    }
+                  >
+                    {isTransport ? (
+                      <span className="text-base leading-none">✈</span>
+                    ) : (
+                      <span className="text-xs">{m.order}</span>
+                    )}
+                  </div>
+                </div>
+              </AdvancedMarker>
+            );
+          })}
+          <RoutePolyline path={routePath} />
           <FitBounds markers={markers} />
         </Map>
       </APIProvider>
