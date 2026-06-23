@@ -10,6 +10,7 @@ import ContextCardList from '@/components/confirm/ContextCardList';
 import DayChecklist from '@/components/confirm/DayChecklist';
 import DaySummary from '@/components/confirm/DaySummary';
 import DayTabs from '@/components/confirm/DayTabs';
+import MapCard from '@/components/confirm/MapCard';
 import SaveShareCard from '@/components/confirm/SaveShareCard';
 import TripChecklist from '@/components/confirm/TripChecklist';
 import TripHeroCard from '@/components/confirm/TripHeroCard';
@@ -44,6 +45,7 @@ const ConfirmPage = () => {
   const daysQuery = useDaysQuery(tripId, dayCount);
 
   const [activeIndex, setActiveIndex] = useState(0);
+  const [showMap, setShowMap] = useState(true);
 
   const viewModel = useMemo(() => {
     const rawFallback = formatDateRangeLabel(calType, exactDate, flexDate);
@@ -94,6 +96,17 @@ const ConfirmPage = () => {
     sessionStorage.clear();
     window.location.href = '/onboarding';
   };
+
+  // 활성 Day 카드 중 좌표 있는 것만 마커로 (좌표 없는 카드는 스킵).
+  const mapMarkers = (activeDay?.contextCards ?? [])
+    .filter((card) => card.coordinates)
+    .map((card) => ({
+      id: card.id,
+      order: card.order,
+      name: card.name,
+      lat: card.coordinates!.lat,
+      lng: card.coordinates!.lng,
+    }));
 
   return (
     <div className="flex min-h-screen flex-col bg-muted">
@@ -161,6 +174,8 @@ const ConfirmPage = () => {
             <>
               <TripHeroCard {...hero} />
 
+              {showMap && <MapCard markers={mapMarkers} />}
+
               {isLoading ? (
                 <EmptyState
                   title="불러오는 중…"
@@ -177,6 +192,8 @@ const ConfirmPage = () => {
                     days={days}
                     activeIndex={safeIndex}
                     onSelect={setActiveIndex}
+                    mapVisible={showMap}
+                    onToggleMap={() => setShowMap((v) => !v)}
                   />
 
                   {activeDay && (

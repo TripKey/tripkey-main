@@ -95,6 +95,7 @@ const cardToConfirmCard = (
   region: card.location ?? undefined,
   userNote: card.user_context ?? undefined,
   aiTip: card.tips ?? undefined,
+  coordinates: card.coordinates ?? undefined,
 });
 
 // BE 내러티브(narrative) 부재 → 카드 수 기반으로 "Day N · M곳" 합성.
