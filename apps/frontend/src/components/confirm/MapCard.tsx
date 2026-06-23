@@ -8,7 +8,7 @@ import {
   Map,
   useMap,
 } from '@vis.gl/react-google-maps';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { CardCategory } from '@/types/grouping-api';
 import { GOOGLE_MAPS_API_KEY } from '@/utils/constants';
@@ -52,8 +52,35 @@ const FitBounds = ({ markers }: { markers: MapMarker[] }) => {
   return null;
 };
 
+// 장소 마커를 순서대로 잇는 단순 동선 폴리라인 (vis.gl 2D Polyline 미제공 → 직접 생성).
+const RoutePolyline = ({ path }: { path: { lat: number; lng: number }[] }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || path.length < 2) return;
+
+    const line = new google.maps.Polyline({
+      path,
+      geodesic: true,
+      strokeColor: '#7c3aed',
+      strokeOpacity: 0.8,
+      strokeWeight: 3,
+    });
+    line.setMap(map);
+    return () => line.setMap(null);
+  }, [map, path]);
+
+  return null;
+};
+
 const MapCard = ({ markers }: MapCardProps) => {
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  // 동선은 모든 마커를 순서대로 연결 (교통/공항 포함).
+  const routePath = useMemo(
+    () => markers.map((m) => ({ lat: m.lat, lng: m.lng })),
+    [markers]
+  );
 
   if (!GOOGLE_MAPS_API_KEY) {
     return (
@@ -125,6 +152,7 @@ const MapCard = ({ markers }: MapCardProps) => {
               </AdvancedMarker>
             );
           })}
+          <RoutePolyline path={routePath} />
           <FitBounds markers={markers} />
         </Map>
       </APIProvider>
