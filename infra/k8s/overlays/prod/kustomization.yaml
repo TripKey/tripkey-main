@@ -7,7 +7,6 @@ namespace: tripkey
 
 resources:
   - ../../base
-  - namespace.yaml
   - backend-hpa.yaml
   - ai-engine-hpa.yaml
   - ai-worker-hpa.yaml

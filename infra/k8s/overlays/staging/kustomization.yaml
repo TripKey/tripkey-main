@@ -7,7 +7,6 @@ namespace: tripkey-staging
 
 resources:
   - ../../base
-  - namespace.yaml
   - configmap.yaml
 
 patches:
