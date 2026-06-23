@@ -339,10 +339,35 @@ class CardServiceTest {
     }
 
     @Test
-    void patchCardAccommodationEditTriggersReprocessing() {
+    void patchCardAccommodationLocationChangeTriggersReprocessing() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = userAccommodationCard(tripId); // location 없음
+        card.markProcessingCompleted();
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, null, null, null, null, null, "오사카 난바", null
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.processingStatus()).isEqualTo("processing");
+        assertThat(updated.location()).isEqualTo("오사카 난바");
+        verify(cardInputParsingProcessor).parseAndEnrich(tripId, instanceId, null);
+    }
+
+    @Test
+    void patchCardAccommodationCheckInOnlyDoesNotTriggerReprocessing() {
         UUID tripId = UUID.randomUUID();
         UUID instanceId = UUID.randomUUID();
         PlaceCard card = userAccommodationCard(tripId);
+        card.markProcessingCompleted();
 
         when(tripRepository.existsById(tripId)).thenReturn(true);
         when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
@@ -356,9 +381,88 @@ class CardServiceTest {
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
-        assertThat(updated.processingStatus()).isEqualTo("processing");
+        assertThat(updated.processingStatus()).isEqualTo("completed");
         assertThat(updated.checkIn()).isEqualTo("2025-08-02");
         assertThat(updated.checkOut()).isEqualTo("2025-08-05");
+        verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
+    }
+
+    @Test
+    void patchCardAccommodationSameLocationDoesNotTriggerReprocessing() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = PlaceCard.createUserCard(
+                tripId, "난바 호텔", "accommodation", "오사카 난바", null, null, null,
+                "2025-08-01", "2025-08-04", null);
+        card.markProcessingCompleted();
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, null, null, "2025-08-03", null, null, "오사카 난바", null
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.processingStatus()).isEqualTo("completed");
+        assertThat(updated.checkIn()).isEqualTo("2025-08-03");
+        verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
+    }
+
+    @Test
+    void patchCardTransportAirportChangeTriggersReprocessing() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = PlaceCard.createUserCard(
+                tripId, "김포 → 오사카", "transport", "김포공항", null, "08:30 출발", null,
+                null, null, "KE723");
+        card.markProcessingCompleted();
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, null, null, null, null, null, "인천공항", null
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.processingStatus()).isEqualTo("processing");
+        assertThat(updated.location()).isEqualTo("인천공항");
+        verify(cardInputParsingProcessor).parseAndEnrich(tripId, instanceId, null);
+    }
+
+    @Test
+    void patchCardTransportTimeOnlyDoesNotTriggerReprocessing() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = PlaceCard.createUserCard(
+                tripId, "김포 → 오사카", "transport", "김포공항", null, "08:30 출발", null,
+                null, null, "KE723");
+        card.markProcessingCompleted();
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, null, null, null, null, null, null, "09:00 출발"
+        );
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.processingStatus()).isEqualTo("completed");
+        assertThat(updated.timeConstraint()).isEqualTo("09:00 출발");
+        verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
     }
 
     @Test
