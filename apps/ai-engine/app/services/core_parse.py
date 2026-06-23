@@ -467,7 +467,7 @@ def _can_accept_single_result_without_name_match(
     return False
 
 
-async def _search_place_google(query: str, api_key: str, region_code: str | None = None) -> dict | None:
+async def _search_place(query: str, api_key: str, region_code: str | None = None) -> dict | None:
     payload = {
         "textQuery": query,
         "pageSize": 5,
@@ -484,15 +484,6 @@ async def _search_place_google(query: str, api_key: str, region_code: str | None
         response = await client.post(PLACES_API_URL, json=payload, headers=headers)
         response.raise_for_status()
         return response.json()
-
-
-async def _search_place(query: str, api_key: str, region_code: str | None = None) -> dict | None:
-    async def _fetch() -> dict | None:
-        return await _search_place_google(query, api_key, region_code)
-
-    return await places_cache.cached_search(
-        query, region_code, PLACES_CACHE_SHAPE, fetch=_fetch
-    )
 
 
 def _apply_place_match(card: ParsedCard, place: dict) -> ParsedCard:
@@ -529,50 +520,61 @@ async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> Par
     region_code = destination_region_codes[0] if len(destination_region_codes) == 1 else None
     for query in _query_candidates(card, req):
         try:
-            payload = await _search_place(query, api_key, region_code)
+            async def resolve_query() -> places_cache.CacheEntry:
+                payload = await _search_place(query, api_key, region_code)
+                places = payload.get("places") if isinstance(payload, dict) else None
+                logger.info(
+                    "Places query complete | card=%s | query=%s | results=%d",
+                    card.name,
+                    query,
+                    len(places or []),
+                )
+                if not places:
+                    return places_cache.CacheEntry(is_negative=True)
+
+                for index, place in enumerate(places):
+                    display_name = ((place.get("displayName") or {}).get("text") or "").strip()
+                    formatted_address = (place.get("formattedAddress") or "").strip()
+                    name_matched = _is_name_match(card, display_name)
+                    destination_matched = _place_matches_destination_context(place, req)
+                    logger.info(
+                        "Places candidate | card=%s | query=%s | idx=%d | name=%s | address=%s | name_matched=%s | destination_matched=%s | destinations=%s",
+                        card.name,
+                        query,
+                        index,
+                        display_name,
+                        formatted_address,
+                        name_matched,
+                        destination_matched,
+                        req.destinations,
+                    )
+                    if name_matched and destination_matched:
+                        return places_cache.CacheEntry(place=place)
+
+                if _can_accept_single_result_without_name_match(
+                    card, query, places, req
+                ) and _place_matches_destination_context(places[0], req):
+                    logger.info(
+                        "Places relaxed match accepted | card=%s | query=%s | reason=%s",
+                        card.name,
+                        query,
+                        "alias_structured_or_destination_single_result",
+                    )
+                    return places_cache.CacheEntry(place=places[0])
+
+                return places_cache.CacheEntry()
+
+            entry = await places_cache.lookup_or_resolve(
+                query, region_code, PLACES_CACHE_SHAPE, resolve=resolve_query
+            )
         except httpx.HTTPError as exc:
             logger.warning("Places lookup failed for query=%s | error=%s", query, exc)
             return card
 
-        places = payload.get("places") if isinstance(payload, dict) else None
-        logger.info(
-            "Places query complete | card=%s | query=%s | results=%d",
-            card.name,
-            query,
-            len(places or []),
-        )
-        if not places:
+        if entry.is_negative:
             continue
-
-        for index, place in enumerate(places):
-            display_name = ((place.get("displayName") or {}).get("text") or "").strip()
-            formatted_address = (place.get("formattedAddress") or "").strip()
-            name_matched = _is_name_match(card, display_name)
-            destination_matched = _place_matches_destination_context(place, req)
-            logger.info(
-                "Places candidate | card=%s | query=%s | idx=%d | name=%s | address=%s | name_matched=%s | destination_matched=%s | destinations=%s",
-                card.name,
-                query,
-                index,
-                display_name,
-                formatted_address,
-                name_matched,
-                destination_matched,
-                req.destinations,
-            )
-            if name_matched and destination_matched:
-                return _apply_place_match(card, place)
-
-        if _can_accept_single_result_without_name_match(card, query, places, req) and _place_matches_destination_context(
-            places[0], req
-        ):
-            logger.info(
-                "Places relaxed match accepted | card=%s | query=%s | reason=%s",
-                card.name,
-                query,
-                "alias_structured_or_destination_single_result",
-            )
-            return _apply_place_match(card, places[0])
+        if entry.place is not None:
+            return _apply_place_match(card, entry.place)
 
     if card.source != "structured_input":
         return card.model_copy(

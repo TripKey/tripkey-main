@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 import pytest
 
@@ -11,7 +13,6 @@ def test_normalize_query_collapses_and_lowercases() -> None:
 
 
 def test_normalize_query_applies_nfkc() -> None:
-    # 전각 영문 -> 반각 후 소문자
     assert pc.normalize_query("ＡＢＣ") == "abc"
 
 
@@ -29,7 +30,7 @@ def test_build_cache_key_is_deterministic_and_region_sensitive() -> None:
 
 
 def test_expires_at_positive_is_later_than_negative() -> None:
-    assert pc._expires_at(3) > pc._expires_at(0)
+    assert pc._expires_at(False) > pc._expires_at(True)
 
 
 def test_begin_scope_creates_fresh_zeroed_scope() -> None:
@@ -47,11 +48,11 @@ def test_begin_scope_creates_fresh_zeroed_scope() -> None:
 def test_log_summary_does_not_raise_with_active_scope() -> None:
     pc.begin_scope()
     pc.current_scope().google_calls = 2
-    pc.log_summary()  # 예외 없이 동작하면 통과
+    pc.log_summary()
 
 
 @pytest.mark.asyncio
-async def test_http_get_cache_returns_response_json_on_hit(monkeypatch) -> None:
+async def test_http_get_cache_returns_entry_on_hit(monkeypatch) -> None:
     monkeypatch.setattr(pc, "SUPABASE_URL", "https://proj.supabase.co")
     monkeypatch.setattr(pc, "SUPABASE_SERVICE_ROLE_KEY", "svc-key")
     captured: dict = {}
@@ -62,14 +63,16 @@ async def test_http_get_cache_returns_response_json_on_hit(monkeypatch) -> None:
         captured["headers"] = headers
         request = httpx.Request("GET", url)
         return httpx.Response(
-            200, json=[{"response_json": {"places": [{"id": "p1"}]}}], request=request
+            200,
+            json=[{"place_json": {"id": "p1"}, "is_negative": False}],
+            request=request,
         )
 
     monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
 
     out = await pc._http_get_cache("KEY123")
 
-    assert out == {"places": [{"id": "p1"}]}
+    assert out == pc.CacheEntry(place={"id": "p1"}, is_negative=False)
     assert captured["url"] == "https://proj.supabase.co/rest/v1/places_cache"
     assert captured["params"]["cache_key"] == "eq.KEY123"
     assert captured["params"]["expires_at"].startswith("gt.")
@@ -108,70 +111,76 @@ async def test_http_put_cache_sends_upsert_body_and_prefer_header(monkeypatch) -
     monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
 
     await pc._http_put_cache(
-        "KEY123", "tokyo tower", "jp", "mv0", {"places": []}, 0, "2026-06-18T00:00:00+00:00"
+        "KEY123",
+        "tokyo tower",
+        "jp",
+        "mv0",
+        pc.CacheEntry(place={"id": "p1"}),
+        "2026-06-18T00:00:00+00:00",
     )
 
     assert captured["url"] == "https://proj.supabase.co/rest/v1/places_cache"
     assert captured["json"]["cache_key"] == "KEY123"
-    assert captured["json"]["result_count"] == 0
+    assert captured["json"]["place_json"] == {"id": "p1"}
+    assert captured["json"]["is_negative"] is False
     assert captured["json"]["region_code"] == "jp"
     assert "resolution=merge-duplicates" in captured["headers"]["Prefer"]
 
 
 def _fake_store(monkeypatch):
-    """L2를 dict로 대체하는 fake repository를 설치하고 store를 반환."""
-    store: dict = {}
+    store: dict[str, pc.CacheEntry] = {}
 
     async def fake_get(cache_key):
         return store.get(cache_key)
 
-    async def fake_put(cache_key, qn, rc, mv, response_json, result_count, expires_at_iso):
-        store[cache_key] = response_json
+    async def fake_put(cache_key, qn, rc, mv, entry, expires_at_iso):
+        store[cache_key] = entry
 
     monkeypatch.setattr(pc, "PLACES_CACHE_ENABLED", True)
+    monkeypatch.setattr(pc, "SUPABASE_URL", "https://proj.supabase.co")
+    monkeypatch.setattr(pc, "SUPABASE_SERVICE_ROLE_KEY", "svc-key")
     monkeypatch.setattr(pc, "_http_get_cache", fake_get)
     monkeypatch.setattr(pc, "_http_put_cache", fake_put)
     return store
 
 
 @pytest.mark.asyncio
-async def test_cached_search_calls_fetch_once_for_identical_queries(monkeypatch) -> None:
+async def test_lookup_or_resolve_calls_resolve_once_for_identical_queries(monkeypatch) -> None:
     _fake_store(monkeypatch)
     calls = {"n": 0}
 
-    async def fetch():
+    async def resolve():
         calls["n"] += 1
-        return {"places": [{"id": "x"}]}
+        return pc.CacheEntry(place={"id": "x"})
 
-    # 정규화로 두 쿼리가 같은 키로 접힘 ("Tokyo Tower" / "tokyo  tower")
-    a = await pc.cached_search("Tokyo Tower", "jp", "shape", fetch=fetch)
-    b = await pc.cached_search("tokyo  tower", "jp", "shape", fetch=fetch)
+    a = await pc.lookup_or_resolve("Tokyo Tower", "jp", "shape", resolve=resolve)
+    b = await pc.lookup_or_resolve("tokyo  tower", "jp", "shape", resolve=resolve)
 
-    assert a == b == {"places": [{"id": "x"}]}
+    assert a == b == pc.CacheEntry(place={"id": "x"})
     assert calls["n"] == 1
 
 
 @pytest.mark.asyncio
-async def test_cached_search_negative_result_is_stored(monkeypatch) -> None:
+async def test_lookup_or_resolve_negative_result_is_stored(monkeypatch) -> None:
     store = _fake_store(monkeypatch)
-    put_counts: list[int] = []
+    stored: list[pc.CacheEntry] = []
 
-    async def fake_put(cache_key, qn, rc, mv, response_json, result_count, expires_at_iso):
-        put_counts.append(result_count)
-        store[cache_key] = response_json
+    async def fake_put(cache_key, qn, rc, mv, entry, expires_at_iso):
+        stored.append(entry)
+        store[cache_key] = entry
 
     monkeypatch.setattr(pc, "_http_put_cache", fake_put)
 
-    async def fetch():
-        return {"places": []}
+    async def resolve():
+        return pc.CacheEntry(is_negative=True)
 
-    out = await pc.cached_search("nowhere place", None, "shape", fetch=fetch)
-    assert out == {"places": []}
-    assert put_counts == [0]  # negative로 저장됨
+    out = await pc.lookup_or_resolve("nowhere place", None, "shape", resolve=resolve)
+    assert out == pc.CacheEntry(is_negative=True)
+    assert stored == [pc.CacheEntry(is_negative=True)]
 
 
 @pytest.mark.asyncio
-async def test_cached_search_does_not_cache_http_errors(monkeypatch) -> None:
+async def test_lookup_or_resolve_does_not_cache_http_errors(monkeypatch) -> None:
     _fake_store(monkeypatch)
     put_called = {"n": 0}
 
@@ -180,16 +189,16 @@ async def test_cached_search_does_not_cache_http_errors(monkeypatch) -> None:
 
     monkeypatch.setattr(pc, "_http_put_cache", fake_put)
 
-    async def fetch():
+    async def resolve():
         raise httpx.HTTPError("boom")
 
     with pytest.raises(httpx.HTTPError):
-        await pc.cached_search("x", None, "shape", fetch=fetch)
+        await pc.lookup_or_resolve("x", None, "shape", resolve=resolve)
     assert put_called["n"] == 0
 
 
 @pytest.mark.asyncio
-async def test_cached_search_falls_back_to_fetch_when_read_errors(monkeypatch) -> None:
+async def test_lookup_or_resolve_falls_back_to_resolve_when_read_errors(monkeypatch) -> None:
     _fake_store(monkeypatch)
 
     async def failing_get(cache_key):
@@ -198,47 +207,67 @@ async def test_cached_search_falls_back_to_fetch_when_read_errors(monkeypatch) -
     monkeypatch.setattr(pc, "_http_get_cache", failing_get)
     calls = {"n": 0}
 
-    async def fetch():
+    async def resolve():
         calls["n"] += 1
-        return {"places": [{"id": "y"}]}
+        return pc.CacheEntry(place={"id": "y"})
 
-    out = await pc.cached_search("x", None, "shape", fetch=fetch)
-    assert out == {"places": [{"id": "y"}]}
-    assert calls["n"] == 1  # read 실패에도 Google로 폴백
+    out = await pc.lookup_or_resolve("x", None, "shape", resolve=resolve)
+    assert out == pc.CacheEntry(place={"id": "y"})
+    assert calls["n"] == 1
 
 
 @pytest.mark.asyncio
-async def test_cached_search_disabled_bypasses_cache(monkeypatch) -> None:
+async def test_lookup_or_resolve_disabled_bypasses_cache(monkeypatch) -> None:
     _fake_store(monkeypatch)
     monkeypatch.setattr(pc, "PLACES_CACHE_ENABLED", False)
     get_called = {"n": 0}
 
     async def fake_get(cache_key):
         get_called["n"] += 1
-        return {"places": []}
+        return pc.CacheEntry(place={"id": "cached"})
 
     monkeypatch.setattr(pc, "_http_get_cache", fake_get)
 
-    async def fetch():
-        return {"places": [{"id": "z"}]}
+    async def resolve():
+        return pc.CacheEntry(place={"id": "z"})
 
-    out = await pc.cached_search("x", None, "shape", fetch=fetch)
-    assert out == {"places": [{"id": "z"}]}
-    assert get_called["n"] == 0  # 캐시 완전 우회
+    out = await pc.lookup_or_resolve("x", None, "shape", resolve=resolve)
+    assert out == pc.CacheEntry(place={"id": "z"})
+    assert get_called["n"] == 0
 
 
 @pytest.mark.asyncio
-async def test_cached_search_scope_counts_l1_hit(monkeypatch) -> None:
+async def test_lookup_or_resolve_unconfigured_bypasses_cache(monkeypatch) -> None:
+    _fake_store(monkeypatch)
+    monkeypatch.setattr(pc, "SUPABASE_URL", "")
+    get_called = {"n": 0}
+
+    async def fake_get(cache_key):
+        get_called["n"] += 1
+        return pc.CacheEntry(place={"id": "cached"})
+
+    monkeypatch.setattr(pc, "_http_get_cache", fake_get)
+
+    async def resolve():
+        return pc.CacheEntry(place={"id": "z"})
+
+    out = await pc.lookup_or_resolve("x", None, "shape", resolve=resolve)
+    assert out == pc.CacheEntry(place={"id": "z"})
+    assert get_called["n"] == 0
+
+
+@pytest.mark.asyncio
+async def test_lookup_or_resolve_scope_counts_l1_hit(monkeypatch) -> None:
     _fake_store(monkeypatch)
     pc.begin_scope()
     calls = {"n": 0}
 
-    async def fetch():
+    async def resolve():
         calls["n"] += 1
-        return {"places": [{"id": "a"}]}
+        return pc.CacheEntry(place={"id": "a"})
 
-    await pc.cached_search("same query", None, "shape", fetch=fetch)  # miss -> fetch
-    await pc.cached_search("same query", None, "shape", fetch=fetch)  # L1 hit
+    await pc.lookup_or_resolve("same query", None, "shape", resolve=resolve)
+    await pc.lookup_or_resolve("same query", None, "shape", resolve=resolve)
 
     scope = pc.current_scope()
     assert calls["n"] == 1
@@ -247,7 +276,26 @@ async def test_cached_search_scope_counts_l1_hit(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_cached_search_does_not_cache_none_result(monkeypatch) -> None:
+async def test_lookup_or_resolve_dedupes_concurrent_misses(monkeypatch) -> None:
+    _fake_store(monkeypatch)
+    pc.begin_scope()
+    calls = {"n": 0}
+
+    async def resolve():
+        calls["n"] += 1
+        return pc.CacheEntry(place={"id": "a"})
+
+    a, b = await asyncio.gather(
+        pc.lookup_or_resolve("same query", None, "shape", resolve=resolve),
+        pc.lookup_or_resolve("same query", None, "shape", resolve=resolve),
+    )
+
+    assert a == b == pc.CacheEntry(place={"id": "a"})
+    assert calls["n"] == 1
+
+
+@pytest.mark.asyncio
+async def test_lookup_or_resolve_does_not_cache_unstorable_entry(monkeypatch) -> None:
     _fake_store(monkeypatch)
     put_called = {"n": 0}
 
@@ -257,10 +305,10 @@ async def test_cached_search_does_not_cache_none_result(monkeypatch) -> None:
     monkeypatch.setattr(pc, "_http_put_cache", fake_put)
     pc.begin_scope()
 
-    async def fetch():
-        return None
+    async def resolve():
+        return pc.CacheEntry()
 
-    out = await pc.cached_search("x", None, "shape", fetch=fetch)
-    assert out is None
-    assert put_called["n"] == 0  # None은 L2에 쓰지 않음
-    assert pc.current_scope().memo == {}  # None은 메모하지 않음(재시도 허용)
+    out = await pc.lookup_or_resolve("x", None, "shape", resolve=resolve)
+    assert out == pc.CacheEntry()
+    assert put_called["n"] == 0
+    assert pc.current_scope().memo == {}

@@ -607,7 +607,7 @@ async def test_enrich_card_rejects_name_match_when_destination_mismatches() -> N
 
 
 @pytest.mark.asyncio
-async def test_search_place_caches_repeated_query(monkeypatch) -> None:
+async def test_enrich_card_caches_accepted_place(monkeypatch) -> None:
     from app.services import places_cache
 
     store: dict = {}
@@ -615,25 +615,48 @@ async def test_search_place_caches_repeated_query(monkeypatch) -> None:
     async def fake_get(cache_key):
         return store.get(cache_key)
 
-    async def fake_put(cache_key, qn, rc, mv, response_json, result_count, expires_at_iso):
-        store[cache_key] = response_json
+    async def fake_put(cache_key, qn, rc, mv, entry, expires_at_iso):
+        store[cache_key] = entry
 
     google_calls = {"n": 0}
 
-    async def fake_google(query, api_key, region_code=None):
+    async def fake_search(query, api_key, region_code=None):
         google_calls["n"] += 1
-        return {"places": [{"id": "p1"}]}
+        return {
+            "places": [
+                {
+                    "id": "p1",
+                    "displayName": {"text": "도쿄타워"},
+                    "formattedAddress": "4 Chome-2-8 Shibakoen, Minato City, Tokyo",
+                    "shortFormattedAddress": "Tokyo Tower",
+                    "location": {"latitude": 35.6586, "longitude": 139.7454},
+                }
+            ]
+        }
 
     monkeypatch.setattr(places_cache, "PLACES_CACHE_ENABLED", True)
+    monkeypatch.setattr(places_cache, "SUPABASE_URL", "https://proj.supabase.co")
+    monkeypatch.setattr(places_cache, "SUPABASE_SERVICE_ROLE_KEY", "svc-key")
     monkeypatch.setattr(places_cache, "_http_get_cache", fake_get)
     monkeypatch.setattr(places_cache, "_http_put_cache", fake_put)
-    monkeypatch.setattr(core_parse, "_search_place_google", fake_google)
+    monkeypatch.setattr(core_parse, "_search_place", fake_search)
+    places_cache.begin_scope()
 
-    r1 = await core_parse._search_place("도쿄타워", "key", "jp")
-    r2 = await core_parse._search_place("도쿄타워", "key", "jp")
+    card = ParsedCard(
+        name="도쿄타워",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
 
-    assert r1 == r2 == {"places": [{"id": "p1"}]}
-    assert google_calls["n"] == 1  # 두 번째는 캐시 히트
+    first = await core_parse._enrich_card(card, _request(), "key")
+    second = await core_parse._enrich_card(card, _request(), "key")
+
+    assert first.place_id == second.place_id == "p1"
+    assert first.coordinates is not None
+    assert google_calls["n"] == 1
 
 
 @pytest.mark.asyncio
