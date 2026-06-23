@@ -109,6 +109,7 @@ const ConfirmPage = () => {
           lat: card.coordinates!.lat,
           lng: card.coordinates!.lng,
           category: card.category,
+          region: card.region,
         })),
     [activeDay]
   );

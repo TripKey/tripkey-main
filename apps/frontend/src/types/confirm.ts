@@ -42,7 +42,7 @@ export type ConfirmCardViewModel = {
   aiTip?: string;
   /** 지도 마커용 좌표 — 없으면 마커 스킵 */
   coordinates?: Coordinates;
-  /** 카드 종류 — 마커 디자인 분기용 (항공편/장소 구분 등) */
+  /** 카드 종류 — 마커 디자인 분기용 (교통/장소 구분 등) */
   category?: CardCategory;
 };
 
