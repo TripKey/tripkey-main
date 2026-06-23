@@ -30,6 +30,7 @@ from app.schemas.parse import (
     ParseRequest,
     PlacementStatus,
 )
+from app.services import places_cache
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ PLACES_FIELD_MASK = ",".join(
         "places.shortFormattedAddress",
     ]
 )
+PLACES_CACHE_SHAPE = f"{PLACES_FIELD_MASK}|ps5"
 PLACES_HINT_MESSAGE = "장소 정보를 확인해주세요."
 PLACES_MAX_CONCURRENCY = int(os.getenv("PLACES_MAX_CONCURRENCY", "4"))
 PLACES_ELIGIBLE_CATEGORIES = {
@@ -518,50 +520,61 @@ async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> Par
     region_code = destination_region_codes[0] if len(destination_region_codes) == 1 else None
     for query in _query_candidates(card, req):
         try:
-            payload = await _search_place(query, api_key, region_code)
+            async def resolve_query() -> places_cache.CacheEntry:
+                payload = await _search_place(query, api_key, region_code)
+                places = payload.get("places") if isinstance(payload, dict) else None
+                logger.info(
+                    "Places query complete | card=%s | query=%s | results=%d",
+                    card.name,
+                    query,
+                    len(places or []),
+                )
+                if not places:
+                    return places_cache.CacheEntry(is_negative=True)
+
+                for index, place in enumerate(places):
+                    display_name = ((place.get("displayName") or {}).get("text") or "").strip()
+                    formatted_address = (place.get("formattedAddress") or "").strip()
+                    name_matched = _is_name_match(card, display_name)
+                    destination_matched = _place_matches_destination_context(place, req)
+                    logger.info(
+                        "Places candidate | card=%s | query=%s | idx=%d | name=%s | address=%s | name_matched=%s | destination_matched=%s | destinations=%s",
+                        card.name,
+                        query,
+                        index,
+                        display_name,
+                        formatted_address,
+                        name_matched,
+                        destination_matched,
+                        req.destinations,
+                    )
+                    if name_matched and destination_matched:
+                        return places_cache.CacheEntry(place=place)
+
+                if _can_accept_single_result_without_name_match(
+                    card, query, places, req
+                ) and _place_matches_destination_context(places[0], req):
+                    logger.info(
+                        "Places relaxed match accepted | card=%s | query=%s | reason=%s",
+                        card.name,
+                        query,
+                        "alias_structured_or_destination_single_result",
+                    )
+                    return places_cache.CacheEntry(place=places[0])
+
+                return places_cache.CacheEntry()
+
+            entry = await places_cache.lookup_or_resolve(
+                query, region_code, PLACES_CACHE_SHAPE, resolve=resolve_query
+            )
         except httpx.HTTPError as exc:
             logger.warning("Places lookup failed for query=%s | error=%s", query, exc)
             return card
 
-        places = payload.get("places") if isinstance(payload, dict) else None
-        logger.info(
-            "Places query complete | card=%s | query=%s | results=%d",
-            card.name,
-            query,
-            len(places or []),
-        )
-        if not places:
+        if entry.is_negative:
             continue
-
-        for index, place in enumerate(places):
-            display_name = ((place.get("displayName") or {}).get("text") or "").strip()
-            formatted_address = (place.get("formattedAddress") or "").strip()
-            name_matched = _is_name_match(card, display_name)
-            destination_matched = _place_matches_destination_context(place, req)
-            logger.info(
-                "Places candidate | card=%s | query=%s | idx=%d | name=%s | address=%s | name_matched=%s | destination_matched=%s | destinations=%s",
-                card.name,
-                query,
-                index,
-                display_name,
-                formatted_address,
-                name_matched,
-                destination_matched,
-                req.destinations,
-            )
-            if name_matched and destination_matched:
-                return _apply_place_match(card, place)
-
-        if _can_accept_single_result_without_name_match(card, query, places, req) and _place_matches_destination_context(
-            places[0], req
-        ):
-            logger.info(
-                "Places relaxed match accepted | card=%s | query=%s | reason=%s",
-                card.name,
-                query,
-                "alias_structured_or_destination_single_result",
-            )
-            return _apply_place_match(card, places[0])
+        if entry.place is not None:
+            return _apply_place_match(card, entry.place)
 
     if card.source != "structured_input":
         return card.model_copy(
@@ -589,6 +602,7 @@ async def enrich_cards_blocking(req: ParseRequest, cards: list[ParsedCard]) -> l
         logger.info("Skipping Places enrichment because API key is not configured.")
         return cards
 
+    places_cache.begin_scope()
     semaphore = asyncio.Semaphore(max(1, PLACES_MAX_CONCURRENCY))
     results = await asyncio.gather(
         *[_enrich_card_with_semaphore(semaphore, card, req, api_key) for card in cards],
@@ -602,6 +616,7 @@ async def enrich_cards_blocking(req: ParseRequest, cards: list[ParsedCard]) -> l
             enriched_cards.append(card)
             continue
         enriched_cards.append(result)
+    places_cache.log_summary()
     return enriched_cards
 
 
@@ -691,6 +706,7 @@ async def parse_card_level(req: CardParseRequest) -> ParsedCard:
         logger.info("Skipping card-level Places enrichment because API key is not configured.")
         return card
 
+    places_cache.begin_scope()
     enrichment_req = ParseRequest(
         trip_id=req.trip_id,
         dump_text=req.natural_language_input,
@@ -698,7 +714,9 @@ async def parse_card_level(req: CardParseRequest) -> ParsedCard:
         travel_days=req.travel_days or 1,
         companion_count=req.companion_count or 1,
     )
-    return await _enrich_card(card, enrichment_req, api_key)
+    enriched = await _enrich_card(card, enrichment_req, api_key)
+    places_cache.log_summary()
+    return enriched
 
 
 async def parse_with_blocking_enrichment(req: ParseRequest) -> CoreParseResult:

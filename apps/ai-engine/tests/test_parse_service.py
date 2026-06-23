@@ -604,3 +604,86 @@ async def test_enrich_card_rejects_name_match_when_destination_mismatches() -> N
         assert all(region_code == "jp" for region_code in seen_region_codes)
     finally:
         core_parse._search_place = original
+
+
+@pytest.mark.asyncio
+async def test_enrich_card_caches_accepted_place(monkeypatch) -> None:
+    from app.services import places_cache
+
+    store: dict = {}
+
+    async def fake_get(cache_key):
+        return store.get(cache_key)
+
+    async def fake_put(cache_key, qn, rc, mv, entry, expires_at_iso):
+        store[cache_key] = entry
+
+    google_calls = {"n": 0}
+
+    async def fake_search(query, api_key, region_code=None):
+        google_calls["n"] += 1
+        return {
+            "places": [
+                {
+                    "id": "p1",
+                    "displayName": {"text": "도쿄타워"},
+                    "formattedAddress": "4 Chome-2-8 Shibakoen, Minato City, Tokyo",
+                    "shortFormattedAddress": "Tokyo Tower",
+                    "location": {"latitude": 35.6586, "longitude": 139.7454},
+                }
+            ]
+        }
+
+    monkeypatch.setattr(places_cache, "PLACES_CACHE_ENABLED", True)
+    monkeypatch.setattr(places_cache, "SUPABASE_URL", "https://proj.supabase.co")
+    monkeypatch.setattr(places_cache, "SUPABASE_SERVICE_ROLE_KEY", "svc-key")
+    monkeypatch.setattr(places_cache, "_http_get_cache", fake_get)
+    monkeypatch.setattr(places_cache, "_http_put_cache", fake_put)
+    monkeypatch.setattr(core_parse, "_search_place", fake_search)
+    places_cache.begin_scope()
+
+    card = ParsedCard(
+        name="도쿄타워",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+
+    first = await core_parse._enrich_card(card, _request(), "key")
+    second = await core_parse._enrich_card(card, _request(), "key")
+
+    assert first.place_id == second.place_id == "p1"
+    assert first.coordinates is not None
+    assert google_calls["n"] == 1
+
+
+@pytest.mark.asyncio
+async def test_enrich_cards_blocking_starts_cache_scope(monkeypatch) -> None:
+    began = {"n": 0}
+
+    monkeypatch.setattr(
+        core_parse.places_cache, "begin_scope", lambda: began.__setitem__("n", began["n"] + 1)
+    )
+    monkeypatch.setattr(core_parse.places_cache, "log_summary", lambda: None)
+    monkeypatch.setattr(core_parse, "_places_api_key", lambda: "test-key")
+
+    async def fake_enrich(card, req, api_key):
+        return card
+
+    monkeypatch.setattr(core_parse, "_enrich_card", fake_enrich)
+
+    card = ParsedCard(
+        name="도쿄타워",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+
+    out = await core_parse.enrich_cards_blocking(_request(), [card])
+
+    assert began["n"] == 1
+    assert out == [card]
