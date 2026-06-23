@@ -3,6 +3,7 @@ kind: Ingress
 metadata:
   name: tripkey
   annotations:
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-northeast-2:400524748280:certificate/d6c5a459-b9b8-4cd7-905a-42f358f16ee0
     alb.ingress.kubernetes.io/tags: Environment=staging,Project=tripkey
 spec:
   rules:
