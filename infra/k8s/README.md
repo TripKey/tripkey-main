@@ -97,9 +97,41 @@ frontend Nginx 이미지 안에도 `/api` proxy fallback이 남아 있을 수 �
 
 기존 EC2 SSM 기반 Docker Compose 배포는 더 이상 수행하지 않는다. `usetripkey.com`이 EKS Ingress ALB를 바라보므로, ECR에 이미지를 push하는 것만으로는 실행 중인 EKS Pod가 바뀌지 않는다. 따라서 workflow에서 `kubectl set image`와 `kubectl rollout status`를 실행해 EKS Deployment를 자동 갱신한다.
 
+### production 배포 후 확인
+
+GitHub Actions가 성공하더라도 운영 관점에서는 새 Pod가 `Running`과 `Ready` 상태가 되었는지 별도로 확인한다. `kubectl apply`와 `kubectl set image`가 성공해도, 애플리케이션이 시작되는 과정에서 DB migration 누락, Secret 값 오류, 외부 서비스 연결 문제로 새 Pod가 `CrashLoopBackOff`가 될 수 있다.
+
+production 배포 후에는 최소한 아래 명령을 확인한다.
+
+```bash
+kubectl -n tripkey get deploy
+kubectl -n tripkey get pods
+kubectl -n tripkey get hpa
+curl -i https://usetripkey.com/api/health
+```
+
+Kubernetes Deployment는 새 Pod가 정상 기동하지 못하면 기존 Ready Pod를 가능한 한 유지한다. 따라서 서비스가 계속 응답하더라도 rollout이 완전히 성공한 것은 아닐 수 있다. 새 Pod가 실패하는 경우에는 실패한 Pod를 직접 지정해 로그를 확인한다.
+
+```bash
+kubectl -n tripkey logs pod/<crashloop-pod-name> --tail=150
+```
+
+`kubectl logs deploy/<deployment-name>`은 Deployment에 속한 Pod 중 하나를 선택하므로, 기존 정상 Pod 로그가 보일 수 있다. CrashLoop 원인을 볼 때는 `kubectl get pods`에서 새로 실패한 Pod 이름을 확인한 뒤 직접 조회한다.
+
 ## Secret / ConfigMap 주의사항
 
 `tripkey-config`와 `tripkey-secrets`의 실제 값은 이 디렉터리의 YAML에 커밋하지 않는다. 특히 DB URL, API key, Supabase key는 Kubernetes Secret 또는 별도 Secret 관리 도구에서 주입한다.
+
+Supabase 관련 URL은 용도가 다르므로 혼동하지 않는다.
+
+- `SUPABASE_URL`: Supabase API URL. `https://...supabase.co` 형식이다.
+- `SUPABASE_DB_URL`: Spring datasource URL. `jdbc:postgresql://...` 형식이다.
+
+`SUPABASE_DB_URL`에 `https://...supabase.co` 값을 넣으면 PostgreSQL driver가 URL을 인식하지 못해 backend와 ai-worker Pod가 시작되지 않는다.
+
+```text
+Driver org.postgresql.Driver claims to not accept jdbcUrl, https://...supabase.co
+```
 
 Supabase pooler를 사용하는 경우 `SUPABASE_DB_URL`에는 PostgreSQL JDBC 옵션 `prepareThreshold=0`을 포함해야 한다.
 
@@ -123,6 +155,34 @@ ERROR: prepared statement "S_1" does not exist
 ```
 
 현재 EKS 클러스터에는 Secret을 수동으로 patch해서 이 옵션을 반영했다. 하지만 Secret을 다시 만들거나 새 클러스터에 배포할 때는 이 옵션이 빠지지 않도록 주의해야 한다.
+
+Secret 값을 수정한 뒤에는 기존 Pod가 자동으로 새 환경변수를 읽지 않는다. 변경을 반영하려면 Deployment를 재시작한다.
+
+```bash
+kubectl -n tripkey rollout restart deployment/tripkey-backend
+kubectl -n tripkey rollout restart deployment/tripkey-ai-worker
+```
+
+## DB migration 운영 규칙
+
+production 프로필의 Spring Boot backend는 Hibernate `ddl-auto=validate`를 사용한다. 앱 코드가 기대하는 테이블 또는 컬럼이 DB에 없으면 애플리케이션이 시작되지 않고 Pod가 `CrashLoopBackOff` 상태가 된다.
+
+예시:
+
+```text
+Schema-validation: missing column [distance_meters] in table [route_legs_cache]
+```
+
+따라서 DB schema 변경이 포함된 배포는 아래 순서를 따른다.
+
+1. migration SQL을 PR에 포함한다.
+2. staging DB에 migration을 먼저 적용한다.
+3. staging 배포와 smoke test를 통과시킨다.
+4. production DB에 같은 migration을 적용한다.
+5. `main` 배포를 진행한다.
+6. production Pod 상태와 `/api/health`를 확인한다.
+
+현재 migration 파일의 기준 위치는 `shared/docs/migrations/`이다. Supabase 실제 스키마를 직접 수정했다면 동일한 변경을 migration 파일에도 남겨 코드 기준 스키마와 실제 DB 스키마가 벌어지지 않게 한다.
 
 ## ai-worker
 
