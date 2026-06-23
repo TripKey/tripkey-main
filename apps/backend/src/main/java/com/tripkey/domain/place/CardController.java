@@ -55,7 +55,11 @@ public class CardController {
                     2. 구조화 필드 수정
                     - 숙소 카드: location / check_in / check_out
                     - 교통 카드: location / time_constraint / flight_number
-                    - 구조화 필드 수정 시 processing_status가 processing으로 전환되고 enrichment가 재처리됩니다.
+                    - 위치(location, 교통은 공항)가 변경되면 processing_status가 processing으로 전환되고
+                      Places lookup/enrichment가 비동기로 재처리됩니다. 성공 시 processing_status가
+                      processing이 아닌 상태(completed 또는 좌표 미확보 시 needs_input)로 종료됩니다.
+                    - 위치 외 필드(check_in / check_out / time_constraint / flight_number)만 변경 시에는
+                      값만 저장되고 재처리하지 않습니다.
 
                     3. notes 입력
                     - notes는 모든 카드에 저장됩니다.

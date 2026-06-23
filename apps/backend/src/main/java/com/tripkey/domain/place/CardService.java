@@ -121,22 +121,38 @@ public class CardService {
         }
         boolean shouldTriggerNotesParsing = notesInput != null && card.canStartNaturalLanguageParsingFromNotes();
 
+        // 구조화 편집: 위치(좌표/장소에 영향)가 실제로 바뀐 경우에만 재처리를 트리거한다.
+        // 체크인/체크아웃·시간·편명만 바뀌면 값만 저장(불필요한 processing 강등 방지).
+        boolean structuredReprocessNeeded = false;
+
         boolean accommodationEdit = "accommodation".equals(card.getCategory())
                 && (request.location() != null || request.checkIn() != null || request.checkOut() != null);
         if (accommodationEdit) {
-            card.applyAccommodationEdit(request.location(), request.checkIn(), request.checkOut());
+            structuredReprocessNeeded |= card.applyAccommodationEdit(
+                    request.location(), request.checkIn(), request.checkOut());
         }
 
         boolean transportEdit = "transport".equals(card.getCategory())
                 && (request.location() != null || request.timeConstraint() != null || request.flightNumber() != null);
         if (transportEdit) {
-            card.applyTransportEdit(request.location(), request.timeConstraint(), request.flightNumber());
+            structuredReprocessNeeded |= card.applyTransportEdit(
+                    request.location(), request.timeConstraint(), request.flightNumber());
         }
 
+        // notes 자연어 재파싱이 우선. (FE는 구조화 편집과 notes를 분리 전송)
         if (shouldTriggerNotesParsing) {
             card.markCardLevelParsingStarted();
             placeCardRepository.save(card);
             triggerInputParsingAfterCommit(tripId, instanceId, notesInput);
+            return CardDto.from(card);
+        }
+
+        // 구조화 위치 변경 → notes 경로와 동일한 비동기 재처리(Places lookup/enrichment) 트리거.
+        // naturalLanguageInput=null 이면 AI 가 카드의 구조화 필드 기준으로 재파싱한다.
+        if (structuredReprocessNeeded) {
+            card.markCardLevelParsingStarted();
+            placeCardRepository.save(card);
+            triggerInputParsingAfterCommit(tripId, instanceId, null);
             return CardDto.from(card);
         }
 

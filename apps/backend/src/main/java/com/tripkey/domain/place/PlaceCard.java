@@ -11,6 +11,7 @@ import org.locationtech.jts.geom.Point;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -230,9 +231,17 @@ public class PlaceCard {
         this.dayOrder = null;
     }
 
-    public void applyAccommodationEdit(String location, String checkIn, String checkOut) {
+    /**
+     * 숙소 구조화 편집. 위치(좌표에 영향)가 실제로 바뀐 경우에만 true 를 반환해
+     * 호출부가 재처리(Places lookup) 트리거 여부를 결정한다. 체크인/체크아웃만 바뀌면
+     * 값만 저장하고 재처리하지 않는다(불필요한 processing 강등 방지).
+     */
+    public boolean applyAccommodationEdit(String location, String checkIn, String checkOut) {
+        boolean locationChanged = false;
         if (location != null) {
-            this.location = trimToNull(location);
+            String normalized = trimToNull(location);
+            locationChanged = !Objects.equals(normalized, this.location);
+            this.location = normalized;
         }
         if (checkIn != null) {
             this.checkIn = trimToNull(checkIn);
@@ -240,12 +249,20 @@ public class PlaceCard {
         if (checkOut != null) {
             this.checkOut = trimToNull(checkOut);
         }
-        markReprocessing();
+        return locationChanged;
     }
 
-    public void applyTransportEdit(String location, String timeConstraint, String flightNumber) {
+    /**
+     * 교통(항공 포함) 구조화 편집. 위치(공항)가 실제로 바뀐 경우에만 true 를 반환한다.
+     * 시간(time_constraint)·편명만 바뀌면 값만 저장한다. 항공 시각의 flight_datetime 정규화는
+     * 위치 변경으로 재처리가 트리거될 때 AI 파싱 결과로 반영된다.
+     */
+    public boolean applyTransportEdit(String location, String timeConstraint, String flightNumber) {
+        boolean locationChanged = false;
         if (location != null) {
-            this.location = trimToNull(location);
+            String normalized = trimToNull(location);
+            locationChanged = !Objects.equals(normalized, this.location);
+            this.location = normalized;
         }
         if (timeConstraint != null) {
             this.timeConstraint = trimToNull(timeConstraint);
@@ -253,7 +270,7 @@ public class PlaceCard {
         if (flightNumber != null) {
             this.flightNumber = trimToNull(flightNumber);
         }
-        markReprocessing();
+        return locationChanged;
     }
 
     public boolean canStartNaturalLanguageParsingFromNotes() {
@@ -339,11 +356,6 @@ public class PlaceCard {
 
     public void markFailed() {
         this.processingStatus = "failed";
-        recomputeActionType();
-    }
-
-    private void markReprocessing() {
-        this.processingStatus = "processing";
         recomputeActionType();
     }
 
