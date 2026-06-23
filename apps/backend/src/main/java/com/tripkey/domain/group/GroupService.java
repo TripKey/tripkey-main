@@ -3,6 +3,8 @@ package com.tripkey.domain.group;
 import com.tripkey.common.exception.TripNotFoundException;
 import com.tripkey.domain.place.PlaceCard;
 import com.tripkey.domain.place.PlaceCardRepository;
+import com.tripkey.domain.trip.TripDestination;
+import com.tripkey.domain.trip.TripDestinationRepository;
 import com.tripkey.domain.trip.TripRepository;
 import com.tripkey.dto.card.CardDto;
 import com.tripkey.dto.group.Groups03Response;
@@ -17,7 +19,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -27,10 +28,11 @@ public class GroupService {
 
     private static final double SCR04_CLUSTER_EPS_METERS = 1500.0;
     private static final int SCR04_CLUSTER_MIN_POINTS = 1;
-    private static final String FALLBACK_LABEL = "기타";
 
     private final TripRepository tripRepository;
+    private final TripDestinationRepository tripDestinationRepository;
     private final PlaceCardRepository placeCardRepository;
+    private final GroupRegionLabelResolver groupRegionLabelResolver;
 
     @Transactional(readOnly = true)
     public Groups03Response getGroups03(UUID tripId) {
@@ -108,7 +110,8 @@ public class GroupService {
             availableCandidates.add(card);
         }
 
-        List<StockGroup> available = clusterIntoStockGroups(tripId, availableCandidates);
+        List<String> destinations = tripDestinations(tripId);
+        List<StockGroup> available = clusterIntoStockGroups(tripId, availableCandidates, destinations);
 
         return Groups04Response.of(
                 available,
@@ -118,7 +121,7 @@ public class GroupService {
         );
     }
 
-    private List<StockGroup> clusterIntoStockGroups(UUID tripId, List<PlaceCard> candidates) {
+    private List<StockGroup> clusterIntoStockGroups(UUID tripId, List<PlaceCard> candidates, List<String> destinations) {
         if (candidates.isEmpty()) {
             return List.of();
         }
@@ -144,7 +147,10 @@ public class GroupService {
         record LabeledCluster(int clusterId, String dominantLabel, List<PlaceCard> cards) {}
 
         List<LabeledCluster> clusters = cardsByCluster.entrySet().stream()
-                .map(e -> new LabeledCluster(e.getKey(), dominantLocation(e.getValue()), e.getValue()))
+                .map(e -> new LabeledCluster(
+                        e.getKey(),
+                        groupRegionLabelResolver.resolve(e.getValue(), destinations),
+                        e.getValue()))
                 .toList();
 
         Map<String, List<LabeledCluster>> byLabel = clusters.stream()
@@ -177,17 +183,16 @@ public class GroupService {
         return result;
     }
 
-    private static String dominantLocation(List<PlaceCard> cards) {
-        return cards.stream()
-                .map(PlaceCard::getLocation)
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.groupingBy(s -> s, Collectors.counting()))
-                .entrySet().stream()
-                .max(Map.Entry.<String, Long>comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElse(FALLBACK_LABEL);
+    private List<String> tripDestinations(UUID tripId) {
+        List<TripDestination> destinations = tripDestinationRepository.findByTripTripIdOrderBySortOrder(tripId);
+        if (destinations == null) {
+            return List.of();
+        }
+        return destinations.stream()
+                .map(TripDestination::getName)
+                .filter(name -> name != null && !name.isBlank())
+                .distinct()
+                .toList();
     }
 
     private static List<CardDto> toSortedDtos(List<PlaceCard> cards) {
