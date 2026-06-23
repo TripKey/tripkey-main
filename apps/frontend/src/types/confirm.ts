@@ -1,7 +1,7 @@
 // SCR-05 (확정 전 최종 점검) 화면 ViewModel 타입.
 // 백엔드 응답(GET /trips·/cards·/days)을 confirm-mapper 가 이 형태로 변환한다.
 import type { PlaceCardBadgeSpec } from '@/types/grouping';
-import type { Coordinates } from '@/types/grouping-api';
+import type { CardCategory, Coordinates } from '@/types/grouping-api';
 
 export type ConfirmStat = {
   label: string;
@@ -42,6 +42,8 @@ export type ConfirmCardViewModel = {
   aiTip?: string;
   /** 지도 마커용 좌표 — 없으면 마커 스킵 */
   coordinates?: Coordinates;
+  /** 카드 종류 — 마커 디자인 분기용 (항공편/장소 구분 등) */
+  category?: CardCategory;
 };
 
 export type ConfirmDayChecklistItem = {

@@ -11,6 +11,7 @@ import {
 } from '@vis.gl/react-google-maps';
 import { useEffect } from 'react';
 
+import type { CardCategory } from '@/types/grouping-api';
 import { GOOGLE_MAPS_API_KEY } from '@/utils/constants';
 
 export type MapMarker = {
@@ -19,6 +20,7 @@ export type MapMarker = {
   name: string;
   lat: number;
   lng: number;
+  category?: CardCategory;
 };
 
 type MapCardProps = {
