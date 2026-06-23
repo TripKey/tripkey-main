@@ -56,7 +56,17 @@ frontend Nginx 이미지 안에도 `/api` proxy fallback이 남아 있을 수 �
 
 ## GitHub Actions 배포
 
-`.github/workflows/deploy.yml`은 `develop` branch push 시 ECR 이미지를 build/push한 뒤 EKS Deployment를 갱신한다.
+`.github/workflows/deploy.yml`은 `main` branch push 시 ECR 이미지를 build/push한 뒤 EKS production Deployment를 갱신한다.
+
+현재 `tripkey-prod` EKS 클러스터와 `usetripkey.com`은 production 환경으로 간주한다. 따라서 production 배포는 `main` 기준으로만 수행한다.
+
+브랜치별 역할:
+
+- `feature/*`: 기능 작업 브랜치. PR을 통해 CI 검증을 받는다.
+- `develop`: 통합 브랜치. 현재는 CI 검증 중심으로 사용하며, production 배포를 수행하지 않는다.
+- `main`: production 배포 브랜치. `usetripkey.com`에 반영되는 EKS 배포는 이 브랜치 push 기준으로 실행한다.
+
+향후 staging 환경을 구성하면 `develop` push는 staging 배포 트리거로 사용할 수 있다. staging은 같은 EKS 클러스터의 별도 namespace와 `staging.usetripkey.com` 같은 별도 도메인으로 분리하는 방향을 우선 검토한다.
 
 배포 흐름:
 
@@ -81,6 +91,7 @@ frontend Nginx 이미지 안에도 `/api` proxy fallback이 남아 있을 수 �
 - GitHub Actions용 IAM Role을 만든다.
 - 해당 Role에 ECR image push 권한과 EKS cluster 조회 권한을 부여한다.
 - EKS Access Entry 또는 `aws-auth` ConfigMap을 통해 해당 IAM Role이 Kubernetes 리소스를 apply/patch/get 할 수 있게 한다.
+- IAM Role 신뢰 정책은 production 배포 기준 브랜치인 `main`에서 실행되는 workflow를 허용해야 한다.
 
 이 workflow는 Kubernetes Secret 값을 생성하거나 갱신하지 않는다. 앱 Secret은 기존 EKS `tripkey-secrets`, `tripkey-config`를 계속 사용한다.
 
