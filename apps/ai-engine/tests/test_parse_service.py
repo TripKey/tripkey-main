@@ -97,6 +97,30 @@ def test_query_candidates_use_destination_specific_country_hint() -> None:
     assert all("japan" not in query.lower() for query in queries)
 
 
+def test_query_candidates_use_all_destinations() -> None:
+    card = ParsedCard(
+        name="아라비카 커피 아라시야마 점",
+        category=Category.FOOD,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="아라비카 커피 아라시야마 점",
+        destinations=["오사카", "교토시"],
+        travel_days=3,
+        companion_count=2,
+    )
+
+    queries = core_parse._query_candidates(card, req)
+
+    assert "아라비카 커피 아라시야마 점 오사카" in queries
+    assert "아라비카 커피 아라시야마 점 교토" in queries
+    assert "아라비카 커피 아라시야마 점 교토 japan" in queries
+
+
 def test_query_candidates_for_bangkok_landmark_are_not_japan_biased() -> None:
     card = ParsedCard(
         name="방콕 왕궁",
@@ -137,6 +161,10 @@ def test_destination_hints_normalize_city_suffixes() -> None:
     assert "교토" in hints
     assert "kyoto" in hints
     assert "japan" in hints
+
+
+def test_canonical_destination_does_not_substring_match_ambiguous_admin_names() -> None:
+    assert core_parse._canonical_destination_name("경기도 광주시") == "경기도 광주시"
 
 
 def test_core_parse_prompt_requires_destination_aware_responses() -> None:

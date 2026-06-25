@@ -453,27 +453,34 @@ def _apply_flight_constraints(cards: list[ParsedCard], req: ParseRequest) -> lis
 
 
 def _query_candidates(card: ParsedCard, req: ParseRequest) -> list[str]:
-    destinations = [destination.strip() for destination in req.destinations if destination.strip()]
-    primary_destination = _canonical_destination_name(destinations[0]) if destinations else ""
-    primary_region_code = _destination_region_codes([primary_destination])
-    country_hint = (
-        DESTINATION_COUNTRY_QUERY_HINTS.get(primary_region_code[0], "")
-        if primary_region_code
-        else ""
-    )
+    destinations = _canonical_destinations_for_request(req)
     location = (card.location or "").strip()
     alias = (card.search_alias or "").strip()
     name = card.name.strip()
 
     candidates = [
         f"{name} {location}".strip() if location else "",
-        f"{name} {primary_destination}".strip(),
-        f"{name} {primary_destination} {country_hint}".strip() if country_hint else "",
-        f"{alias} {location}".strip() if alias else "",
-        f"{alias} {primary_destination}".strip() if alias else "",
-        f"{alias} {primary_destination} {country_hint}".strip() if alias and country_hint else "",
-        name,
     ]
+    for destination in destinations:
+        region_codes = _destination_region_codes([destination])
+        country_hint = DESTINATION_COUNTRY_QUERY_HINTS.get(region_codes[0], "") if region_codes else ""
+        candidates.extend(
+            [
+                f"{name} {destination}".strip(),
+                f"{name} {destination} {country_hint}".strip() if country_hint else "",
+            ]
+        )
+    candidates.append(f"{alias} {location}".strip() if alias else "")
+    for destination in destinations:
+        region_codes = _destination_region_codes([destination])
+        country_hint = DESTINATION_COUNTRY_QUERY_HINTS.get(region_codes[0], "") if region_codes else ""
+        candidates.extend(
+            [
+                f"{alias} {destination}".strip() if alias else "",
+                f"{alias} {destination} {country_hint}".strip() if alias and country_hint else "",
+            ]
+        )
+    candidates.append(name)
 
     deduped: list[str] = []
     seen: set[str] = set()
@@ -513,12 +520,19 @@ def _canonical_destination_name(destination: str) -> str:
         if variant in DESTINATION_ADDRESS_HINTS or variant in DESTINATION_REGION_CODES:
             return variant
 
-    compact = variants[0] if variants else destination.strip()
-    for known_destination in DESTINATION_ADDRESS_HINTS.keys() | DESTINATION_REGION_CODES.keys():
-        if known_destination in compact or compact in known_destination:
-            return known_destination
-
     return destination.strip()
+
+
+def _canonical_destinations_for_request(req: ParseRequest) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for destination in req.destinations:
+        canonical = _canonical_destination_name(destination)
+        if not canonical or canonical in seen:
+            continue
+        deduped.append(canonical)
+        seen.add(canonical)
+    return deduped
 
 
 def _destination_hints(destinations: list[str]) -> set[str]:
@@ -570,10 +584,10 @@ def _uses_search_alias(card: ParsedCard, query: str) -> bool:
 
 def _query_uses_destination_context(query: str, req: ParseRequest) -> bool:
     normalized_query = query.lower()
-    destinations = [destination.strip().lower() for destination in req.destinations if destination.strip()]
+    destinations = [destination.lower() for destination in _canonical_destinations_for_request(req)]
     country_hints = {
         DESTINATION_COUNTRY_QUERY_HINTS[code]
-        for code in _destination_region_codes(req.destinations)
+        for code in _destination_region_codes(_canonical_destinations_for_request(req))
         if code in DESTINATION_COUNTRY_QUERY_HINTS
     }
     return any(destination in normalized_query for destination in destinations) or any(
@@ -651,7 +665,7 @@ async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> Par
     if not card.name.strip():
         return card
 
-    destination_region_codes = _destination_region_codes(req.destinations)
+    destination_region_codes = _destination_region_codes(_canonical_destinations_for_request(req))
     region_code = destination_region_codes[0] if len(destination_region_codes) == 1 else None
     for query in _query_candidates(card, req):
         try:
