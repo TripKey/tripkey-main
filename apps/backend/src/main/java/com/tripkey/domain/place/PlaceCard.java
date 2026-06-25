@@ -421,8 +421,51 @@ public class PlaceCard {
         demoteWhenCoordinatesMissing();
     }
 
+    public void applyCardLevelQuestionResult(AiPlaceCardDto dto) {
+        this.placeId = null;
+        this.lat = null;
+        this.lng = null;
+        this.address = null;
+
+        this.name = defaultString(dto.name(), this.name);
+        this.category = normalizeCategory(dto.category() != null ? dto.category() : this.category);
+        this.classification = normalizeClassification(dto.classification());
+        this.placementStatus = normalizePlacementStatus(dto.placementStatus(), this.classification);
+        this.processingStatus = "completed";
+        this.actionType = computeActionType(this.classification, this.placementStatus);
+        this.canExclude = !NON_EXCLUDABLE_CATEGORIES.contains(this.category);
+        this.allowDuplicate = dto.allowDuplicate() != null
+                ? dto.allowDuplicate()
+                : DUPLICATE_DEFAULT_CATEGORIES.contains(this.category);
+        this.isAiGenerated = dto.isAiGenerated() != null ? dto.isAiGenerated() : this.isAiGenerated;
+
+        this.estimatedDurationMin = dto.estimatedDurationMin() != null
+                ? dto.estimatedDurationMin()
+                : this.estimatedDurationMin;
+        this.location = dto.location() != null ? trimToNull(dto.location()) : this.location;
+        this.timeConstraint = dto.timeConstraint() != null ? trimToNull(dto.timeConstraint()) : this.timeConstraint;
+        this.userContext = trimToNull(dto.userContext());
+        this.tips = trimToNull(dto.tips());
+        this.searchAlias = trimToNull(dto.searchAlias());
+        this.questionText = trimToNull(dto.questionText());
+        this.options = dto.options();
+        this.blockedReason = trimToNull(dto.blockedReason());
+        this.tags = dto.tags();
+        this.checkIn = dto.checkIn() != null ? trimToNull(dto.checkIn()) : this.checkIn;
+        this.checkOut = dto.checkOut() != null ? trimToNull(dto.checkOut()) : this.checkOut;
+        this.flightNumber = dto.flightNumber() != null ? trimToNull(dto.flightNumber()) : this.flightNumber;
+        this.flightDatetime = dto.flightDatetime() != null
+                ? normalizeFlightDatetime(dto.flightDatetime())
+                : this.flightDatetime;
+        this.flightRole = dto.flightRole() != null ? normalizeFlightRole(dto.flightRole()) : this.flightRole;
+    }
+
     public boolean isConfirmedParseResult(AiPlaceCardDto dto) {
         return "confirmed".equals(normalizeClassification(dto.classification()));
+    }
+
+    public boolean isQuestionParseResult(AiPlaceCardDto dto) {
+        return "undecided".equals(normalizeClassification(dto.classification()));
     }
 
     public void markProcessingCompleted() {

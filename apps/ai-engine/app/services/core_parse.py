@@ -10,6 +10,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from difflib import SequenceMatcher
+from enum import Enum
 from typing import Optional
 
 import httpx
@@ -132,6 +133,12 @@ class CoreParseResult:
 
 class ParsedCard(CardResponse):
     search_alias: Optional[str] = None
+
+
+class QuestionStep(str, Enum):
+    CHOOSE_SUBCATEGORY = "choose_subcategory"
+    CHOOSE_VENUE = "choose_venue"
+    PROVIDE_MISSING_DETAIL = "provide_missing_detail"
 
 
 def _gemini_client() -> genai.Client:
@@ -294,6 +301,56 @@ GENERIC_RECOMMENDATION_TERMS = {
     "현지 맛집",
 }
 
+SUBCATEGORY_OPTION_TERMS = {
+    Category.FOOD.value: {
+        "스시",
+        "초밥",
+        "라멘",
+        "오코노미야키",
+        "오코노미야끼",
+        "카페",
+        "디저트",
+        "이자카야",
+        "야키니쿠",
+        "우동",
+        "소바",
+        "해산물",
+        "현지 맛집",
+    },
+    Category.PLACE.value: {
+        "랜드마크",
+        "사찰",
+        "신사",
+        "사찰/신사",
+        "전망",
+        "야경",
+        "전망/야경",
+        "쇼핑거리",
+        "시장",
+        "박물관",
+        "공원",
+        "거리",
+    },
+    Category.ACTIVITY.value: {
+        "투어",
+        "온천",
+        "체험",
+        "클래스",
+        "테마파크",
+        "액티비티",
+        "공연",
+        "야경 투어",
+    },
+    Category.TRANSPORT.value: {
+        "지하철",
+        "버스",
+        "택시",
+        "기차",
+        "도보",
+        "렌터카",
+    },
+}
+
 
 def _contains_generic_recommendation_term(value: str | None) -> bool:
     if not value:
@@ -333,12 +390,61 @@ def _normalize_generic_open_question(raw_card: dict) -> dict:
     else:
         patched["placement_status"] = PlacementStatus.NEEDS_INPUT.value
         patched["options"] = None
-    patched["question_text"] = patched.get("question_text") or f"{patched.get('name', '장소')} 중 어떤 곳을 원하시나요?"
+    patched["question_text"] = patched.get("question_text") or _fallback_question_text(patched)
     patched["place_id"] = None
     patched["coordinates"] = None
     patched["address"] = None
     logger.info("Normalized generic open_question card to undecided | name=%s", patched.get("name"))
     return patched
+
+
+def _fallback_question_text(raw_card: dict) -> str:
+    name = str(raw_card.get("name") or "장소").strip() or "장소"
+    category = raw_card.get("category")
+    question_step = _infer_question_step(raw_card)
+
+    if question_step == QuestionStep.CHOOSE_SUBCATEGORY:
+        return f"{name}은(는) 아직 범위가 넓어요. 먼저 원하는 종류나 분위기를 골라주시면 그에 맞는 구체 장소 후보를 좁힐게요."
+    if question_step == QuestionStep.CHOOSE_VENUE:
+        return f"{name} 후보를 몇 곳 찾았어요. 이 중 일정에 넣고 싶은 곳을 선택해 주세요."
+
+    if category == Category.FOOD.value:
+        return f"{name}을(를) 일정에 넣으려면 선호하는 메뉴, 동네, 예산, 또는 특정 매장명이 필요해요. 어떤 기준으로 찾을까요?"
+    if category == Category.ACCOMMODATION.value:
+        return f"{name}을(를) 일정에 넣으려면 숙소 이름이나 위치, 체크인/체크아웃 정보가 필요해요. 어떤 숙소를 말하는지 알려주세요."
+    if category == Category.TRANSPORT.value:
+        return f"{name} 이동을 정리하려면 출발지, 도착지, 시간이나 교통편 정보가 필요해요. 어떤 이동을 말하는지 알려주세요."
+    if category == Category.ACTIVITY.value:
+        return f"{name} 활동을 일정에 넣으려면 원하는 지역, 시간대, 종류, 또는 예약한 업체명이 필요해요. 어떤 활동을 원하시나요?"
+    if category == Category.PLACE.value:
+        return f"{name} 방문 의도는 보이지만 장소가 특정되지 않았어요. 지역, 랜드마크 이름, 또는 원하는 분위기를 알려주세요."
+
+    return f"{name}에 대한 의도는 보이지만 일정에 넣기엔 정보가 부족해요. 장소명, 지역, 시간 같은 단서를 조금 더 알려주세요."
+
+
+def _infer_question_step(raw_card: dict) -> QuestionStep:
+    if raw_card.get("placement_status") == PlacementStatus.READY_PARTIAL.value and raw_card.get("options"):
+        if _options_look_like_subcategories(raw_card.get("category"), raw_card.get("options")):
+            return QuestionStep.CHOOSE_SUBCATEGORY
+        return QuestionStep.CHOOSE_VENUE
+    return QuestionStep.PROVIDE_MISSING_DETAIL
+
+
+def _options_look_like_subcategories(category: str | None, options: object) -> bool:
+    if category not in SUBCATEGORY_OPTION_TERMS or not isinstance(options, list) or not options:
+        return False
+
+    terms = {
+        _normalize_for_match(term)
+        for term in SUBCATEGORY_OPTION_TERMS[category]
+    }
+    matches = 0
+    for option in options:
+        normalized = _normalize_for_match(str(option))
+        if normalized in terms:
+            matches += 1
+
+    return matches >= max(1, len(options) - 1)
 
 
 def _is_name_match(card: ParsedCard, place_name: str) -> bool:

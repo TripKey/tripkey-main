@@ -189,6 +189,11 @@ def test_core_parse_prompt_requires_destination_aware_responses() -> None:
     assert "Day placement alone must not promote it to confirmed" in prompt
     assert "Do not invent aliases for generic category cards or undecided cards" in prompt
     assert "Leave search_alias null when the card name is already the best searchable venue name" in prompt
+    assert "broad recommendation cards" in prompt
+    assert "subcategories/preferences" in prompt
+    assert "Do not mix subcategory options and venue options" in prompt
+    assert "must explain what is currently missing" in prompt
+    assert "what kind of answer the user can provide" in prompt
 
 
 def test_name_match_accepts_search_alias() -> None:
@@ -497,7 +502,10 @@ def test_parse_cards_normalizes_generic_ai_open_question_to_needs_input() -> Non
     assert len(cards) == 1
     assert cards[0].classification == Classification.UNDECIDED
     assert cards[0].placement_status == PlacementStatus.NEEDS_INPUT
-    assert cards[0].question_text == "오사카 맛집 중 어떤 곳을 원하시나요?"
+    assert cards[0].question_text == (
+        "오사카 맛집을(를) 일정에 넣으려면 선호하는 메뉴, 동네, 예산, 또는 특정 매장명이 필요해요. "
+        "어떤 기준으로 찾을까요?"
+    )
     assert cards[0].options is None
 
 
@@ -524,8 +532,38 @@ def test_parse_cards_normalizes_generic_ai_open_question_with_options_to_selecta
     assert len(cards) == 1
     assert cards[0].classification == Classification.UNDECIDED
     assert cards[0].placement_status == PlacementStatus.READY_PARTIAL
-    assert cards[0].question_text == "Bangkok restaurants 중 어떤 곳을 원하시나요?"
+    assert cards[0].question_text == "Bangkok restaurants 후보를 몇 곳 찾았어요. 이 중 일정에 넣고 싶은 곳을 선택해 주세요."
     assert cards[0].options == ["Nai Mong Hoi Thod", "Jay Fai"]
+
+
+def test_parse_cards_uses_subcategory_question_for_broad_food_options() -> None:
+    raw_cards = [
+        {
+            "name": "음식점 추천",
+            "category": "food",
+            "classification": "open_question",
+            "placement_status": "ready_partial",
+            "is_ai_generated": True,
+            "allow_duplicate": False,
+            "estimated_duration_min": 60,
+            "place_id": None,
+            "coordinates": None,
+            "address": None,
+            "question_text": None,
+            "options": ["스시", "라멘", "오코노미야키", "카페"],
+        }
+    ]
+
+    cards = core_parse._parse_cards(raw_cards)
+
+    assert len(cards) == 1
+    assert cards[0].classification == Classification.UNDECIDED
+    assert cards[0].placement_status == PlacementStatus.READY_PARTIAL
+    assert cards[0].question_text == (
+        "음식점 추천은(는) 아직 범위가 넓어요. 먼저 원하는 종류나 분위기를 골라주시면 "
+        "그에 맞는 구체 장소 후보를 좁힐게요."
+    )
+    assert cards[0].options == ["스시", "라멘", "오코노미야키", "카페"]
 
 
 def test_apply_place_match_keeps_original_name() -> None:

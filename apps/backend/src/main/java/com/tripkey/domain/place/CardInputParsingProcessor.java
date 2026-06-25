@@ -52,10 +52,18 @@ public class CardInputParsingProcessor {
             );
             AiPlaceCardDto parsed = aiEngineClient.parseCard(request);
 
+            if (card.isQuestionParseResult(parsed)) {
+                card.applyCardLevelQuestionResult(parsed);
+                placeCardRepository.save(card);
+                log.info("Card-level input parsing updated question card. trip={} card={} classification={} placement={}",
+                        tripId, instanceId, parsed.classification(), parsed.placementStatus());
+                return;
+            }
+
             if (!card.isConfirmedParseResult(parsed)) {
                 card.markProcessingFailed();
                 placeCardRepository.save(card);
-                log.warn("Card-level input parsing returned non-confirmed result. trip={} card={} classification={}",
+                log.warn("Card-level input parsing returned unsupported result. trip={} card={} classification={}",
                         tripId, instanceId, parsed.classification());
                 return;
             }
