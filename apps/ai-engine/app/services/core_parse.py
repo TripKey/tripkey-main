@@ -103,6 +103,17 @@ DESTINATION_COUNTRY_QUERY_HINTS = {
     "tw": "taiwan",
     "kr": "korea",
 }
+COUNTRY_ADDRESS_HINTS = {
+    "jp": {"japan", "日本"},
+    "th": {"thailand", "ประเทศไทย"},
+    "fr": {"france", "français"},
+    "gb": {"united kingdom", "england", "uk"},
+    "us": {"united states", "usa"},
+    "vn": {"vietnam", "việt nam"},
+    "sg": {"singapore"},
+    "tw": {"taiwan", "台灣", "臺灣"},
+    "kr": {"south korea", "korea", "대한민국"},
+}
 DESTINATION_ADMIN_SUFFIXES = (
     "특별시",
     "광역시",
@@ -466,6 +477,21 @@ def _is_name_match(card: ParsedCard, place_name: str) -> bool:
     return False
 
 
+def _is_strong_name_match(card: ParsedCard, place_name: str) -> bool:
+    candidate = _normalize_for_match(place_name)
+    if not candidate:
+        return False
+
+    aliases = [card.name, card.search_alias]
+    normalized_aliases = [_normalize_for_match(alias) for alias in aliases if alias]
+
+    return any(
+        normalized_alias
+        and (normalized_alias in candidate or candidate in normalized_alias)
+        for normalized_alias in normalized_aliases
+    )
+
+
 def _append_user_context(card: ParsedCard, message: str) -> str:
     if not card.user_context:
         return message
@@ -683,6 +709,27 @@ def _place_matches_destination_context(place: dict, req: ParseRequest) -> bool:
     return any(hint in address_text for hint in hints)
 
 
+def _place_conflicts_with_destination_country(place: dict, req: ParseRequest) -> bool:
+    expected_codes = set(_destination_region_codes(_canonical_destinations_for_request(req)))
+    if not expected_codes:
+        return False
+
+    address_parts = [
+        place.get("formattedAddress"),
+        place.get("shortFormattedAddress"),
+    ]
+    address_text = " ".join(part for part in address_parts if isinstance(part, str)).lower()
+    if not address_text:
+        return False
+
+    for code, hints in COUNTRY_ADDRESS_HINTS.items():
+        if code in expected_codes:
+            continue
+        if any(hint in address_text for hint in hints):
+            return True
+    return False
+
+
 def _uses_search_alias(card: ParsedCard, query: str) -> bool:
     alias = (card.search_alias or "").strip()
     return bool(alias and alias in query)
@@ -718,6 +765,25 @@ def _can_accept_single_result_without_name_match(
     ):
         return True
     return False
+
+
+def _can_accept_top_strong_name_match_without_destination(
+    card: ParsedCard,
+    query: str,
+    place: dict,
+    index: int,
+    req: ParseRequest,
+) -> bool:
+    if index != 0:
+        return False
+    display_name = ((place.get("displayName") or {}).get("text") or "").strip()
+    if not _is_strong_name_match(card, display_name):
+        return False
+    if _place_conflicts_with_destination_country(place, req):
+        return False
+    if not _query_uses_destination_context(query, req):
+        return False
+    return card.classification in {Classification.CONFIRMED, Classification.OPEN_QUESTION}
 
 
 async def _search_place(query: str, api_key: str, region_code: str | None = None) -> dict | None:
@@ -805,7 +871,16 @@ async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> Par
                     )
                     if name_matched and destination_matched:
                         return places_cache.CacheEntry(place=place)
-
+                    if not destination_matched and _can_accept_top_strong_name_match_without_destination(
+                        card, query, place, index, req
+                    ):
+                        logger.info(
+                            "Places relaxed match accepted | card=%s | query=%s | reason=%s",
+                            card.name,
+                            query,
+                            "top_strong_name_match_outside_destination_admin",
+                        )
+                        return places_cache.CacheEntry(place=place)
                 if _can_accept_single_result_without_name_match(
                     card, query, places, req
                 ) and _place_matches_destination_context(places[0], req):

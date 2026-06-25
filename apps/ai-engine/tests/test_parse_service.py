@@ -224,6 +224,62 @@ def test_name_match_rejects_unrelated_result() -> None:
     assert not core_parse._is_name_match(card, "도쿄 디즈니랜드")
 
 
+def test_top_strong_name_match_can_cross_destination_admin_boundary() -> None:
+    card = ParsedCard(
+        name="도쿄 디즈니랜드",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+        search_alias="Tokyo Disneyland",
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="오사카랑 도쿄 여행, 도쿄 디즈니랜드 가고 싶어",
+        destinations=["오사카", "도쿄"],
+        travel_days=3,
+        companion_count=2,
+    )
+    place = {
+        "displayName": {"text": "Tokyo Disneyland"},
+        "formattedAddress": "1-1 Maihama, Urayasu, Chiba 279-0031",
+    }
+
+    assert not core_parse._place_matches_destination_context(place, req)
+    assert core_parse._can_accept_top_strong_name_match_without_destination(
+        card, "Tokyo Disneyland 도쿄", place, 0, req
+    )
+
+
+def test_top_strong_name_match_rejects_neighboring_similar_place_names() -> None:
+    card = ParsedCard(
+        name="도쿄 디즈니랜드",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+        search_alias="Tokyo Disneyland",
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="도쿄 디즈니랜드 가고 싶어",
+        destinations=["도쿄"],
+        travel_days=3,
+        companion_count=2,
+    )
+    place = {
+        "displayName": {"text": "Tokyo DisneySea"},
+        "formattedAddress": "1-13 Maihama, Urayasu, Chiba 279-8511",
+    }
+
+    assert core_parse._is_name_match(card, "Tokyo DisneySea")
+    assert not core_parse._can_accept_top_strong_name_match_without_destination(
+        card, "Tokyo Disneyland 도쿄", place, 0, req
+    )
+
+
 def test_to_public_card_keeps_search_alias_for_backend_storage() -> None:
     card = ParsedCard(
         name="도쿄타워",
