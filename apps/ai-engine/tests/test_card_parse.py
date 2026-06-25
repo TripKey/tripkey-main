@@ -4,7 +4,35 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
+from app.prompts.card_parse import build_card_parse_prompt
+from app.schemas.card_parse import CardParseRequest, CardParseSnapshot
+from app.schemas.parse import Category, Classification, PlacementStatus
 from app.services import core_parse
+
+
+def test_card_parse_prompt_requires_helpful_needs_input_questions() -> None:
+    prompt = build_card_parse_prompt(
+        CardParseRequest(
+            trip_id="trip-1",
+            destinations=["오사카"],
+            travel_days=3,
+            companion_count=2,
+            natural_language_input="친구집 갈래",
+            card=CardParseSnapshot(
+                name="방문 장소",
+                category=Category.PLACE,
+                classification=Classification.UNDECIDED,
+                placement_status=PlacementStatus.NEEDS_INPUT,
+                question_text="방문할 장소를 더 구체적으로 알려주세요.",
+            ),
+        )
+    )
+
+    assert "what is missing" in prompt
+    assert "what kind of answer the user can provide" in prompt
+    assert "Avoid generic one-liners" in prompt
+    assert "user chooses a subtype/preference option" in prompt
+    assert "not merely a subtype" in prompt
 
 
 @pytest.mark.asyncio

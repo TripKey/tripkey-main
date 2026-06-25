@@ -41,6 +41,11 @@ Return one updated card JSON object only. No markdown, no code fences, no explan
 - For undecided cards, question_text is required.
 - If undecided + ready_partial, options must contain 2~4 concrete candidate venue names.
 - If undecided + needs_input, options must be null.
+- If the existing card is a broad recommendation card and the user chooses a subtype/preference option, keep classification="undecided" and return ready_partial with 2~4 concrete venue/place options for that subtype.
+- Only return confirmed when the user input identifies one concrete venue/place, not merely a subtype such as "스시", "라멘", "랜드마크", or "온천".
+- For undecided cards, question_text must explain what is missing and what kind of answer the user can provide.
+- For needs_input, mention the missing details explicitly, such as area, venue name, menu/cuisine, time, budget, reservation, or transport endpoint.
+- Avoid generic one-liners like "어떤 장소를 원하시나요?"
 - Preserve the original card category when reasonable, but update it if the input clearly indicates another category.
 - Regenerate user_context and tips in Korean.
 - Generate search_alias when it improves Google Places matching. Prefer canonical local-language names or search-friendly names.
