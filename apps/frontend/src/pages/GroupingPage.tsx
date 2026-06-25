@@ -575,6 +575,7 @@ const GroupingPage = () => {
         onOpenChange={setSelectOpen}
         card={selectCard}
         pending={busy}
+        error={state.phase === 'ready' ? state.errorMessage : null}
         onConfirm={async (payload) => {
           const cardId = selectCard?.id;
           if (await handleConfirmSelect(selectCard, payload)) {

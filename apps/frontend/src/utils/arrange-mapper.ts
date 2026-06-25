@@ -235,14 +235,20 @@ const cardToDetail = (card: Card): ArrangeCardDetailViewModel => ({
 export const cardToStockCard = (card: Card): ArrangeCardViewModel => {
   const badges = buildBadges(card);
   // 좌표가 없으면(직접 추가 카드 등) 동선 검증·자동 묶기에서 빠지므로 미리 표식을 단다.
-  if (card.coordinates == null) badges.push(NEEDS_LOCATION_BADGE);
+  const missingLocation = card.coordinates == null;
+  if (missingLocation) badges.push(NEEDS_LOCATION_BADGE);
   return {
     id: card.instance_id,
     name: card.name,
     accent: accentForCard(card),
     badges,
     draggable: true,
-    detail: cardToDetail(card),
+    // SCR-03 장소확인과 동일 규칙: BE가 notes 재파싱 가능한 카드에만 보완 입력을 연다.
+    // (undecided+needs_input/ready_partial, 또는 failed. confirmed manual 카드는 제외)
+    detail: {
+      ...cardToDetail(card),
+      canResolveByNotes: canResolveByNotes(card),
+    },
   };
 };
 
