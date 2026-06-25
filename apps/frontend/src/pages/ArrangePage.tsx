@@ -801,7 +801,13 @@ const ArrangePage = () => {
 
       {/* 하단 푸터 */}
       <footer className="flex shrink-0 items-center justify-between gap-4 border-t border-border bg-background px-6 py-3">
-        <Button variant="outline" disabled>
+        <Button
+          variant="outline"
+          onClick={() =>
+            navigate(`/grouping${tripId ? `?tripId=${tripId}` : ''}`)
+          }
+          disabled={busy}
+        >
           <ArrowLeft className="size-4" aria-hidden="true" />
           이전 단계
         </Button>
