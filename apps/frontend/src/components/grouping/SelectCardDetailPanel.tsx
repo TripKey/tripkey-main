@@ -27,6 +27,8 @@ type SelectCardDetailPanelProps = {
   card: PlaceCardViewModel | null;
   /** 확인/메모/제외 요청이 진행 중이면 true — 버튼 비활성 + 스피너 표시. */
   pending?: boolean;
+  /** 확인/메모/제외 요청 실패 시 패널 내부에 보여줄 에러 메시지. */
+  error?: string | null;
   onConfirm?: (payload: { choices: string[]; answer: string }) => void;
   onExclude?: () => void;
   onSaveMemo?: (memo: string) => void;
@@ -37,6 +39,7 @@ const SelectCardDetailPanel = ({
   onOpenChange,
   card,
   pending = false,
+  error = null,
   onConfirm,
   onExclude,
   onSaveMemo,
@@ -52,6 +55,7 @@ const SelectCardDetailPanel = ({
           onConfirm={onConfirm}
           onExclude={onExclude}
           onSaveMemo={onSaveMemo}
+          error={error}
         />
       ) : null}
     </SidePanel>
@@ -68,9 +72,11 @@ const SelectCardDetailBody = ({
   onConfirm,
   onExclude,
   onSaveMemo,
+  error,
 }: {
   card: PlaceCardViewModel;
   pending: boolean;
+  error: string | null;
   onClose: () => void;
   onConfirm?: (payload: { choices: string[]; answer: string }) => void;
   onExclude?: () => void;
@@ -224,6 +230,15 @@ const SelectCardDetailBody = ({
           </>
         )}
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="mx-6 mb-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3.5 py-2.5 text-xs leading-relaxed text-destructive"
+        >
+          {error}
+        </div>
+      )}
 
       {/*푸터*/}
       <PanelActions>
