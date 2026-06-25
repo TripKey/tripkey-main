@@ -280,6 +280,99 @@ def test_top_strong_name_match_rejects_neighboring_similar_place_names() -> None
     )
 
 
+def test_top_landmark_candidate_can_cross_destination_admin_boundary_without_alias() -> None:
+    card = ParsedCard(
+        name="도쿄 디즈니랜드",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="오사카랑 도쿄 여행, 도쿄 디즈니랜드는 꼭 갈거야",
+        destinations=["오사카", "도쿄"],
+        travel_days=3,
+        companion_count=2,
+    )
+    place = {
+        "displayName": {"text": "Tokyo Disneyland"},
+        "formattedAddress": "1-1 Maihama, Urayasu, Chiba 279-0031",
+    }
+
+    assert core_parse._can_accept_top_landmark_candidate_without_name_match(
+        card,
+        "도쿄 디즈니랜드 도쿄",
+        place,
+        0,
+        destination_matched=False,
+        req=req,
+    )
+
+
+def test_top_landmark_candidate_rejects_food_cards_without_name_match() -> None:
+    card = ParsedCard(
+        name="이치란 라멘",
+        category=Category.FOOD,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="오사카 여행",
+        destinations=["오사카"],
+        travel_days=3,
+        companion_count=2,
+    )
+    place = {
+        "displayName": {"text": "Ichiran Ramen"},
+        "formattedAddress": "1 Chome Dotonbori, Chuo Ward, Osaka, 542-0071",
+    }
+
+    assert not core_parse._can_accept_top_landmark_candidate_without_name_match(
+        card,
+        "이치란 라멘 오사카",
+        place,
+        0,
+        destination_matched=False,
+        req=req,
+    )
+
+
+def test_top_landmark_candidate_rejects_destination_only_wrong_place() -> None:
+    card = ParsedCard(
+        name="도쿄 디즈니랜드",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="오사카랑 도쿄 여행",
+        destinations=["오사카", "도쿄"],
+        travel_days=3,
+        companion_count=2,
+    )
+    place = {
+        "displayName": {"text": "Universal Studios Japan"},
+        "formattedAddress": "2-chome-1-33 Sakurajima, Konohana Ward, Osaka, 554-0031",
+    }
+
+    assert not core_parse._can_accept_top_landmark_candidate_without_name_match(
+        card,
+        "도쿄 디즈니랜드 오사카",
+        place,
+        0,
+        destination_matched=True,
+        req=req,
+    )
+
+
 def test_to_public_card_keeps_search_alias_for_backend_storage() -> None:
     card = ParsedCard(
         name="도쿄타워",

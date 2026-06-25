@@ -786,6 +786,29 @@ def _can_accept_top_strong_name_match_without_destination(
     return card.classification in {Classification.CONFIRMED, Classification.OPEN_QUESTION}
 
 
+def _can_accept_top_landmark_candidate_without_name_match(
+    card: ParsedCard,
+    query: str,
+    place: dict,
+    index: int,
+    destination_matched: bool,
+    req: ParseRequest,
+) -> bool:
+    if index != 0:
+        return False
+    if destination_matched:
+        return False
+    if card.category not in {Category.PLACE, Category.ACTIVITY}:
+        return False
+    if card.classification != Classification.CONFIRMED:
+        return False
+    if _place_conflicts_with_destination_country(place, req):
+        return False
+    if not _query_uses_destination_context(query, req):
+        return False
+    return True
+
+
 async def _search_place(query: str, api_key: str, region_code: str | None = None) -> dict | None:
     payload = {
         "textQuery": query,
@@ -879,6 +902,16 @@ async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> Par
                             card.name,
                             query,
                             "top_strong_name_match_outside_destination_admin",
+                        )
+                        return places_cache.CacheEntry(place=place)
+                    if not name_matched and _can_accept_top_landmark_candidate_without_name_match(
+                        card, query, place, index, destination_matched, req
+                    ):
+                        logger.info(
+                            "Places relaxed match accepted | card=%s | query=%s | reason=%s",
+                            card.name,
+                            query,
+                            "top_landmark_candidate_outside_destination_admin",
                         )
                         return places_cache.CacheEntry(place=place)
                 if _can_accept_single_result_without_name_match(
