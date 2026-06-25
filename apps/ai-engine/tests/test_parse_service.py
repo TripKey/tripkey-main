@@ -125,7 +125,18 @@ def test_query_candidates_for_bangkok_landmark_are_not_japan_biased() -> None:
 def test_destination_region_codes_maps_supported_destinations() -> None:
     assert core_parse._destination_region_codes(["오사카"]) == ["jp"]
     assert core_parse._destination_region_codes(["오사카", "교토"]) == ["jp"]
+    assert core_parse._destination_region_codes(["교토시"]) == ["jp"]
+    assert core_parse._destination_region_codes(["뉴욕시"]) == ["us"]
     assert core_parse._destination_region_codes(["방콕", "파리", "제주"]) == ["th", "fr", "kr"]
+
+
+def test_destination_hints_normalize_city_suffixes() -> None:
+    hints = core_parse._destination_hints(["교토시"])
+
+    assert "교토시" in hints
+    assert "교토" in hints
+    assert "kyoto" in hints
+    assert "japan" in hints
 
 
 def test_core_parse_prompt_requires_destination_aware_responses() -> None:
@@ -525,6 +536,22 @@ def test_place_matches_destination_context_rejects_wrong_country_result() -> Non
     }
 
     assert core_parse._place_matches_destination_context(place, req) is False
+
+
+def test_place_matches_destination_context_accepts_normalized_city_suffix() -> None:
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="교토시 여행",
+        destinations=["오사카", "교토시"],
+        travel_days=3,
+        companion_count=2,
+    )
+    place = {
+        "displayName": {"text": "% ARABICA Kyoto Arashiyama"},
+        "formattedAddress": "3-47 Sagatenryuji Susukinobabacho, Ukyo Ward, Kyoto, 616-8385",
+    }
+
+    assert core_parse._place_matches_destination_context(place, req) is True
 
 
 @pytest.mark.asyncio

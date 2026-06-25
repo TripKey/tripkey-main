@@ -102,6 +102,18 @@ DESTINATION_COUNTRY_QUERY_HINTS = {
     "tw": "taiwan",
     "kr": "korea",
 }
+DESTINATION_ADMIN_SUFFIXES = (
+    "특별시",
+    "광역시",
+    "자치시",
+    "자치도",
+    "특별자치도",
+    "특별자치시",
+    "시",
+    "도",
+    "현",
+    "부",
+)
 
 gemini_blocked_until = 0.0
 
@@ -442,7 +454,7 @@ def _apply_flight_constraints(cards: list[ParsedCard], req: ParseRequest) -> lis
 
 def _query_candidates(card: ParsedCard, req: ParseRequest) -> list[str]:
     destinations = [destination.strip() for destination in req.destinations if destination.strip()]
-    primary_destination = destinations[0] if destinations else ""
+    primary_destination = _canonical_destination_name(destinations[0]) if destinations else ""
     primary_region_code = _destination_region_codes([primary_destination])
     country_hint = (
         DESTINATION_COUNTRY_QUERY_HINTS.get(primary_region_code[0], "")
@@ -475,6 +487,40 @@ def _query_candidates(card: ParsedCard, req: ParseRequest) -> list[str]:
     return deduped
 
 
+def _destination_lookup_variants(destination: str) -> list[str]:
+    compact = re.sub(r"\s+", "", destination.strip())
+    if not compact:
+        return []
+
+    variants = [destination.strip(), compact]
+    for suffix in DESTINATION_ADMIN_SUFFIXES:
+        if compact.endswith(suffix) and len(compact) > len(suffix) + 1:
+            variants.append(compact[: -len(suffix)])
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for variant in variants:
+        if not variant or variant in seen:
+            continue
+        deduped.append(variant)
+        seen.add(variant)
+    return deduped
+
+
+def _canonical_destination_name(destination: str) -> str:
+    variants = _destination_lookup_variants(destination)
+    for variant in variants:
+        if variant in DESTINATION_ADDRESS_HINTS or variant in DESTINATION_REGION_CODES:
+            return variant
+
+    compact = variants[0] if variants else destination.strip()
+    for known_destination in DESTINATION_ADDRESS_HINTS.keys() | DESTINATION_REGION_CODES.keys():
+        if known_destination in compact or compact in known_destination:
+            return known_destination
+
+    return destination.strip()
+
+
 def _destination_hints(destinations: list[str]) -> set[str]:
     hints: set[str] = set()
     for destination in destinations:
@@ -482,7 +528,10 @@ def _destination_hints(destinations: list[str]) -> set[str]:
         if not normalized:
             continue
         hints.add(normalized)
-        hints.update(hint.lower() for hint in DESTINATION_ADDRESS_HINTS.get(destination.strip(), set()))
+        for variant in _destination_lookup_variants(destination):
+            hints.add(variant.lower())
+        canonical_destination = _canonical_destination_name(destination)
+        hints.update(hint.lower() for hint in DESTINATION_ADDRESS_HINTS.get(canonical_destination, set()))
     return hints
 
 
@@ -490,7 +539,7 @@ def _destination_region_codes(destinations: list[str]) -> list[str]:
     codes: list[str] = []
     seen: set[str] = set()
     for destination in destinations:
-        code = DESTINATION_REGION_CODES.get(destination.strip())
+        code = DESTINATION_REGION_CODES.get(_canonical_destination_name(destination))
         if not code or code in seen:
             continue
         codes.append(code)
