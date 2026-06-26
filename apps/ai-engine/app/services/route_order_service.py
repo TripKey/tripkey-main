@@ -19,6 +19,7 @@ from app.schemas.route import (
     OptimizeStop,
     RouteLeg,
 )
+from app.services import route_matrix_cache
 from app.services.route_optimizer import _parse_duration_seconds, _places_api_key
 from app.services.route_order_optimizer import optimize_visit_order, path_duration
 
@@ -44,7 +45,7 @@ async def _call_route_matrix(stops: list[OptimizeStop], api_key: str) -> list[di
     waypoints = [_waypoint(s.coordinates) for s in stops]
     headers = {
         "X-Goog-Api-Key": api_key,
-        "X-Goog-FieldMask": "originIndex,destinationIndex,duration,condition",
+        "X-Goog-FieldMask": "originIndex,destinationIndex,duration,distanceMeters,condition",
         "Content-Type": "application/json",
     }
     payload = {"origins": waypoints, "destinations": waypoints, "travelMode": "DRIVE"}
@@ -73,6 +74,23 @@ async def _build_matrix(
             if i != j:
                 matrix[i][j] = _estimate_seconds(stops[i].coordinates, stops[j].coordinates)
 
+    # pair_key 사전(캐시 조회/적재 공용)
+    pair_keys: dict[tuple[int, int], str] = {}
+    for i in range(n):
+        for j in range(n):
+            if i != j:
+                a, b = stops[i].coordinates, stops[j].coordinates
+                pair_keys[(i, j)] = route_matrix_cache.pair_key(a.lat, a.lng, b.lat, b.lng)
+
+    # 1) L2 캐시 전체 히트면 Google 호출 생략 (Route Matrix 는 부분 캐시가 불가 → 전부 있어야 의미)
+    if route_matrix_cache.cache_enabled():
+        cached = await route_matrix_cache.get_durations(list(set(pair_keys.values())))
+        if cached and all(k in cached for k in pair_keys.values()):
+            for (i, j), k in pair_keys.items():
+                matrix[i][j] = cached[k]
+            return matrix, "google"
+
+    # 2) 미스 또는 키 없음 → Route Matrix 1회 호출
     if not api_key:
         return matrix, "estimated"
 
@@ -80,6 +98,7 @@ async def _build_matrix(
     if not elements:
         return matrix, "estimated"
 
+    rows: list[dict] = []
     for elem in elements:
         i = elem.get("originIndex")
         j = elem.get("destinationIndex")
@@ -88,8 +107,25 @@ async def _build_matrix(
         if elem.get("condition") != "ROUTE_EXISTS":
             continue
         duration = _parse_duration_seconds(elem.get("duration"))
-        if duration is not None:
-            matrix[i][j] = duration
+        if duration is None:
+            continue
+        matrix[i][j] = duration
+        a, b = stops[i].coordinates, stops[j].coordinates
+        rows.append({
+            "pair_key": pair_keys[(i, j)],
+            "origin_lat": route_matrix_cache.round_coord(a.lat),
+            "origin_lng": route_matrix_cache.round_coord(a.lng),
+            "dest_lat": route_matrix_cache.round_coord(b.lat),
+            "dest_lng": route_matrix_cache.round_coord(b.lng),
+            "mode": route_matrix_cache.MODE,
+            "duration_seconds": duration,
+            "distance_meters": elem.get("distanceMeters"),
+        })
+
+    # 3) 캐시 적재 (best-effort)
+    if route_matrix_cache.cache_enabled():
+        await route_matrix_cache.put_durations(rows)
+
     return matrix, "google"
 
 

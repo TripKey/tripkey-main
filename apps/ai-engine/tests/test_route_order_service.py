@@ -5,6 +5,7 @@ import pytest
 
 from app.schemas.parse import Coordinates
 from app.schemas.route import OptimizeOrderRequest, OptimizeStop
+from app.services import route_matrix_cache
 from app.services import route_order_service as svc
 
 
@@ -144,3 +145,70 @@ async def test_handles_unordered_matrix_elements(monkeypatch) -> None:
     assert res.source == "google"
     assert res.ordered_instance_ids == ["C", "D", "B", "A"]
     assert res.total_duration_seconds == 40
+
+
+@pytest.mark.asyncio
+async def test_full_cache_hit_skips_route_matrix(monkeypatch) -> None:
+    monkeypatch.setattr(svc, "_places_api_key", lambda: "k")
+    monkeypatch.setattr(route_matrix_cache, "cache_enabled", lambda: True)
+
+    stops = _stops()
+    pos = {0: 20, 1: 0, 2: 30, 3: 10}  # 입력 index 기준 위치(초)
+    cached = {}
+    for i in range(4):
+        for j in range(4):
+            if i != j:
+                a, b = stops[i].coordinates, stops[j].coordinates
+                cached[route_matrix_cache.pair_key(a.lat, a.lng, b.lat, b.lng)] = abs(pos[i] - pos[j])
+
+    async def fake_get_durations(keys):
+        return cached
+
+    monkeypatch.setattr(route_matrix_cache, "get_durations", fake_get_durations)
+
+    async def must_not_call(self, *args, **kwargs):
+        raise AssertionError("전체 캐시 히트 시 Route Matrix 를 호출하면 안 됨")
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", must_not_call)
+
+    res = await svc.optimize_order(
+        OptimizeOrderRequest(stops=stops, start_instance_id="C")
+    )
+    assert res.source == "google"
+    assert res.ordered_instance_ids == ["C", "D", "B", "A"]
+    assert res.total_duration_seconds == 40
+
+
+@pytest.mark.asyncio
+async def test_cache_miss_calls_matrix_and_writes(monkeypatch) -> None:
+    monkeypatch.setattr(svc, "_places_api_key", lambda: "k")
+    monkeypatch.setattr(route_matrix_cache, "cache_enabled", lambda: True)
+
+    async def empty_cache(keys):
+        return {}
+
+    monkeypatch.setattr(route_matrix_cache, "get_durations", empty_cache)
+
+    written = {}
+
+    async def capture_put(rows):
+        written["rows"] = rows
+
+    monkeypatch.setattr(route_matrix_cache, "put_durations", capture_put)
+
+    elements = _line_matrix_elements()
+
+    async def fake_post(self, url, *args, **kwargs):
+        return httpx.Response(200, json=elements, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+
+    res = await svc.optimize_order(
+        OptimizeOrderRequest(stops=_stops(), start_instance_id="C")
+    )
+    assert res.source == "google"
+    assert res.ordered_instance_ids == ["C", "D", "B", "A"]
+    assert res.total_duration_seconds == 40
+    # 4x4 - 대각 4 = 12 pair 가 캐시에 적재돼야 한다
+    assert "rows" in written and len(written["rows"]) == 12
+    assert all("pair_key" in r and "duration_seconds" in r for r in written["rows"])
