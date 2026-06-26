@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -230,6 +231,72 @@ class CardServiceTest {
         assertThat(created.canExclude()).isTrue();
         assertThat(created.allowDuplicate()).isFalse();
         assertThat(created.source()).isEqualTo("manual");
+    }
+
+    @Test
+    void addCardPlaceCategoryTriggersEnrichment() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardAddRequest request = new CardAddRequest(
+                "도톤보리", "place", "오사카 중앙구", null, null, null, null, null, null);
+
+        CardDto created = cardService.addCard(tripId, request);
+
+        // 좌표 확보 필요 → processing 유지 + 비동기 재처리(null 입력 = 구조화 필드 기준) 트리거
+        assertThat(created.processingStatus()).isEqualTo("processing");
+        verify(cardInputParsingProcessor).parseAndEnrich(eq(tripId), any(), isNull());
+    }
+
+    @Test
+    void addCardFoodCategoryTriggersEnrichment() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardAddRequest request = new CardAddRequest(
+                "이치란 라멘", "food", "난바", null, null, null, null, null, null);
+
+        CardDto created = cardService.addCard(tripId, request);
+
+        assertThat(created.processingStatus()).isEqualTo("processing");
+        verify(cardInputParsingProcessor).parseAndEnrich(eq(tripId), any(), isNull());
+    }
+
+    @Test
+    void addCardTransportMarkedCompletedWithoutEnrichment() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // flightNumber 없음 → 중복검사 스킵. transport 는 좌표 불필요 → 즉시 completed, 재처리 없음
+        CardAddRequest request = new CardAddRequest(
+                "공항 이동", "transport", null, null, "08:30", null, null, null, null);
+
+        CardDto created = cardService.addCard(tripId, request);
+
+        assertThat(created.processingStatus()).isEqualTo("completed");
+        verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
+    }
+
+    @Test
+    void addCardEtcMarkedCompletedWithoutEnrichment() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardAddRequest request = new CardAddRequest(
+                "환전", "etc", null, null, null, null, null, null, null);
+
+        CardDto created = cardService.addCard(tripId, request);
+
+        assertThat(created.processingStatus()).isEqualTo("completed");
+        verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
     }
 
     @Test

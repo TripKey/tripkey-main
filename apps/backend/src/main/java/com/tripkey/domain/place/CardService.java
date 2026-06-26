@@ -90,7 +90,18 @@ public class CardService {
                 request.checkIn(),
                 request.checkOut(),
                 request.flightNumber());
+
+        // 메뉴얼 카드도 좌표 확보가 필요한 카테고리면 notes/구조화 경로와 동일하게 비동기 재처리(Places lookup)를
+        // 트리거한다(좌표 확보 → 종료 상태, 실패 시 #181 패턴). 좌표가 필요 없는 transport/etc 는
+        // 즉시 completed 로 두어 processing 영구 정지를 방지한다.
+        boolean enrich = card.requiresPlacesEnrichment();
+        if (!enrich) {
+            card.markProcessingCompleted();
+        }
         placeCardRepository.save(card);
+        if (enrich) {
+            triggerInputParsingAfterCommit(tripId, card.getInstanceId(), null);
+        }
         return CardDto.from(card);
     }
 

@@ -32,6 +32,10 @@ public class PlaceCard {
     );
     private static final Set<String> NON_EXCLUDABLE_CATEGORIES = Set.of("transport", "accommodation");
     private static final Set<String> DUPLICATE_DEFAULT_CATEGORIES = Set.of("transport", "accommodation");
+    // 좌표 확보를 위해 Places 재처리가 필요한 카테고리. transport/etc 는 좌표가 필요 없다.
+    private static final Set<String> PLACES_ENRICHMENT_CATEGORIES = Set.of(
+            "place", "activity", "accommodation", "food"
+    );
 
     @Id
     @Column(name = "instance_id", columnDefinition = "uuid")
@@ -307,6 +311,11 @@ public class PlaceCard {
 
     public void updateMemo(String memo) {
         this.memo = trimToNull(memo);
+    }
+
+    /** 좌표 확보를 위해 Places 재처리(lookup)가 필요한 카테고리인지. transport/etc 는 좌표 불필요. */
+    public boolean requiresPlacesEnrichment() {
+        return PLACES_ENRICHMENT_CATEGORIES.contains(this.category);
     }
 
     public void applyDayPlacement(int day, int order, Short estimatedDurationMin) {
