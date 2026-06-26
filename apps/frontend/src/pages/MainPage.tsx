@@ -1,3 +1,4 @@
+import { ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ const MainPage = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* 히어로 */}
-      <section className="mx-auto max-w-5xl px-6 py-20 text-center">
+      <section className="relative flex min-h-screen flex-col items-center justify-center px-6 text-center">
         <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
           여행 계획, 더 쉽게
         </h1>
@@ -26,24 +27,32 @@ const MainPage = () => {
         >
           여행 계획 세우기
         </Button>
+        <div
+          aria-hidden="true"
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce text-muted-foreground"
+        >
+          <ChevronDown className="size-8" />
+        </div>
       </section>
 
       {/* 추천 여행지 */}
       <section className="mx-auto max-w-5xl px-6 py-12">
         <h2 className="text-2xl font-bold tracking-tight">추천 여행지</h2>
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-4">
           {FEATURED_DESTINATIONS.map((dest) => (
             <div
               key={dest.id}
-              className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md"
+              className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-5 py-70 transition-shadow hover:shadow-md"
             >
-              <p className="text-xs font-medium text-muted-foreground">
+              <div>
+                <p className="text-lg font-semibold">{dest.name}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {dest.tagline}
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
                 {dest.country}
-              </p>
-              <p className="mt-1 text-lg font-semibold">{dest.name}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {dest.tagline}
-              </p>
+              </span>
             </div>
           ))}
         </div>
