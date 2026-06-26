@@ -10,6 +10,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from difflib import SequenceMatcher
+from enum import Enum
 from typing import Optional
 
 import httpx
@@ -102,6 +103,29 @@ DESTINATION_COUNTRY_QUERY_HINTS = {
     "tw": "taiwan",
     "kr": "korea",
 }
+COUNTRY_ADDRESS_HINTS = {
+    "jp": {"japan", "日本"},
+    "th": {"thailand", "ประเทศไทย"},
+    "fr": {"france", "français"},
+    "gb": {"united kingdom", "england", "uk"},
+    "us": {"united states", "usa"},
+    "vn": {"vietnam", "việt nam"},
+    "sg": {"singapore"},
+    "tw": {"taiwan", "台灣", "臺灣"},
+    "kr": {"south korea", "korea", "대한민국"},
+}
+DESTINATION_ADMIN_SUFFIXES = (
+    "특별시",
+    "광역시",
+    "자치시",
+    "자치도",
+    "특별자치도",
+    "특별자치시",
+    "시",
+    "도",
+    "현",
+    "부",
+)
 
 gemini_blocked_until = 0.0
 
@@ -120,6 +144,12 @@ class CoreParseResult:
 
 class ParsedCard(CardResponse):
     search_alias: Optional[str] = None
+
+
+class QuestionStep(str, Enum):
+    CHOOSE_SUBCATEGORY = "choose_subcategory"
+    CHOOSE_VENUE = "choose_venue"
+    PROVIDE_MISSING_DETAIL = "provide_missing_detail"
 
 
 def _gemini_client() -> genai.Client:
@@ -221,6 +251,7 @@ def _parse_cards(raw_cards: list[dict]) -> list[ParsedCard]:
     for index, raw_card in enumerate(raw_cards):
         try:
             normalized_card = _ensure_card_name(raw_card)
+            normalized_card = _normalize_generic_open_question(normalized_card)
             cards.append(ParsedCard.model_validate(normalized_card))
         except Exception as exc:
             logger.warning("Skipping invalid card at index=%d | error=%s | raw=%s", index, exc, raw_card)
@@ -245,6 +276,188 @@ def _normalize_for_match(value: str | None) -> str:
     return re.sub(r"[^0-9a-zA-Z가-힣ぁ-ゔァ-ヴー々〆〤一-龥]", "", value).lower()
 
 
+GENERIC_RECOMMENDATION_TERMS = {
+    "attractions",
+    "activities",
+    "cafes",
+    "coffee",
+    "dining",
+    "food",
+    "foods",
+    "landmarks",
+    "markets",
+    "museums",
+    "nightlife",
+    "restaurants",
+    "shopping",
+    "sightseeing",
+    "things to do",
+    "tours",
+    "관광",
+    "관광지",
+    "랜드마크",
+    "맛집",
+    "먹거리",
+    "미식",
+    "박물관",
+    "쇼핑",
+    "시장",
+    "야경",
+    "액티비티",
+    "음식",
+    "음식점",
+    "주요 관광지",
+    "체험",
+    "카페",
+    "현지 맛집",
+}
+
+SUBCATEGORY_OPTION_TERMS = {
+    Category.FOOD.value: {
+        "스시",
+        "초밥",
+        "라멘",
+        "오코노미야키",
+        "오코노미야끼",
+        "카페",
+        "디저트",
+        "이자카야",
+        "야키니쿠",
+        "우동",
+        "소바",
+        "해산물",
+        "현지 맛집",
+    },
+    Category.PLACE.value: {
+        "랜드마크",
+        "사찰",
+        "신사",
+        "사찰/신사",
+        "전망",
+        "야경",
+        "전망/야경",
+        "쇼핑거리",
+        "시장",
+        "박물관",
+        "공원",
+        "거리",
+    },
+    Category.ACTIVITY.value: {
+        "투어",
+        "온천",
+        "체험",
+        "클래스",
+        "테마파크",
+        "액티비티",
+        "공연",
+        "야경 투어",
+    },
+    Category.TRANSPORT.value: {
+        "지하철",
+        "버스",
+        "택시",
+        "기차",
+        "도보",
+        "렌터카",
+    },
+}
+
+
+def _contains_generic_recommendation_term(value: str | None) -> bool:
+    if not value:
+        return False
+    normalized = re.sub(r"\s+", " ", value.strip().lower())
+    squashed = _normalize_for_match(value)
+    return any(
+        term in normalized or _normalize_for_match(term) in squashed
+        for term in GENERIC_RECOMMENDATION_TERMS
+    )
+
+
+def _is_generic_recommendation_card(card: ParsedCard) -> bool:
+    return (
+        card.is_ai_generated
+        and card.classification == Classification.OPEN_QUESTION
+        and not card.place_id
+        and not card.coordinates
+        and _contains_generic_recommendation_term(card.name)
+    )
+
+
+def _normalize_generic_open_question(raw_card: dict) -> dict:
+    if raw_card.get("classification") != Classification.OPEN_QUESTION.value:
+        return raw_card
+    if raw_card.get("is_ai_generated") is not True:
+        return raw_card
+    if raw_card.get("place_id") or raw_card.get("coordinates"):
+        return raw_card
+    if not _contains_generic_recommendation_term(raw_card.get("name")):
+        return raw_card
+
+    patched = dict(raw_card)
+    patched["classification"] = Classification.UNDECIDED.value
+    if patched.get("options"):
+        patched["placement_status"] = PlacementStatus.READY_PARTIAL.value
+    else:
+        patched["placement_status"] = PlacementStatus.NEEDS_INPUT.value
+        patched["options"] = None
+    patched["question_text"] = patched.get("question_text") or _fallback_question_text(patched)
+    patched["place_id"] = None
+    patched["coordinates"] = None
+    patched["address"] = None
+    logger.info("Normalized generic open_question card to undecided | name=%s", patched.get("name"))
+    return patched
+
+
+def _fallback_question_text(raw_card: dict) -> str:
+    name = str(raw_card.get("name") or "장소").strip() or "장소"
+    category = raw_card.get("category")
+    question_step = _infer_question_step(raw_card)
+
+    if question_step == QuestionStep.CHOOSE_SUBCATEGORY:
+        return f"{name}은(는) 아직 범위가 넓어요. 먼저 원하는 종류나 분위기를 골라주시면 그에 맞는 구체 장소 후보를 좁힐게요."
+    if question_step == QuestionStep.CHOOSE_VENUE:
+        return f"{name} 후보를 몇 곳 찾았어요. 이 중 일정에 넣고 싶은 곳을 선택해 주세요."
+
+    if category == Category.FOOD.value:
+        return f"{name}을(를) 일정에 넣으려면 선호하는 메뉴, 동네, 예산, 또는 특정 매장명이 필요해요. 어떤 기준으로 찾을까요?"
+    if category == Category.ACCOMMODATION.value:
+        return f"{name}을(를) 일정에 넣으려면 숙소 이름이나 위치, 체크인/체크아웃 정보가 필요해요. 어떤 숙소를 말하는지 알려주세요."
+    if category == Category.TRANSPORT.value:
+        return f"{name} 이동을 정리하려면 출발지, 도착지, 시간이나 교통편 정보가 필요해요. 어떤 이동을 말하는지 알려주세요."
+    if category == Category.ACTIVITY.value:
+        return f"{name} 활동을 일정에 넣으려면 원하는 지역, 시간대, 종류, 또는 예약한 업체명이 필요해요. 어떤 활동을 원하시나요?"
+    if category == Category.PLACE.value:
+        return f"{name} 방문 의도는 보이지만 장소가 특정되지 않았어요. 지역, 랜드마크 이름, 또는 원하는 분위기를 알려주세요."
+
+    return f"{name}에 대한 의도는 보이지만 일정에 넣기엔 정보가 부족해요. 장소명, 지역, 시간 같은 단서를 조금 더 알려주세요."
+
+
+def _infer_question_step(raw_card: dict) -> QuestionStep:
+    if raw_card.get("placement_status") == PlacementStatus.READY_PARTIAL.value and raw_card.get("options"):
+        if _options_look_like_subcategories(raw_card.get("category"), raw_card.get("options")):
+            return QuestionStep.CHOOSE_SUBCATEGORY
+        return QuestionStep.CHOOSE_VENUE
+    return QuestionStep.PROVIDE_MISSING_DETAIL
+
+
+def _options_look_like_subcategories(category: str | None, options: object) -> bool:
+    if category not in SUBCATEGORY_OPTION_TERMS or not isinstance(options, list) or not options:
+        return False
+
+    terms = {
+        _normalize_for_match(term)
+        for term in SUBCATEGORY_OPTION_TERMS[category]
+    }
+    matches = 0
+    for option in options:
+        normalized = _normalize_for_match(str(option))
+        if normalized in terms:
+            matches += 1
+
+    return matches >= max(1, len(options) - 1)
+
+
 def _is_name_match(card: ParsedCard, place_name: str) -> bool:
     candidate = _normalize_for_match(place_name)
     if not candidate:
@@ -262,6 +475,21 @@ def _is_name_match(card: ParsedCard, place_name: str) -> bool:
             return True
 
     return False
+
+
+def _is_strong_name_match(card: ParsedCard, place_name: str) -> bool:
+    candidate = _normalize_for_match(place_name)
+    if not candidate:
+        return False
+
+    aliases = [card.name, card.search_alias]
+    normalized_aliases = [_normalize_for_match(alias) for alias in aliases if alias]
+
+    return any(
+        normalized_alias
+        and (normalized_alias in candidate or candidate in normalized_alias)
+        for normalized_alias in normalized_aliases
+    )
 
 
 def _append_user_context(card: ParsedCard, message: str) -> str:
@@ -357,27 +585,34 @@ def _apply_flight_constraints(cards: list[ParsedCard], req: ParseRequest) -> lis
 
 
 def _query_candidates(card: ParsedCard, req: ParseRequest) -> list[str]:
-    destinations = [destination.strip() for destination in req.destinations if destination.strip()]
-    primary_destination = destinations[0] if destinations else ""
-    primary_region_code = _destination_region_codes([primary_destination])
-    country_hint = (
-        DESTINATION_COUNTRY_QUERY_HINTS.get(primary_region_code[0], "")
-        if primary_region_code
-        else ""
-    )
+    destinations = _canonical_destinations_for_request(req)
     location = (card.location or "").strip()
     alias = (card.search_alias or "").strip()
     name = card.name.strip()
 
     candidates = [
         f"{name} {location}".strip() if location else "",
-        f"{name} {primary_destination}".strip(),
-        f"{name} {primary_destination} {country_hint}".strip() if country_hint else "",
-        f"{alias} {location}".strip() if alias else "",
-        f"{alias} {primary_destination}".strip() if alias else "",
-        f"{alias} {primary_destination} {country_hint}".strip() if alias and country_hint else "",
-        name,
     ]
+    for destination in destinations:
+        region_codes = _destination_region_codes([destination])
+        country_hint = DESTINATION_COUNTRY_QUERY_HINTS.get(region_codes[0], "") if region_codes else ""
+        candidates.extend(
+            [
+                f"{name} {destination}".strip(),
+                f"{name} {destination} {country_hint}".strip() if country_hint else "",
+            ]
+        )
+    candidates.append(f"{alias} {location}".strip() if alias else "")
+    for destination in destinations:
+        region_codes = _destination_region_codes([destination])
+        country_hint = DESTINATION_COUNTRY_QUERY_HINTS.get(region_codes[0], "") if region_codes else ""
+        candidates.extend(
+            [
+                f"{alias} {destination}".strip() if alias else "",
+                f"{alias} {destination} {country_hint}".strip() if alias and country_hint else "",
+            ]
+        )
+    candidates.append(name)
 
     deduped: list[str] = []
     seen: set[str] = set()
@@ -391,6 +626,47 @@ def _query_candidates(card: ParsedCard, req: ParseRequest) -> list[str]:
     return deduped
 
 
+def _destination_lookup_variants(destination: str) -> list[str]:
+    compact = re.sub(r"\s+", "", destination.strip())
+    if not compact:
+        return []
+
+    variants = [destination.strip(), compact]
+    for suffix in DESTINATION_ADMIN_SUFFIXES:
+        if compact.endswith(suffix) and len(compact) > len(suffix) + 1:
+            variants.append(compact[: -len(suffix)])
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for variant in variants:
+        if not variant or variant in seen:
+            continue
+        deduped.append(variant)
+        seen.add(variant)
+    return deduped
+
+
+def _canonical_destination_name(destination: str) -> str:
+    variants = _destination_lookup_variants(destination)
+    for variant in variants:
+        if variant in DESTINATION_ADDRESS_HINTS or variant in DESTINATION_REGION_CODES:
+            return variant
+
+    return destination.strip()
+
+
+def _canonical_destinations_for_request(req: ParseRequest) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for destination in req.destinations:
+        canonical = _canonical_destination_name(destination)
+        if not canonical or canonical in seen:
+            continue
+        deduped.append(canonical)
+        seen.add(canonical)
+    return deduped
+
+
 def _destination_hints(destinations: list[str]) -> set[str]:
     hints: set[str] = set()
     for destination in destinations:
@@ -398,7 +674,10 @@ def _destination_hints(destinations: list[str]) -> set[str]:
         if not normalized:
             continue
         hints.add(normalized)
-        hints.update(hint.lower() for hint in DESTINATION_ADDRESS_HINTS.get(destination.strip(), set()))
+        for variant in _destination_lookup_variants(destination):
+            hints.add(variant.lower())
+        canonical_destination = _canonical_destination_name(destination)
+        hints.update(hint.lower() for hint in DESTINATION_ADDRESS_HINTS.get(canonical_destination, set()))
     return hints
 
 
@@ -406,7 +685,7 @@ def _destination_region_codes(destinations: list[str]) -> list[str]:
     codes: list[str] = []
     seen: set[str] = set()
     for destination in destinations:
-        code = DESTINATION_REGION_CODES.get(destination.strip())
+        code = DESTINATION_REGION_CODES.get(_canonical_destination_name(destination))
         if not code or code in seen:
             continue
         codes.append(code)
@@ -430,6 +709,27 @@ def _place_matches_destination_context(place: dict, req: ParseRequest) -> bool:
     return any(hint in address_text for hint in hints)
 
 
+def _place_conflicts_with_destination_country(place: dict, req: ParseRequest) -> bool:
+    expected_codes = set(_destination_region_codes(_canonical_destinations_for_request(req)))
+    if not expected_codes:
+        return False
+
+    address_parts = [
+        place.get("formattedAddress"),
+        place.get("shortFormattedAddress"),
+    ]
+    address_text = " ".join(part for part in address_parts if isinstance(part, str)).lower()
+    if not address_text:
+        return False
+
+    for code, hints in COUNTRY_ADDRESS_HINTS.items():
+        if code in expected_codes:
+            continue
+        if any(hint in address_text for hint in hints):
+            return True
+    return False
+
+
 def _uses_search_alias(card: ParsedCard, query: str) -> bool:
     alias = (card.search_alias or "").strip()
     return bool(alias and alias in query)
@@ -437,10 +737,10 @@ def _uses_search_alias(card: ParsedCard, query: str) -> bool:
 
 def _query_uses_destination_context(query: str, req: ParseRequest) -> bool:
     normalized_query = query.lower()
-    destinations = [destination.strip().lower() for destination in req.destinations if destination.strip()]
+    destinations = [destination.lower() for destination in _canonical_destinations_for_request(req)]
     country_hints = {
         DESTINATION_COUNTRY_QUERY_HINTS[code]
-        for code in _destination_region_codes(req.destinations)
+        for code in _destination_region_codes(_canonical_destinations_for_request(req))
         if code in DESTINATION_COUNTRY_QUERY_HINTS
     }
     return any(destination in normalized_query for destination in destinations) or any(
@@ -465,6 +765,48 @@ def _can_accept_single_result_without_name_match(
     ):
         return True
     return False
+
+
+def _can_accept_top_strong_name_match_without_destination(
+    card: ParsedCard,
+    query: str,
+    place: dict,
+    index: int,
+    req: ParseRequest,
+) -> bool:
+    if index != 0:
+        return False
+    display_name = ((place.get("displayName") or {}).get("text") or "").strip()
+    if not _is_strong_name_match(card, display_name):
+        return False
+    if _place_conflicts_with_destination_country(place, req):
+        return False
+    if not _query_uses_destination_context(query, req):
+        return False
+    return card.classification in {Classification.CONFIRMED, Classification.OPEN_QUESTION}
+
+
+def _can_accept_top_landmark_candidate_without_name_match(
+    card: ParsedCard,
+    query: str,
+    place: dict,
+    index: int,
+    destination_matched: bool,
+    req: ParseRequest,
+) -> bool:
+    if index != 0:
+        return False
+    if destination_matched:
+        return False
+    if card.category not in {Category.PLACE, Category.ACTIVITY}:
+        return False
+    if card.classification != Classification.CONFIRMED:
+        return False
+    if _place_conflicts_with_destination_country(place, req):
+        return False
+    if not _query_uses_destination_context(query, req):
+        return False
+    return True
 
 
 async def _search_place(query: str, api_key: str, region_code: str | None = None) -> dict | None:
@@ -509,6 +851,8 @@ async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> Par
         return card
     if card.classification == Classification.UNDECIDED:
         return card
+    if _is_generic_recommendation_card(card):
+        return card
     if card.placement_status == PlacementStatus.NEEDS_INPUT:
         return card
     if card.category not in PLACES_ELIGIBLE_CATEGORIES:
@@ -516,7 +860,7 @@ async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> Par
     if not card.name.strip():
         return card
 
-    destination_region_codes = _destination_region_codes(req.destinations)
+    destination_region_codes = _destination_region_codes(_canonical_destinations_for_request(req))
     region_code = destination_region_codes[0] if len(destination_region_codes) == 1 else None
     for query in _query_candidates(card, req):
         try:
@@ -550,7 +894,26 @@ async def _enrich_card(card: ParsedCard, req: ParseRequest, api_key: str) -> Par
                     )
                     if name_matched and destination_matched:
                         return places_cache.CacheEntry(place=place)
-
+                    if not destination_matched and _can_accept_top_strong_name_match_without_destination(
+                        card, query, place, index, req
+                    ):
+                        logger.info(
+                            "Places relaxed match accepted | card=%s | query=%s | reason=%s",
+                            card.name,
+                            query,
+                            "top_strong_name_match_outside_destination_admin",
+                        )
+                        return places_cache.CacheEntry(place=place)
+                    if not name_matched and _can_accept_top_landmark_candidate_without_name_match(
+                        card, query, place, index, destination_matched, req
+                    ):
+                        logger.info(
+                            "Places relaxed match accepted | card=%s | query=%s | reason=%s",
+                            card.name,
+                            query,
+                            "top_landmark_candidate_outside_destination_admin",
+                        )
+                        return places_cache.CacheEntry(place=place)
                 if _can_accept_single_result_without_name_match(
                     card, query, places, req
                 ) and _place_matches_destination_context(places[0], req):

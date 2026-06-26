@@ -1,28 +1,21 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: tripkey-ai-engine
-  namespace: tripkey
+  name: tripkey-backend
   labels:
     app.kubernetes.io/name: tripkey
-    app.kubernetes.io/component: ai-engine
+    app.kubernetes.io/component: backend
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: tripkey-ai-engine
+    name: tripkey-backend
   minReplicas: 2
-  maxReplicas: 8
+  maxReplicas: 6
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 60
-    - type: Resource
-      resource:
-        name: memory
-        target:
-          type: Utilization
-          averageUtilization: 70
+          averageUtilization: 65

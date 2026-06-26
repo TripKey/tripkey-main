@@ -77,6 +77,8 @@ create table place_cards (
   flight_number          text,
   flight_datetime        text,
   flight_role            text,
+  departure_airport      text,
+  arrival_airport        text,
   search_alias           text,
   geom                   geometry(Point, 4326)
     generated always as (

@@ -8,11 +8,40 @@
   gap: 12px;
 }
 
+.dump-form__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .dump-form__title {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: #111827;
+}
+
+.dump-form__example-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6c5ce7;
+  background-color: #f3f1fd;
+  border: 1px solid #d9d3f7;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.dump-form__example-btn:hover {
+  background-color: #e9e4fb;
+  border-color: #c4baf2;
+}
+
+.dump-form__example-btn:active {
+  background-color: #ddd5f7;
 }
 
 .dump-form__required {

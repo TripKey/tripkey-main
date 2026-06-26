@@ -98,15 +98,21 @@ const ConfirmPage = () => {
   };
 
   // 활성 Day 카드 중 좌표 있는 것만 마커로 (좌표 없는 카드는 스킵).
-  const mapMarkers = (activeDay?.contextCards ?? [])
-    .filter((card) => card.coordinates)
-    .map((card) => ({
-      id: card.id,
-      order: card.order,
-      name: card.name,
-      lat: card.coordinates!.lat,
-      lng: card.coordinates!.lng,
-    }));
+  const mapMarkers = useMemo(
+    () =>
+      (activeDay?.contextCards ?? [])
+        .filter((card) => card.coordinates)
+        .map((card) => ({
+          id: card.id,
+          order: card.order,
+          name: card.name,
+          lat: card.coordinates!.lat,
+          lng: card.coordinates!.lng,
+          category: card.category,
+          region: card.region,
+        })),
+    [activeDay]
+  );
 
   return (
     <div className="flex min-h-screen flex-col bg-muted">
@@ -174,7 +180,7 @@ const ConfirmPage = () => {
             <>
               <TripHeroCard {...hero} />
 
-              {showMap && <MapCard markers={mapMarkers} />}
+              {showMap && !isLoading && <MapCard markers={mapMarkers} />}
 
               {isLoading ? (
                 <EmptyState

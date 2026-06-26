@@ -301,22 +301,16 @@ const GroupingPage = () => {
       ...state.groups.review_only,
     ].some((card) => card.processing_status === 'processing');
 
-  // 아직 입력/선택/수정이 필요한 카드가 남아 있으면(진행률 100% 미만) 다음 단계 차단.
-  const hasUnresolvedCards =
-    state.phase === 'ready' &&
-    state.groups.input_required.length +
-      state.groups.select_required.length +
-      state.groups.fix_required.length >
-      0;
+  // SCR-04 진입은 미해결 카드(input/select/fix_required) 잔존 여부로 차단하지 않는다.
+  // 기획상 SCR-04는 "완성된 카드만 배치하는 화면"이 아니라, 위치/좌표가 아직 없는
+  // 카드도 사용자가 Day에 올려보며 적합성을 확인하는 화면이기 때문이다.
+  // (재파싱 processing 중인 카드만 일시적으로 대기시킨다.)
+  const nextDisabled = busy || hasProcessingCard;
 
-  const nextDisabled = busy || hasProcessingCard || hasUnresolvedCards;
-
-  // 차단 사유에 맞는 안내 문구. 미해결 카드가 우선(사용자가 할 일이 있음).
-  const nextGuideText = hasUnresolvedCards
-    ? '모든 카드를 확인·선택한 뒤 다음 단계로 진행할 수 있어요.'
-    : hasProcessingCard
-      ? '카드 정보를 정리하는 중이에요. 잠시 후 다시 시도해 주세요.'
-      : undefined;
+  // 재파싱 진행 중일 때만 안내. 미해결 카드는 차단 사유가 아니므로 문구를 띄우지 않는다.
+  const nextGuideText = hasProcessingCard
+    ? '카드 정보를 정리하는 중이에요. 잠시 후 다시 시도해 주세요.'
+    : undefined;
 
   const loading = state.phase === 'loading';
 
@@ -581,6 +575,7 @@ const GroupingPage = () => {
         onOpenChange={setSelectOpen}
         card={selectCard}
         pending={busy}
+        error={state.phase === 'ready' ? state.errorMessage : null}
         onConfirm={async (payload) => {
           const cardId = selectCard?.id;
           if (await handleConfirmSelect(selectCard, payload)) {
