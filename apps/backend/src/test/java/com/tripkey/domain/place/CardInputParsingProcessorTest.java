@@ -95,7 +95,7 @@ class CardInputParsingProcessorTest {
     }
 
     @Test
-    void parseAndEnrichKeepsExistingCardAndMarksFailedWhenAiReturnsNonConfirmed() {
+    void parseAndEnrichAppliesUndecidedQuestionResult() {
         UUID tripId = UUID.randomUUID();
         UUID instanceId = UUID.randomUUID();
         Trip trip = new Trip((short) 3, (short) 2);
@@ -105,6 +105,30 @@ class CardInputParsingProcessorTest {
         when(tripRepository.findById(tripId)).thenReturn(Optional.of(trip));
         when(tripDestinationRepository.findByTripTripIdOrderBySortOrder(tripId)).thenReturn(List.of());
         when(aiEngineClient.parseCard(any(AiCardParseRequest.class))).thenReturn(nonConfirmedParsedCard());
+
+        processor.parseAndEnrich(tripId, instanceId, "아무데나 갈래");
+
+        assertThat(card.getClassification()).isEqualTo("undecided");
+        assertThat(card.getPlacementStatus()).isEqualTo("ready_partial");
+        assertThat(card.getActionType()).isEqualTo("select_required");
+        assertThat(card.getProcessingStatus()).isEqualTo("completed");
+        assertThat(card.getName()).isEqualTo("라멘 맛집");
+        assertThat(card.getQuestionText()).isEqualTo("라멘집 후보 중 어디를 일정에 넣을까요?");
+        assertThat(card.getOptions()).containsExactly("코지 라멘", "이치란 라멘");
+        verify(placeCardRepository).save(card);
+    }
+
+    @Test
+    void parseAndEnrichKeepsExistingCardAndMarksFailedWhenAiReturnsUnsupportedResult() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        Trip trip = new Trip((short) 3, (short) 2);
+        PlaceCard card = needsInputCard(tripId);
+
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId)).thenReturn(Optional.of(card));
+        when(tripRepository.findById(tripId)).thenReturn(Optional.of(trip));
+        when(tripDestinationRepository.findByTripTripIdOrderBySortOrder(tripId)).thenReturn(List.of());
+        when(aiEngineClient.parseCard(any(AiCardParseRequest.class))).thenReturn(unsupportedParsedCard());
 
         processor.parseAndEnrich(tripId, instanceId, "아무데나 갈래");
 
@@ -227,9 +251,19 @@ class CardInputParsingProcessorTest {
 
     private AiPlaceCardDto nonConfirmedParsedCard() {
         return new AiPlaceCardDto(
-                null, "아무데나", "etc", "undecided", "needs_input",
+                null, "라멘 맛집", "food", "undecided", "ready_partial",
+                false, false, null, null, null, null, null,
+                "사용자가 라멘을 선택했어요.", null,
+                "라멘집 후보 중 어디를 일정에 넣을까요?", List.of("코지 라멘", "이치란 라멘"),
+                null, null, null, null, null, null, null
+        );
+    }
+
+    private AiPlaceCardDto unsupportedParsedCard() {
+        return new AiPlaceCardDto(
+                null, "아무데나", "etc", "unassigned", "blocked",
                 false, false, null, null, null, null, null, null, null,
-                "장소를 더 구체적으로 알려주세요", null, null, null, null, null, null, null, null, null
+                null, null, "장소를 해석할 수 없어요", null, null, null, null, null, null, null
         );
     }
 }

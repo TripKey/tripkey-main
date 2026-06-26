@@ -186,18 +186,18 @@ const ArrangeCardDetailBody = ({
           </div>
         )}
 
-        {isResolvable ? (
-          // 자연어 재파싱(notes)으로 해결: 장소명·주소 보완 입력 → "확인하기"로 저장+재처리.
-          <ResolveByNotesField
-            value={notes}
-            onChange={setNotes}
-            disabled={resolving}
-            error={resolveError}
-          />
-        ) : (
-          // 그 외 카드(배치 가능/고정/해결 불가)는 기존 메모 UI 유지.
-          <UserMemoField value={memo} onChange={setMemo} />
+        {isResolvable && (
+          <>
+            <ResolveByNotesField
+              value={notes}
+              onChange={setNotes}
+              disabled={resolving}
+              error={resolveError}
+            />
+            <Separator />
+          </>
         )}
+        <UserMemoField value={memo} onChange={setMemo} />
       </div>
 
       {/* 푸터 */}
@@ -210,7 +210,7 @@ const ArrangeCardDetailBody = ({
         >
           닫기
         </Button>
-        {isResolvable ? (
+        {isResolvable && (
           <Button
             type="button"
             className="h-11 flex-1 text-sm font-semibold"
@@ -219,16 +219,16 @@ const ArrangeCardDetailBody = ({
           >
             {resolving ? '재처리 중…' : '확인하기'}
           </Button>
-        ) : (
-          <Button
-            type="button"
-            className="h-11 flex-1 text-sm font-semibold"
-            disabled={!memoDirty}
-            onClick={() => onSaveMemo?.(memo)}
-          >
-            메모 저장
-          </Button>
         )}
+        <Button
+          type="button"
+          variant={isResolvable ? 'outline' : 'default'}
+          className="h-11 flex-1 text-sm font-semibold"
+          disabled={!memoDirty}
+          onClick={() => onSaveMemo?.(memo)}
+        >
+          메모 저장
+        </Button>
       </PanelActions>
     </>
   );

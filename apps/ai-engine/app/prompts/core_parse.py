@@ -74,8 +74,11 @@ def build_core_parse_prompt(req: ParseRequest) -> str:
 ### Card Generation Rules
 - Extract every place, activity, food, accommodation, and transport the user mentioned.
 - Treat requested recommendation types as user intent, not as AI-generated extra cards.
-- When the user asks for recommendations for a specific type, category, cuisine, neighborhood, mood, or activity in dump_text, create one undecided card for that requested type and provide 2~4 concrete options.
-  - Pattern: "{{destination}} {{requested_type}} 추천" → one undecided card named "{{requested_type}}" with concrete venue options.
+- When the user asks for broad recommendations without a subtype, create one undecided ready_partial card that asks the user to choose a subtype/preference first.
+  - Pattern: "음식점 추천" → one food card with options like ["스시", "라멘", "오코노미야키", "카페"], not restaurant venues yet.
+  - Pattern: "관광지 추천" → one place card with options like ["랜드마크", "사찰/신사", "전망/야경", "쇼핑거리"], not attraction venues yet.
+- When the user asks for recommendations for a specific type, cuisine, neighborhood, mood, or activity in dump_text, create one undecided card for that requested type and provide 2~4 concrete venue/place options.
+  - Pattern: "{{destination}} {{requested_type}} 추천" where requested_type is specific → one undecided card named "{{requested_type}}" with concrete venue options.
   - Pattern: "{{cuisine_or_food}} 맛집 아직 못 정했어" → one undecided food card named "{{cuisine_or_food}} 맛집" with concrete restaurant options.
 - Do not satisfy a requested recommendation type by choosing only one concrete venue as an open_question AI-generated card.
 - Only generate is_ai_generated: true recommendation cards when:
@@ -169,11 +172,18 @@ def build_core_parse_prompt(req: ParseRequest) -> str:
 - Exception: if user explicitly intends to visit multiple of the same type, set true
 
 ### question_text / options Rules
-- question_text is required for every undecided card and must be a short Korean question.
+- question_text is required for every undecided card and must be a helpful Korean question, not a generic one-liner.
+- question_text must explain what is currently missing and what kind of answer the user can provide.
 - If undecided + placement_status = ready_partial, options must contain 2~4 suggested answer options in Korean.
-- options must only contain concrete place names or venue names.
-- Do not include category descriptions, generic nouns, or abstract labels in options.
+- For ready_partial, ask the user to choose from the options and briefly explain the choice context.
+- For broad recommendation cards, options may be subcategories/preferences that lead to the next card-level parse step.
+- For specific subtype cards, options must contain concrete place names or venue names.
+- Do not mix subcategory options and venue options in the same card.
+- Do not include vague abstract labels in options.
 - If undecided + placement_status = needs_input, options must be null.
+- For needs_input, mention the missing details explicitly, such as area, venue name, menu/cuisine, time, budget, reservation, or transport endpoint.
+- Bad: "어떤 맛집을 원하시나요?"
+- Good: "오사카 맛집을 일정에 넣으려면 음식 종류나 원하는 동네가 필요해요. 라멘, 스시, 오코노미야키처럼 먹고 싶은 메뉴가 있나요?"
 - Leave both null for confirmed / open_question / unassigned cards.
 
 ### blocked_reason Rules

@@ -97,6 +97,30 @@ def test_query_candidates_use_destination_specific_country_hint() -> None:
     assert all("japan" not in query.lower() for query in queries)
 
 
+def test_query_candidates_use_all_destinations() -> None:
+    card = ParsedCard(
+        name="아라비카 커피 아라시야마 점",
+        category=Category.FOOD,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="아라비카 커피 아라시야마 점",
+        destinations=["오사카", "교토시"],
+        travel_days=3,
+        companion_count=2,
+    )
+
+    queries = core_parse._query_candidates(card, req)
+
+    assert "아라비카 커피 아라시야마 점 오사카" in queries
+    assert "아라비카 커피 아라시야마 점 교토" in queries
+    assert "아라비카 커피 아라시야마 점 교토 japan" in queries
+
+
 def test_query_candidates_for_bangkok_landmark_are_not_japan_biased() -> None:
     card = ParsedCard(
         name="방콕 왕궁",
@@ -125,7 +149,22 @@ def test_query_candidates_for_bangkok_landmark_are_not_japan_biased() -> None:
 def test_destination_region_codes_maps_supported_destinations() -> None:
     assert core_parse._destination_region_codes(["오사카"]) == ["jp"]
     assert core_parse._destination_region_codes(["오사카", "교토"]) == ["jp"]
+    assert core_parse._destination_region_codes(["교토시"]) == ["jp"]
+    assert core_parse._destination_region_codes(["뉴욕시"]) == ["us"]
     assert core_parse._destination_region_codes(["방콕", "파리", "제주"]) == ["th", "fr", "kr"]
+
+
+def test_destination_hints_normalize_city_suffixes() -> None:
+    hints = core_parse._destination_hints(["교토시"])
+
+    assert "교토시" in hints
+    assert "교토" in hints
+    assert "kyoto" in hints
+    assert "japan" in hints
+
+
+def test_canonical_destination_does_not_substring_match_ambiguous_admin_names() -> None:
+    assert core_parse._canonical_destination_name("경기도 광주시") == "경기도 광주시"
 
 
 def test_core_parse_prompt_requires_destination_aware_responses() -> None:
@@ -150,6 +189,11 @@ def test_core_parse_prompt_requires_destination_aware_responses() -> None:
     assert "Day placement alone must not promote it to confirmed" in prompt
     assert "Do not invent aliases for generic category cards or undecided cards" in prompt
     assert "Leave search_alias null when the card name is already the best searchable venue name" in prompt
+    assert "broad recommendation cards" in prompt
+    assert "subcategories/preferences" in prompt
+    assert "Do not mix subcategory options and venue options" in prompt
+    assert "must explain what is currently missing" in prompt
+    assert "what kind of answer the user can provide" in prompt
 
 
 def test_name_match_accepts_search_alias() -> None:
@@ -178,6 +222,155 @@ def test_name_match_rejects_unrelated_result() -> None:
     )
 
     assert not core_parse._is_name_match(card, "도쿄 디즈니랜드")
+
+
+def test_top_strong_name_match_can_cross_destination_admin_boundary() -> None:
+    card = ParsedCard(
+        name="도쿄 디즈니랜드",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+        search_alias="Tokyo Disneyland",
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="오사카랑 도쿄 여행, 도쿄 디즈니랜드 가고 싶어",
+        destinations=["오사카", "도쿄"],
+        travel_days=3,
+        companion_count=2,
+    )
+    place = {
+        "displayName": {"text": "Tokyo Disneyland"},
+        "formattedAddress": "1-1 Maihama, Urayasu, Chiba 279-0031",
+    }
+
+    assert not core_parse._place_matches_destination_context(place, req)
+    assert core_parse._can_accept_top_strong_name_match_without_destination(
+        card, "Tokyo Disneyland 도쿄", place, 0, req
+    )
+
+
+def test_top_strong_name_match_rejects_neighboring_similar_place_names() -> None:
+    card = ParsedCard(
+        name="도쿄 디즈니랜드",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+        search_alias="Tokyo Disneyland",
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="도쿄 디즈니랜드 가고 싶어",
+        destinations=["도쿄"],
+        travel_days=3,
+        companion_count=2,
+    )
+    place = {
+        "displayName": {"text": "Tokyo DisneySea"},
+        "formattedAddress": "1-13 Maihama, Urayasu, Chiba 279-8511",
+    }
+
+    assert core_parse._is_name_match(card, "Tokyo DisneySea")
+    assert not core_parse._can_accept_top_strong_name_match_without_destination(
+        card, "Tokyo Disneyland 도쿄", place, 0, req
+    )
+
+
+def test_top_landmark_candidate_can_cross_destination_admin_boundary_without_alias() -> None:
+    card = ParsedCard(
+        name="도쿄 디즈니랜드",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="오사카랑 도쿄 여행, 도쿄 디즈니랜드는 꼭 갈거야",
+        destinations=["오사카", "도쿄"],
+        travel_days=3,
+        companion_count=2,
+    )
+    place = {
+        "displayName": {"text": "Tokyo Disneyland"},
+        "formattedAddress": "1-1 Maihama, Urayasu, Chiba 279-0031",
+    }
+
+    assert core_parse._can_accept_top_landmark_candidate_without_name_match(
+        card,
+        "도쿄 디즈니랜드 도쿄",
+        place,
+        0,
+        destination_matched=False,
+        req=req,
+    )
+
+
+def test_top_landmark_candidate_rejects_food_cards_without_name_match() -> None:
+    card = ParsedCard(
+        name="이치란 라멘",
+        category=Category.FOOD,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="오사카 여행",
+        destinations=["오사카"],
+        travel_days=3,
+        companion_count=2,
+    )
+    place = {
+        "displayName": {"text": "Ichiran Ramen"},
+        "formattedAddress": "1 Chome Dotonbori, Chuo Ward, Osaka, 542-0071",
+    }
+
+    assert not core_parse._can_accept_top_landmark_candidate_without_name_match(
+        card,
+        "이치란 라멘 오사카",
+        place,
+        0,
+        destination_matched=False,
+        req=req,
+    )
+
+
+def test_top_landmark_candidate_rejects_destination_only_wrong_place() -> None:
+    card = ParsedCard(
+        name="도쿄 디즈니랜드",
+        category=Category.PLACE,
+        classification=Classification.CONFIRMED,
+        placement_status=PlacementStatus.READY_PARTIAL,
+        is_ai_generated=False,
+        allow_duplicate=False,
+    )
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="오사카랑 도쿄 여행",
+        destinations=["오사카", "도쿄"],
+        travel_days=3,
+        companion_count=2,
+    )
+    place = {
+        "displayName": {"text": "Universal Studios Japan"},
+        "formattedAddress": "2-chome-1-33 Sakurajima, Konohana Ward, Osaka, 554-0031",
+    }
+
+    assert not core_parse._can_accept_top_landmark_candidate_without_name_match(
+        card,
+        "도쿄 디즈니랜드 오사카",
+        place,
+        0,
+        destination_matched=True,
+        req=req,
+    )
 
 
 def test_to_public_card_keeps_search_alias_for_backend_storage() -> None:
@@ -458,7 +651,10 @@ def test_parse_cards_normalizes_generic_ai_open_question_to_needs_input() -> Non
     assert len(cards) == 1
     assert cards[0].classification == Classification.UNDECIDED
     assert cards[0].placement_status == PlacementStatus.NEEDS_INPUT
-    assert cards[0].question_text == "오사카 맛집 중 어떤 곳을 원하시나요?"
+    assert cards[0].question_text == (
+        "오사카 맛집을(를) 일정에 넣으려면 선호하는 메뉴, 동네, 예산, 또는 특정 매장명이 필요해요. "
+        "어떤 기준으로 찾을까요?"
+    )
     assert cards[0].options is None
 
 
@@ -485,8 +681,38 @@ def test_parse_cards_normalizes_generic_ai_open_question_with_options_to_selecta
     assert len(cards) == 1
     assert cards[0].classification == Classification.UNDECIDED
     assert cards[0].placement_status == PlacementStatus.READY_PARTIAL
-    assert cards[0].question_text == "Bangkok restaurants 중 어떤 곳을 원하시나요?"
+    assert cards[0].question_text == "Bangkok restaurants 후보를 몇 곳 찾았어요. 이 중 일정에 넣고 싶은 곳을 선택해 주세요."
     assert cards[0].options == ["Nai Mong Hoi Thod", "Jay Fai"]
+
+
+def test_parse_cards_uses_subcategory_question_for_broad_food_options() -> None:
+    raw_cards = [
+        {
+            "name": "음식점 추천",
+            "category": "food",
+            "classification": "open_question",
+            "placement_status": "ready_partial",
+            "is_ai_generated": True,
+            "allow_duplicate": False,
+            "estimated_duration_min": 60,
+            "place_id": None,
+            "coordinates": None,
+            "address": None,
+            "question_text": None,
+            "options": ["스시", "라멘", "오코노미야키", "카페"],
+        }
+    ]
+
+    cards = core_parse._parse_cards(raw_cards)
+
+    assert len(cards) == 1
+    assert cards[0].classification == Classification.UNDECIDED
+    assert cards[0].placement_status == PlacementStatus.READY_PARTIAL
+    assert cards[0].question_text == (
+        "음식점 추천은(는) 아직 범위가 넓어요. 먼저 원하는 종류나 분위기를 골라주시면 "
+        "그에 맞는 구체 장소 후보를 좁힐게요."
+    )
+    assert cards[0].options == ["스시", "라멘", "오코노미야키", "카페"]
 
 
 def test_apply_place_match_keeps_original_name() -> None:
@@ -525,6 +751,22 @@ def test_place_matches_destination_context_rejects_wrong_country_result() -> Non
     }
 
     assert core_parse._place_matches_destination_context(place, req) is False
+
+
+def test_place_matches_destination_context_accepts_normalized_city_suffix() -> None:
+    req = ParseRequest(
+        trip_id="trip-1",
+        dump_text="교토시 여행",
+        destinations=["오사카", "교토시"],
+        travel_days=3,
+        companion_count=2,
+    )
+    place = {
+        "displayName": {"text": "% ARABICA Kyoto Arashiyama"},
+        "formattedAddress": "3-47 Sagatenryuji Susukinobabacho, Ukyo Ward, Kyoto, 616-8385",
+    }
+
+    assert core_parse._place_matches_destination_context(place, req) is True
 
 
 @pytest.mark.asyncio
