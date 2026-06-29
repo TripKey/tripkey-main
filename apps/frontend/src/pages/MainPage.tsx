@@ -111,7 +111,7 @@ const MainPage = () => {
             size="sm"
             onClick={startPlanning}
             className={cn(
-              'transition-all duration-300',
+              'cursor-pointer transition-all duration-300 hover:bg-primary/90 active:scale-95',
               showHeaderCta
                 ? 'opacity-100'
                 : 'pointer-events-none opacity-0'
@@ -136,7 +136,7 @@ const MainPage = () => {
         </p>
         <Button
           size="lg"
-          className="mt-8 h-14 rounded-full px-10 text-base font-semibold"
+          className="mt-8 h-14 cursor-pointer rounded-full px-10 text-base font-semibold transition-transform hover:bg-primary/90 hover:scale-[1.03] active:scale-95"
           onClick={startPlanning}
         >
           여행 계획 세우기
@@ -272,6 +272,7 @@ const MainPage = () => {
         <Button
           variant="outline"
           size="lg"
+          className="cursor-pointer transition-transform active:scale-95"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         >
           <ChevronUp className="size-5" />
