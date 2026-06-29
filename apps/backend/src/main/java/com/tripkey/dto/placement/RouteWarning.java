@@ -29,7 +29,7 @@ public record RouteWarning(
                 "duration",
                 day,
                 instanceIds,
-                String.format("Day %d 활동 시간 합계 %d시간", day, hours),
+                String.format("Day %d 활동·이동 시간 합계 %d시간", day, hours),
                 null,
                 totalMinutes
         );

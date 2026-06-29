@@ -77,8 +77,9 @@ public class VerifyService {
         }
 
         placeCardRepository.flush();
-        List<RouteWarning> routeWarnings = routeValidator.validate(tripId);
+
         // route leg 계산은 부가정보(best-effort). ai-engine 장애/타임아웃 시에도 Day 배치 저장은 성공해야 한다.
+        // 먼저 계산해 route_legs_cache 를 채운 뒤 검증해야, 시간/거리 conflict 가 이동시간을 반영한다(#277).
         List<RouteLeg> routeLegs;
         try {
             routeLegs = routeService.computeLegs(tripId);
@@ -86,6 +87,8 @@ public class VerifyService {
             log.warn("route leg 계산 실패, 빈 결과로 대체합니다. tripId={}", tripId, e);
             routeLegs = List.of();
         }
+
+        List<RouteWarning> routeWarnings = routeValidator.validate(tripId);
 
         return PlacementSaveResponse.of(tripId, skippedInstanceIds, routeWarnings, routeLegs);
     }
