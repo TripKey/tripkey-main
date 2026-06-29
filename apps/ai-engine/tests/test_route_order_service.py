@@ -212,3 +212,78 @@ async def test_cache_miss_calls_matrix_and_writes(monkeypatch) -> None:
     # 4x4 - 대각 4 = 12 pair 가 캐시에 적재돼야 한다
     assert "rows" in written and len(written["rows"]) == 12
     assert all("pair_key" in r and "duration_seconds" in r for r in written["rows"])
+
+
+@pytest.mark.asyncio
+async def test_partial_cache_miss_uses_per_leg(monkeypatch) -> None:
+    # 12 pair 중 소수만 미스 → Route Matrix 전체 재계산이 아니라 per-leg 로 빠진 pair 만 호출 (#274 Phase B)
+    monkeypatch.setattr(svc, "_places_api_key", lambda: "k")
+    monkeypatch.setattr(route_matrix_cache, "cache_enabled", lambda: True)
+
+    async def partial_get(keys):
+        ks = list(keys)
+        return {k: 600 for k in ks[:-2]}  # 마지막 2개만 미스
+
+    monkeypatch.setattr(route_matrix_cache, "get_durations", partial_get)
+
+    put_rows: list[dict] = []
+
+    async def capture_put(rows):
+        put_rows.extend(rows)
+
+    monkeypatch.setattr(route_matrix_cache, "put_durations", capture_put)
+
+    calls = {"n": 0}
+
+    async def fake_routes(origin, destination, travel_mode, api_key):
+        calls["n"] += 1
+        assert travel_mode == "DRIVE"
+        return {"duration_seconds": 300, "distance_meters": 1000}
+
+    monkeypatch.setattr(svc, "_call_routes_api", fake_routes)
+
+    async def must_not_call_matrix(self, *args, **kwargs):
+        raise AssertionError("부분 미스 시 computeRouteMatrix 를 호출하면 안 됨")
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", must_not_call_matrix)
+
+    res = await svc.optimize_order(OptimizeOrderRequest(stops=_stops()))
+    assert calls["n"] == 2            # 빠진 pair 만 per-leg 호출
+    assert len(put_rows) == 2         # 빠진 pair 만 캐시 적재
+    assert res.source == "google"
+
+
+@pytest.mark.asyncio
+async def test_many_misses_use_route_matrix_not_per_leg(monkeypatch) -> None:
+    # 미스가 임계(PER_LEG_MAX_PAIRS=8)보다 많으면 per-leg 대신 Route Matrix 1회 (cold 폭증 방지)
+    monkeypatch.setattr(svc, "_places_api_key", lambda: "k")
+    monkeypatch.setattr(route_matrix_cache, "cache_enabled", lambda: True)
+
+    async def empty_cache(keys):
+        return {}
+
+    monkeypatch.setattr(route_matrix_cache, "get_durations", empty_cache)
+
+    async def noop_put(rows):
+        return None
+
+    monkeypatch.setattr(route_matrix_cache, "put_durations", noop_put)
+
+    async def must_not_per_leg(*args, **kwargs):
+        raise AssertionError("미스가 많으면 per-leg 가 아니라 Route Matrix 를 써야 함")
+
+    monkeypatch.setattr(svc, "_call_routes_api", must_not_per_leg)
+
+    elements = _line_matrix_elements()
+
+    async def fake_post(self, url, *args, **kwargs):
+        return httpx.Response(200, json=elements, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+
+    res = await svc.optimize_order(
+        OptimizeOrderRequest(stops=_stops(), start_instance_id="C")
+    )
+    assert res.source == "google"
+    assert res.ordered_instance_ids == ["C", "D", "B", "A"]
+    assert res.total_duration_seconds == 40
