@@ -1,4 +1,8 @@
 // 메인 랜딩 페이지용 목(mock) 데이터.
+import kyotoImage from '@/assets/kyoto.jpg';
+import osakaImage from '@/assets/osaka.jpg';
+import bangkokImage from '@/assets/bangkok.jpg';
+import danangImage from '@/assets/danang.jpg';
 
 export type DestinationItem = {
   id: string;
@@ -20,28 +24,28 @@ export const FEATURED_DESTINATIONS: DestinationItem[] = [
     name: '교토',
     country: '일본',
     tagline: '천년 고도의 사찰과 골목',
-    image: 'https://picsum.photos/seed/kyoto/800/400',
+    image: kyotoImage,
   },
   {
     id: 'osaka',
     name: '오사카',
     country: '일본',
     tagline: '먹고 즐기는 미식의 도시',
-    image: 'https://picsum.photos/seed/osaka/800/400',
+    image: osakaImage,
   },
   {
     id: 'bangkok',
     name: '방콕',
     country: '태국',
     tagline: '활기 넘치는 야시장과 사원',
-    image: 'https://picsum.photos/seed/bangkok/800/400',
+    image: bangkokImage,
   },
   {
     id: 'danang',
     name: '다낭',
     country: '베트남',
     tagline: '해변과 리조트의 휴양지',
-    image: 'https://picsum.photos/seed/danang/800/400',
+    image: danangImage,
   },
   {
     id: 'taipei',
