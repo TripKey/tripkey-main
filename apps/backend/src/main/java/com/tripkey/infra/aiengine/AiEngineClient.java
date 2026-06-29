@@ -7,6 +7,8 @@ import com.tripkey.infra.aiengine.dto.AiParseRequest;
 import com.tripkey.infra.aiengine.dto.AiParseResponse;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentRequest;
 import com.tripkey.infra.aiengine.dto.AiNonBlockingEnrichmentResponse;
+import com.tripkey.infra.aiengine.dto.AiOptimizeOrderRequest;
+import com.tripkey.infra.aiengine.dto.AiOptimizeOrderResponse;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import com.tripkey.infra.aiengine.dto.AiRouteRequest;
 import com.tripkey.infra.aiengine.dto.AiRouteResponse;
@@ -55,6 +57,23 @@ public class AiEngineClient {
             return response;
         } catch (WebClientResponseException | WebClientRequestException e) {
             throw new IllegalStateException("Failed to call ai-engine route endpoint", e);
+        }
+    }
+
+    public AiOptimizeOrderResponse optimizeOrder(AiOptimizeOrderRequest request) {
+        try {
+            AiOptimizeOrderResponse response = aiEngineWebClient.post()
+                    .uri("/internal/ai/route/optimize-order")
+                    .bodyValue(request)
+                    .retrieve()
+                    .bodyToMono(AiOptimizeOrderResponse.class)
+                    .block();
+            if (response == null) {
+                throw new IllegalStateException("ai-engine returned an empty optimize-order response body");
+            }
+            return response;
+        } catch (WebClientResponseException | WebClientRequestException e) {
+            throw new IllegalStateException("Failed to call ai-engine optimize-order endpoint", e);
         }
     }
 
