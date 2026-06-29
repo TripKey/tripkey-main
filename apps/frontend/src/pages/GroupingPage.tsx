@@ -562,11 +562,12 @@ const GroupingPage = () => {
     if (!card || !tripId) return Promise.resolve(false);
     // 선택 칩 + 답변을 한 덩어리 자연어(notes)로 합쳐 보낸다.
     // 백엔드는 undecided 카드의 notes 입력을 카드 레벨 AI 재파싱으로 처리한다.
-    const notes = [...payload.choices, payload.answer]
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .join(', ');
-    if (!notes) return Promise.resolve(false);
+    // 입력이 없으면 카드명을 fallback으로 전송해 AI가 최소 컨텍스트로 재파싱할 수 있게 한다.
+    const notes =
+      [...payload.choices, payload.answer]
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .join(', ') || card.name;
     return runCardMutation(
       () => patchCard(tripId, card.id, { notes }),
       '확인 처리에 실패했습니다.'
