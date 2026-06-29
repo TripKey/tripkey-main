@@ -11,15 +11,15 @@ import {
   Route,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import {
   FEATURED_DESTINATIONS,
   SERVICE_FEATURES,
   TRAVEL_TIPS,
 } from '@/dev-fixtures/travel-content';
+import { cn } from '@/lib/utils';
 
 const TIP_ICONS: Record<string, LucideIcon> = {
   'tip-flight': Plane,
@@ -27,10 +27,12 @@ const TIP_ICONS: Record<string, LucideIcon> = {
   'tip-route': Route,
 };
 
-const MainPage = () => {
-  const navigate = useNavigate();
-  const startPlanning = () => navigate('/onboarding');
+// CTA를 누르면 App 레벨 스플래시를 띄운 채 온보딩으로 진입한다.
+type MainPageProps = {
+  onStartPlanning: () => void;
+};
 
+const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
   // 히어로를 지나 아래로 스크롤하면 헤더 CTA를 보여준다.
   const [showHeaderCta, setShowHeaderCta] = useState(false);
   useEffect(() => {
@@ -93,7 +95,10 @@ const MainPage = () => {
   }, []);
 
   const scrollCarousel = (direction: 1 | -1) => {
-    carouselRef.current?.scrollBy({ left: direction * 308, behavior: 'smooth' });
+    carouselRef.current?.scrollBy({
+      left: direction * 308,
+      behavior: 'smooth',
+    });
   };
 
   return (
@@ -112,9 +117,7 @@ const MainPage = () => {
             onClick={startPlanning}
             className={cn(
               'cursor-pointer transition-all duration-300 hover:bg-primary/90 active:scale-95',
-              showHeaderCta
-                ? 'opacity-100'
-                : 'pointer-events-none opacity-0'
+              showHeaderCta ? 'opacity-100' : 'pointer-events-none opacity-0'
             )}
           >
             여행 계획 세우기
@@ -157,7 +160,7 @@ const MainPage = () => {
         <p className="mt-1 text-sm text-muted-foreground">옆으로 넘겨보세요</p>
         <div
           ref={carouselRef}
-          className="mt-8 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="mt-8 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-4 scrollbar-none"
         >
           {SERVICE_FEATURES.map((feature) => (
             <div
@@ -275,8 +278,7 @@ const MainPage = () => {
           className="cursor-pointer transition-transform active:scale-95"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         >
-          <ChevronUp className="size-5" />
-          맨 위로
+          <ChevronUp className="size-5" />맨 위로
         </Button>
       </section>
     </div>

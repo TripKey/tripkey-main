@@ -1,8 +1,8 @@
 // 메인 랜딩 페이지용 목(mock) 데이터.
-import kyotoImage from '@/assets/kyoto.jpg';
-import osakaImage from '@/assets/osaka.jpg';
 import bangkokImage from '@/assets/bangkok.jpg';
 import danangImage from '@/assets/danang.jpg';
+import kyotoImage from '@/assets/kyoto.jpg';
+import osakaImage from '@/assets/osaka.jpg';
 
 export type DestinationItem = {
   id: string;
