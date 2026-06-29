@@ -66,6 +66,25 @@ export type ArrangeCardDetailViewModel = {
    * 처리 필요(unavailable) 카드에만 true 일 수 있고, 그 외에는 undefined/false.
    */
   canResolveByNotes?: boolean;
+  /** 구조화 필드 편집으로 해결 가능한 처리필요 카드 여부. 숙소/교통 unavailable 카드에만 true. */
+  canResolveByStructuredEdit?: boolean;
+  /** 카테고리별 구조화 편집 폼 렌더링 결정용. canResolveByStructuredEdit === true 인 카드에만 채워진다. */
+  structuredEditCategory?: 'accommodation' | 'transport';
+  /** 구조화 편집 초기값. 숙소/교통 카드의 현재 저장된 필드값. */
+  structuredFields?: {
+    location?: string;
+    checkIn?: string;
+    checkOut?: string;
+    timeConstraint?: string;
+    flightNumber?: string;
+  };
+  /**
+   * 텍스트 입력 없이 선택처리 가능 여부.
+   * canResolveByNotes === true && (location != null || name != null).
+   */
+  canSelectProcess?: boolean;
+  /** 선택처리 시 notes 로 자동 전송할 텍스트. card.location ?? card.name 우선순위. */
+  selectProcessNotes?: string;
 };
 
 /** 좌측 카드 그룹 한 덩어리(항공권 / 숙소 / 지역 그룹 등). */

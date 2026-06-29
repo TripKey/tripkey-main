@@ -229,6 +229,29 @@ export type EditCardDetailViewModel = {
   answer?: string;
   /** "사용자 메모" textarea 초기값. 보통 ''. 입력값이 이 값과 달라지면 "메모 저장"이 활성화된다 */
   memo?: string;
+  /** notes 보완 입력 초기값(장소 정보 보완 섹션). 구조화 편집과 분리된 notes 경로에 쓰인다. */
+  notes?: string;
+  /** 구조화 편집 초기값. 숙소/교통 edit 카드의 현재 저장된 필드값. */
+  structuredFields?: {
+    location?: string;
+    checkIn?: string;
+    checkOut?: string;
+    timeConstraint?: string;
+    flightNumber?: string;
+  };
+  /** 카테고리별 구조화 편집 폼 렌더링 결정용. */
+  structuredEditCategory?: 'accommodation' | 'transport';
+  /** 구조화 필드 편집으로 해결 가능한 처리필요 카드 여부. 숙소/교통 fix_required 카드에만 true. */
+  canResolveByStructuredEdit?: boolean;
+  /** notes 보완 입력으로 AI 재파싱 가능 여부(BE canStartNaturalLanguageParsingFromNotes 미러링). */
+  canResolveByNotes?: boolean;
+  /**
+   * 텍스트 입력 없이 선택처리 가능 여부.
+   * canResolveByNotes === true && (location != null || name != null).
+   */
+  canSelectProcess?: boolean;
+  /** 선택처리 시 notes 로 자동 전송할 텍스트. */
+  selectProcessNotes?: string;
 };
 
 /** "해야 할 액션" 버킷 1개(헤더 + 그 안의 카드들). */
