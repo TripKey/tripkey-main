@@ -104,6 +104,7 @@ const ArrangePage = () => {
   const storeTripId = useOnboardingStore((s) => s.tripId);
   const setStoreTripId = useOnboardingStore((s) => s.actions.setTripId);
   const form = useOnboardingStore((s) => s.form);
+  const navigate = useNavigate();
   const { type: calendarType, exactDate, flexDate } = useCalendarStore();
   const tripId: string | null = urlTripId ?? storeTripId;
 
@@ -675,9 +676,9 @@ const ArrangePage = () => {
         ...buildMissingLocationWarnings(),
       ]);
       setConfirmed(true);
-      setNotice('일정이 확정되었습니다.');
-      // 확정 성공 → SCR-05(확정 전 최종 점검) 화면으로 이동.
-      navigate(`/confirm${tripId ? `?tripId=${tripId}` : ''}`);
+      navigate(`/confirm${tripId ? `?tripId=${tripId}` : ''}`, {
+        state: { notice: '일정이 확정되었습니다.' },
+      });
     } catch (error) {
       setActionError(errorMessageOf(error, '일정 확정에 실패했습니다.'));
     }
