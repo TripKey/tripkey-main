@@ -37,6 +37,7 @@ import type {
   ScheduledCardViewModel,
 } from '@/types/arrange';
 import type { RouteWarning } from '@/types/arrange-api';
+import type { CardPatchRequest } from '@/types/grouping-api';
 import type { ArrangeDragPayload } from '@/utils/arrange-dnd';
 
 import { fetchGroups04 } from '../utils/arrange-api';
@@ -464,27 +465,9 @@ const ArrangePage = () => {
     };
   };
 
-  // 처리필요 카드 해결 — 자연어(notes) 보완 입력으로 카드 레벨 AI 재파싱을 트리거하고,
-  // 재처리(processing)가 끝날 때까지 폴링한 뒤 결과를 좌측 목록에 반영한다.
-  // 성공(배치 가능 승격) → 패널 닫기 / 미해결·타임아웃 → 패널 유지(재시도 가능).
-  const handleResolveByNotes = async (notes: string) => {
-    if (!tripId || !detailCard) return;
-    const instanceId = detailCard.id;
-    setResolveError(null);
-    setResolving(true);
-    resolvePollRef.current?.();
-
-    try {
-      await patchCardMutation.mutateAsync({
-        instanceId,
-        payload: { notes },
-      });
-    } catch (error) {
-      setResolving(false);
-      setResolveError(errorMessageOf(error, '재처리 요청에 실패했습니다.'));
-      return;
-    }
-
+  // 재처리 폴링 공통 로직: patchCard 완료 후 instanceId 카드가 processing 을 벗어날 때까지
+  // 2 초 간격으로 /cards 를 조회하고, 승격(unavailable 이탈) 여부에 따라 패널을 닫거나 재시도 안내를 띄운다.
+  const startResolvePoll = (instanceId: string) => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     resolvePollRef.current = () => {
@@ -493,7 +476,6 @@ const ArrangePage = () => {
     };
     const startedAt = Date.now();
 
-    // 폴링 종료 처리: 좌측 목록을 갱신하고, 승격 여부에 따라 패널을 닫거나 재시도 안내를 띄운다.
     const settle = async (timedOut: boolean) => {
       const result = await refreshLeftGroupsPreservingBoard().catch(() => null);
       if (cancelled) return;
@@ -501,11 +483,9 @@ const ArrangePage = () => {
       const promoted = result != null && !result.unavailableIds.has(instanceId);
       if (promoted) {
         setNotice('카드가 배치 가능 목록으로 이동했어요.');
-        // 패널이 아직 이 카드를 보여주는 중일 때만 닫는다.
         if (detailCardIdRef.current === instanceId) setDetailOpen(false);
         return;
       }
-      // 아직 해결 안 됨 — 패널을 열어둔 채 최신 카드 상태로 갱신해 다시 시도할 수 있게 한다.
       if (detailCardIdRef.current === instanceId) {
         const refreshed = result?.groups
           .flatMap((group) => group.cards)
@@ -514,7 +494,7 @@ const ArrangePage = () => {
         setResolveError(
           timedOut
             ? '재처리가 시간 내에 끝나지 않았어요. 잠시 후 다시 시도해 주세요.'
-            : '아직 배치할 수 없어요. 장소명·주소를 더 정확히 입력해 다시 시도해 주세요.'
+            : '현재 정보로는 위치를 찾지 못했어요. 장소명이나 주소를 더 정확히 입력해 주세요.'
         );
       }
     };
@@ -522,7 +502,7 @@ const ArrangePage = () => {
     const tick = async () => {
       if (cancelled) return;
       try {
-        const cardsRes = await fetchCards(tripId);
+        const cardsRes = await fetchCards(tripId!);
         if (cancelled) return;
         const card = cardsRes.cards.find((c) => c.instance_id === instanceId);
         const done = !card || card.processing_status !== 'processing';
@@ -534,6 +514,76 @@ const ArrangePage = () => {
       if (!cancelled) timer = setTimeout(tick, POLL_INTERVAL_MS);
     };
     timer = setTimeout(tick, POLL_INTERVAL_MS);
+  };
+
+  // 처리필요 카드 해결 — 자연어(notes) 보완 입력으로 AI 재파싱 트리거.
+  const handleResolveByNotes = async (notes: string) => {
+    if (!tripId || !detailCard) return;
+    const instanceId = detailCard.id;
+    setResolveError(null);
+    setResolving(true);
+    resolvePollRef.current?.();
+    try {
+      await patchCardMutation.mutateAsync({ instanceId, payload: { notes } });
+    } catch (error) {
+      setResolving(false);
+      setResolveError(errorMessageOf(error, '재처리 요청에 실패했습니다.'));
+      return;
+    }
+    startResolvePoll(instanceId);
+  };
+
+  // 처리필요 숙소/교통 카드의 구조화 필드 편집.
+  // 위치 변경 시 → 재처리 트리거 + 폴링. 비위치 필드만 → 즉시 저장 후 갱신.
+  const handleResolveByStructuredEdit = async ({
+    payload,
+    locationChanged,
+  }: {
+    payload: CardPatchRequest;
+    locationChanged: boolean;
+  }) => {
+    if (!tripId || !detailCard) return;
+    const instanceId = detailCard.id;
+    setResolveError(null);
+    setResolving(true);
+    resolvePollRef.current?.();
+    try {
+      await patchCardMutation.mutateAsync({ instanceId, payload });
+    } catch (error) {
+      setResolving(false);
+      setResolveError(errorMessageOf(error, '저장에 실패했습니다.'));
+      return;
+    }
+    if (!locationChanged) {
+      // 비위치 필드만 변경 → 폴링 없이 즉시 갱신
+      setResolving(false);
+      await refreshLeftGroupsPreservingBoard();
+      if (detailCardIdRef.current === instanceId) setDetailOpen(false);
+      return;
+    }
+    startResolvePoll(instanceId);
+  };
+
+  // 선택처리 — 기존 location 또는 name 을 notes 로 자동 전송해 AI 재파싱 트리거.
+  const handleSelectProcess = async () => {
+    if (!tripId || !detailCard) return;
+    const autoNotes = detailCard.detail?.selectProcessNotes;
+    if (!autoNotes) return;
+    const instanceId = detailCard.id;
+    setResolveError(null);
+    setResolving(true);
+    resolvePollRef.current?.();
+    try {
+      await patchCardMutation.mutateAsync({
+        instanceId,
+        payload: { notes: autoNotes },
+      });
+    } catch (error) {
+      setResolving(false);
+      setResolveError(errorMessageOf(error, '재처리 요청에 실패했습니다.'));
+      return;
+    }
+    startResolvePoll(instanceId);
   };
 
   // 정리 반영 — POST /groups/reorder. "재정렬이 필요한 카드"를 클러스터로 재편입한 뒤
@@ -835,6 +885,8 @@ const ArrangePage = () => {
         card={detailCard}
         onSaveMemo={handleSaveMemo}
         onResolveByNotes={handleResolveByNotes}
+        onResolveByStructuredEdit={handleResolveByStructuredEdit}
+        onSelectProcess={handleSelectProcess}
         resolving={resolving}
         resolveError={resolveError}
       />
