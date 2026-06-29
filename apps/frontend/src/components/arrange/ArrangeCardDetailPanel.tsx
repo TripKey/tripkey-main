@@ -2,8 +2,15 @@
 // 정리 화면(SCR-03)의 CardDetailPanel 과 동일한 조립 부품
 // (SidePanel / StatusInfoBox / DetailRow / UserMemoField / PanelActions / PlaceCardBadge)을 재사용한다.
 //
-// 처리필요(unavailable) 카드 중 자연어 재파싱으로 해결 가능한 카드(detail.canResolveByNotes)는
-// "장소 정보 보완"(notes) 입력 + "확인하기"(저장+재처리) 푸터를 보여준다. 그 외 카드는 기존 메모 UI.
+// 처리필요(unavailable) 카드 중:
+//  - 숙소/교통 카드(canResolveByStructuredEdit): 구조화 편집 폼 + 선택처리 버튼
+//  - 자연어 재파싱 가능 카드(canResolveByNotes): 장소 정보 보완 입력
+//  - 그 외: 사용자 메모 UI
+//
+// 확인하기 PATCH 라우팅:
+//  ① structuredDirty → 구조화 PATCH (location 변경 시 폴링, 아닐 시 즉시 반영)
+//  ② notes 입력만  → notes PATCH (항상 폴링)
+//  선택처리 버튼   → notes PATCH(기존 텍스트 자동 전송) (항상 폴링)
 
 import { Clock, Info, MapPin, Plane, User, X } from 'lucide-react';
 import { Dialog } from 'radix-ui';
@@ -14,12 +21,14 @@ import SidePanel from '@/components/common/SidePanel';
 import {
   DetailRow,
   StatusInfoBox,
+  StructuredEditSection,
   UserMemoField,
 } from '@/components/grouping/CardDetailParts';
 import PlaceCardBadge from '@/components/grouping/PlaceCardBadge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import type { ArrangeCardViewModel } from '@/types/arrange';
+import type { CardPatchRequest } from '@/types/grouping-api';
 
 type ArrangeCardDetailPanelProps = {
   open: boolean;
@@ -28,6 +37,13 @@ type ArrangeCardDetailPanelProps = {
   onSaveMemo?: (memo: string) => void;
   /** 처리필요 카드의 notes 보완 입력 → 저장+재처리(self-heal) 트리거 */
   onResolveByNotes?: (notes: string) => void;
+  /** 처리필요 숙소/교통 카드의 구조화 필드 편집 → 저장(+위치 변경 시 재처리) */
+  onResolveByStructuredEdit?: (args: {
+    payload: CardPatchRequest;
+    locationChanged: boolean;
+  }) => void;
+  /** 기존 location/name 을 notes 로 자동 전송해 AI 재처리 트리거 */
+  onSelectProcess?: () => void;
   /** 재처리 요청~폴링이 진행 중이면 true (확인하기 버튼 로딩/잠금) */
   resolving?: boolean;
   /** 재처리가 실패했거나 시간 내에 끝나지 않은 경우의 안내(재시도 가능) */
@@ -40,6 +56,8 @@ const ArrangeCardDetailPanel = ({
   card,
   onSaveMemo,
   onResolveByNotes,
+  onResolveByStructuredEdit,
+  onSelectProcess,
   resolving = false,
   resolveError = null,
 }: ArrangeCardDetailPanelProps) => {
@@ -53,6 +71,8 @@ const ArrangeCardDetailPanel = ({
           onClose={() => onOpenChange(false)}
           onSaveMemo={onSaveMemo}
           onResolveByNotes={onResolveByNotes}
+          onResolveByStructuredEdit={onResolveByStructuredEdit}
+          onSelectProcess={onSelectProcess}
           resolving={resolving}
           resolveError={resolveError}
         />
@@ -69,6 +89,8 @@ const ArrangeCardDetailBody = ({
   onClose,
   onSaveMemo,
   onResolveByNotes,
+  onResolveByStructuredEdit,
+  onSelectProcess,
   resolving,
   resolveError,
 }: {
@@ -76,24 +98,68 @@ const ArrangeCardDetailBody = ({
   onClose: () => void;
   onSaveMemo?: (memo: string) => void;
   onResolveByNotes?: (notes: string) => void;
+  onResolveByStructuredEdit?: (args: {
+    payload: CardPatchRequest;
+    locationChanged: boolean;
+  }) => void;
+  onSelectProcess?: () => void;
   resolving: boolean;
   resolveError: string | null;
 }) => {
   const detail = card.detail!;
-  // 고정 카드(항공권 등)는 상단 상태 pill 을 파란색(info), 일반 카드는 초록색(done)으로.
   const isFixed = card.draggable === false;
-  // 처리필요 카드(클릭 시 안내가 있는 카드)인지 / 그중 notes 재파싱으로 해결 가능한지.
   const isAttention = card.actionGuide != null;
   const isResolvable = detail.canResolveByNotes === true;
+  const canStructuredEdit = detail.canResolveByStructuredEdit === true;
+  const showConfirmButton = isResolvable || canStructuredEdit;
 
   const initialMemo = detail.memo ?? '';
   const [memo, setMemo] = useState(initialMemo);
   const memoDirty = memo.trim() !== initialMemo.trim();
 
   const [notes, setNotes] = useState(detail.notes ?? '');
-  const canConfirm = notes.trim().length > 0 && !resolving;
+
+  // 구조화 편집 필드 상태 — 숙소/교통 처리필요 카드에서만 의미 있음
+  const sf = detail.structuredFields;
+  const [location, setLocation] = useState(sf?.location ?? '');
+  const [checkIn, setCheckIn] = useState(sf?.checkIn ?? '');
+  const [checkOut, setCheckOut] = useState(sf?.checkOut ?? '');
+  const [timeConstraint, setTimeConstraint] = useState(
+    sf?.timeConstraint ?? ''
+  );
+  const [flightNumber, setFlightNumber] = useState(sf?.flightNumber ?? '');
+
+  const locationChanged = location.trim() !== (sf?.location ?? '').trim();
+  const structuredDirty =
+    locationChanged ||
+    checkIn.trim() !== (sf?.checkIn ?? '').trim() ||
+    checkOut.trim() !== (sf?.checkOut ?? '').trim() ||
+    timeConstraint.trim() !== (sf?.timeConstraint ?? '').trim() ||
+    flightNumber.trim() !== (sf?.flightNumber ?? '').trim();
+
+  const canConfirm =
+    (structuredDirty || (isResolvable && notes.trim().length > 0)) &&
+    !resolving;
 
   const categoryBadge = card.badges?.find((badge) => badge.kind === 'category');
+
+  const handleConfirm = () => {
+    if (structuredDirty) {
+      const payload: CardPatchRequest = {};
+      if (location.trim()) payload.location = location.trim();
+      if (detail.structuredEditCategory === 'accommodation') {
+        if (checkIn.trim()) payload.check_in = checkIn.trim();
+        if (checkOut.trim()) payload.check_out = checkOut.trim();
+      } else if (detail.structuredEditCategory === 'transport') {
+        if (timeConstraint.trim())
+          payload.time_constraint = timeConstraint.trim();
+        if (flightNumber.trim()) payload.flight_number = flightNumber.trim();
+      }
+      onResolveByStructuredEdit?.({ payload, locationChanged });
+    } else if (notes.trim().length > 0) {
+      onResolveByNotes?.(notes.trim());
+    }
+  };
 
   return (
     <>
@@ -176,7 +242,7 @@ const ArrangeCardDetailBody = ({
 
         <Separator />
 
-        {/* 처리필요 카드 안내(인플레이스). 해결 가능/불가 모두 사유를 보여준다. */}
+        {/* 처리필요 카드 안내(인플레이스) */}
         {isAttention && card.actionGuide && (
           <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
             <p className="flex gap-2 text-sm leading-relaxed whitespace-pre-line text-amber-800 dark:text-amber-200">
@@ -186,21 +252,55 @@ const ArrangeCardDetailBody = ({
           </div>
         )}
 
-        {isResolvable && (
+        {/* 구조화 편집 섹션 (숙소/교통 처리필요 카드) */}
+        {canStructuredEdit && detail.structuredEditCategory && (
           <>
-            <ResolveByNotesField
-              value={notes}
-              onChange={setNotes}
+            <StructuredEditSection
+              category={detail.structuredEditCategory}
+              location={location}
+              onLocationChange={setLocation}
+              checkIn={checkIn}
+              onCheckInChange={setCheckIn}
+              checkOut={checkOut}
+              onCheckOutChange={setCheckOut}
+              timeConstraint={timeConstraint}
+              onTimeConstraintChange={setTimeConstraint}
+              flightNumber={flightNumber}
+              onFlightNumberChange={setFlightNumber}
               disabled={resolving}
-              error={resolveError}
+              canSelectProcess={detail.canSelectProcess}
+              onSelectProcess={onSelectProcess}
             />
             <Separator />
           </>
         )}
+
+        {/* 장소 정보 보완 섹션 (notes 재파싱 가능 카드) */}
+        {isResolvable && (
+          <ResolveByNotesField
+            value={notes}
+            onChange={setNotes}
+            disabled={resolving}
+            conflictWarning={structuredDirty && notes.trim().length > 0}
+          />
+        )}
+
+        {/* 재처리 에러 안내 */}
+        {resolveError && (
+          <div
+            role="alert"
+            className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm leading-relaxed text-destructive"
+          >
+            {resolveError}
+          </div>
+        )}
+
+        {/* 사용자 메모 — resolvable/구조화 편집 카드에서도 항상 노출(#267) */}
+        {isResolvable && <Separator />}
         <UserMemoField value={memo} onChange={setMemo} />
       </div>
 
-      {/* 푸터 */}
+      {/* 푸터 — 메모 저장은 항상 노출, 확인하기는 해결 가능 카드에만 추가(#267) */}
       <PanelActions>
         <Button
           type="button"
@@ -210,19 +310,19 @@ const ArrangeCardDetailBody = ({
         >
           닫기
         </Button>
-        {isResolvable && (
+        {showConfirmButton && (
           <Button
             type="button"
             className="h-11 flex-1 text-sm font-semibold"
             disabled={!canConfirm}
-            onClick={() => onResolveByNotes?.(notes.trim())}
+            onClick={handleConfirm}
           >
             {resolving ? '재처리 중…' : '확인하기'}
           </Button>
         )}
         <Button
           type="button"
-          variant={isResolvable ? 'outline' : 'default'}
+          variant={showConfirmButton ? 'outline' : 'default'}
           className="h-11 flex-1 text-sm font-semibold"
           disabled={!memoDirty}
           onClick={() => onSaveMemo?.(memo)}
@@ -239,12 +339,12 @@ const ResolveByNotesField = ({
   value,
   onChange,
   disabled,
-  error,
+  conflictWarning,
 }: {
   value: string;
   onChange: (value: string) => void;
   disabled: boolean;
-  error: string | null;
+  conflictWarning?: boolean;
 }) => (
   <section>
     <h3 className="text-sm font-semibold text-foreground">장소 정보 보완</h3>
@@ -260,8 +360,11 @@ const ResolveByNotesField = ({
       rows={3}
       className="mt-3 w-full resize-none rounded-xl border border-input bg-background px-3.5 py-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none disabled:opacity-60"
     />
-    {error && (
-      <p className="mt-2 text-xs leading-relaxed text-destructive">{error}</p>
+    {conflictWarning && (
+      <p className="mt-2 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+        구조화 편집 중에는 장소 정보 보완을 함께 전송하지 않아요. 먼저
+        확인하기를 눌러 저장하세요.
+      </p>
     )}
   </section>
 );
