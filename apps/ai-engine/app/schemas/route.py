@@ -56,6 +56,9 @@ class OptimizeOrderRequest(BaseModel):
     stops: list[OptimizeStop]
     # 시작 고정 앵커(예: 숙소) instance_id. None 이면 시작 자유.
     start_instance_id: str | None = None
+    # 종료 고정 앵커(예: 마지막날 항공 출발) instance_id. None 이면 종료 자유.
+    # 시작 앵커와 같으면 무시한다(귀가 closed-tour 는 후속 슬라이스).
+    end_instance_id: str | None = None
 
 
 class OptimizeOrderResponse(BaseModel):

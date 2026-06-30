@@ -6,7 +6,8 @@ import java.util.List;
 
 public record AiOptimizeOrderRequest(
         List<Stop> stops,
-        @JsonProperty("start_instance_id") String startInstanceId
+        @JsonProperty("start_instance_id") String startInstanceId,
+        @JsonProperty("end_instance_id") String endInstanceId
 ) {
 
     public record Coord(double lat, double lng) {}

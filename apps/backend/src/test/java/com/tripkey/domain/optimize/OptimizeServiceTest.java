@@ -102,6 +102,36 @@ class OptimizeServiceTest {
     }
 
     @Test
+    void optimizePassesFlightCardAsEndAnchor() {
+        UUID tripId = UUID.randomUUID();
+        UUID acc = UUID.randomUUID();
+        UUID place = UUID.randomUUID();
+        UUID flight = UUID.randomUUID();
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        PlaceCard accCard = card(acc, 1, (short) 0, 34.70, 135.50, "accommodation", false);
+        PlaceCard placeCard = card(place, 1, (short) 1, 34.71, 135.51, "place", false);
+        PlaceCard flightCard = card(flight, 1, (short) 2, 34.79, 135.44, "transport", false);
+
+        when(placeCardRepository.findAllByTripId(tripId))
+                .thenReturn(List.of(accCard, placeCard, flightCard));
+        when(aiEngineClient.optimizeOrder(any())).thenReturn(
+                new AiOptimizeOrderResponse(
+                        List.of(acc.toString(), place.toString(), flight.toString()), 1200, "google"));
+
+        optimizeService.optimize(tripId);
+
+        ArgumentCaptor<AiOptimizeOrderRequest> captor =
+                ArgumentCaptor.forClass(AiOptimizeOrderRequest.class);
+        verify(aiEngineClient).optimizeOrder(captor.capture());
+        AiOptimizeOrderRequest req = captor.getValue();
+        // 시작=숙소, 종료=항공(교통) 카드
+        assertThat(req.startInstanceId()).isEqualTo(acc.toString());
+        assertThat(req.endInstanceId()).isEqualTo(flight.toString());
+    }
+
+    @Test
     void skipsDaysWithFewerThanTwoStopsAndDoesNotCallAi() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);

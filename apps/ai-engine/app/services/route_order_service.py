@@ -204,7 +204,13 @@ async def optimize_order(request: OptimizeOrderRequest) -> OptimizeOrderResponse
     if request.start_instance_id is not None and request.start_instance_id in ids:
         start_index = ids.index(request.start_instance_id)
 
-    ordered_ids = optimize_visit_order(ids, matrix, start_index)
+    end_index = None
+    if request.end_instance_id is not None and request.end_instance_id in ids:
+        end_index = ids.index(request.end_instance_id)
+    if end_index == start_index:  # 같은 앵커(귀가 등)는 종료 자유로 (후속 슬라이스)
+        end_index = None
+
+    ordered_ids = optimize_visit_order(ids, matrix, start_index, end_index)
     order_idx = [ids.index(x) for x in ordered_ids]
     total = path_duration(order_idx, matrix)
 

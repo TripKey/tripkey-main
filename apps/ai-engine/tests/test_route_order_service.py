@@ -69,6 +69,23 @@ async def test_respects_start_with_google_matrix(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_respects_end_anchor(monkeypatch) -> None:
+    monkeypatch.setattr(svc, "_places_api_key", lambda: "k")
+    elements = _line_matrix_elements()
+
+    async def fake_post(self, url, json, headers):
+        return httpx.Response(200, json=elements, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+
+    res = await svc.optimize_order(
+        OptimizeOrderRequest(stops=_stops(), end_instance_id="A")  # A(@0) 에서 종료 고정
+    )
+    assert res.source == "google"
+    assert res.ordered_instance_ids[-1] == "A"
+
+
+@pytest.mark.asyncio
 async def test_http_failure_falls_back_to_estimate(monkeypatch) -> None:
     monkeypatch.setattr(svc, "_places_api_key", lambda: "k")
 

@@ -57,7 +57,7 @@ public class OptimizeService {
             }
 
             AiOptimizeOrderResponse response = aiEngineClient.optimizeOrder(
-                    new AiOptimizeOrderRequest(stops, accommodationAnchor(cards)));
+                    new AiOptimizeOrderRequest(stops, accommodationAnchor(cards), flightEndAnchor(cards)));
 
             List<UUID> orderedIds = response.orderedInstanceIds().stream()
                     .map(UUID::fromString)
@@ -74,6 +74,19 @@ public class OptimizeService {
     private static String accommodationAnchor(List<PlaceCard> cards) {
         for (PlaceCard card : cards) {
             if ("accommodation".equals(card.getCategory())) {
+                return card.getInstanceId().toString();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Day 종료 앵커 — 교통(항공) 카드가 있으면 그 instance_id(마지막날 출발 전 종료), 없으면 null(종료 자유).
+     * 시작 앵커(숙소)와 카테고리가 달라 충돌하지 않는다. (좌표 없는 항공 카드는 stops 에 없어 AI 가 무시)
+     */
+    private static String flightEndAnchor(List<PlaceCard> cards) {
+        for (PlaceCard card : cards) {
+            if ("transport".equals(card.getCategory())) {
                 return card.getInstanceId().toString();
             }
         }
