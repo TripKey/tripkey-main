@@ -3,7 +3,7 @@
 // tripId 는 URL(?tripId=) → 온보딩 스토어 순으로 취득(진입 가드는 RequireTrip 위임).
 
 import { useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import AlertCardList from '@/components/confirm/AlertCardList';
 import ContextCardList from '@/components/confirm/ContextCardList';
@@ -25,7 +25,11 @@ import { useOnboardingStore } from '@/utils/onboarding-store';
 
 const ConfirmPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const [notice, setNotice] = useState<string | null>(
+    (location.state as { notice?: string } | null)?.notice ?? null
+  );
   const urlTripId = searchParams.get('tripId');
   const storeTripId = useOnboardingStore((s) => s.tripId);
   const form = useOnboardingStore((s) => s.form);
@@ -140,6 +144,20 @@ const ConfirmPage = () => {
           </div>
         }
       />
+
+      {notice && (
+        <div className="flex items-center justify-between border-b border-primary/20 bg-primary/5 px-8 py-3 text-sm text-primary">
+          <span>{notice}</span>
+          <button
+            type="button"
+            aria-label="닫기"
+            className="ml-4 text-primary/60 hover:text-primary"
+            onClick={() => setNotice(null)}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <main className="grid flex-1 grid-cols-[300px_minmax(0,1fr)]">
         <aside className="flex flex-col gap-6 border-r border-border bg-card px-8 py-10">

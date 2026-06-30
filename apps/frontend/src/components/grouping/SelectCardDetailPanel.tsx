@@ -93,7 +93,7 @@ const SelectCardDetailBody = ({
   const [memo, setMemo] = useState(initialMemo);
   const memoDirty = memo.trim() !== initialMemo.trim();
 
-  const canConfirm = selectedChoices.length > 0 || answer.trim().length > 0;
+  const canConfirm = true;
 
   // 단일 선택 — 카드 1장 = 장소 1개이므로 하나만 유지. 같은 칩을 다시 누르면 해제.
   const toggleChoice = (choice: string) =>

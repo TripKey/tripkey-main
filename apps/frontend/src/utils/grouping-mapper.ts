@@ -127,28 +127,57 @@ const toSelectCard = (card: Card): PlaceCardViewModel => ({
   },
 });
 
-const toEditCard = (card: Card): PlaceCardViewModel => ({
-  id: card.instance_id,
-  name: card.name,
-  region: card.location ?? undefined,
-  durationLabel: formatDuration(card.estimated_duration_min),
-  processing: card.processing_status === 'processing',
-  accent: accentFor('edit'),
-  badges: buildBadges(card, 'edit'),
-  reminder: reminderFor(card),
-  editDetail: {
-    classification:
-      CLASSIFICATION_LABEL[card.classification] ?? card.classification,
-    placementStatus: card.placement_status,
-    userIntent: card.user_context ?? undefined,
-    aiHint: card.tips ?? undefined,
-    reason: card.blocked_reason ?? '처리에 실패했어요',
-    retryNotice: '아래에 올바른 정보를 입력해주시면 다시 처리를 시도합니다',
-    question: card.question_text ?? '정확한 정보를 입력해주세요',
-    answer: '',
-    memo: card.memo ?? '',
-  },
-});
+const canResolveByNotesCheck = (card: Card): boolean =>
+  (card.classification === 'undecided' &&
+    (card.placement_status === 'needs_input' ||
+      card.placement_status === 'ready_partial')) ||
+  (card.processing_status === 'failed' &&
+    card.classification !== 'open_question');
+
+const toEditCard = (card: Card): PlaceCardViewModel => {
+  const resolvable = canResolveByNotesCheck(card);
+  const isStructuredCategory =
+    card.category === 'accommodation' || card.category === 'transport';
+  return {
+    id: card.instance_id,
+    name: card.name,
+    region: card.location ?? undefined,
+    durationLabel: formatDuration(card.estimated_duration_min),
+    processing: card.processing_status === 'processing',
+    accent: accentFor('edit'),
+    badges: buildBadges(card, 'edit'),
+    reminder: reminderFor(card),
+    editDetail: {
+      classification:
+        CLASSIFICATION_LABEL[card.classification] ?? card.classification,
+      placementStatus: card.placement_status,
+      userIntent: card.user_context ?? undefined,
+      aiHint: card.tips ?? undefined,
+      reason: card.blocked_reason ?? '처리에 실패했어요',
+      retryNotice: '아래에 올바른 정보를 입력해주시면 다시 처리를 시도합니다',
+      question: card.question_text ?? '정확한 정보를 입력해주세요',
+      answer: '',
+      memo: card.memo ?? '',
+      notes: card.notes ?? '',
+      structuredFields: isStructuredCategory
+        ? {
+            location: card.location ?? undefined,
+            checkIn: card.check_in ?? undefined,
+            checkOut: card.check_out ?? undefined,
+            timeConstraint: card.time_constraint ?? undefined,
+            flightNumber: card.flight_number ?? undefined,
+          }
+        : undefined,
+      structuredEditCategory: isStructuredCategory
+        ? (card.category as 'accommodation' | 'transport')
+        : undefined,
+      canResolveByStructuredEdit: isStructuredCategory,
+      canResolveByNotes: resolvable,
+      canSelectProcess: resolvable && !!(card.location ?? card.name),
+      selectProcessNotes: card.location ?? card.name ?? undefined,
+    },
+  };
+};
 
 const toUnassignedCard = (card: Card): PlaceCardViewModel => ({
   id: card.instance_id,

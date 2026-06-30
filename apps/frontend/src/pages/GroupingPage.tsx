@@ -28,6 +28,7 @@ import type {
 } from '@/types/grouping';
 import type { Card, Groups03Response } from '@/types/grouping-api';
 
+import type { CardPatchRequest } from '../types/grouping-api';
 import {
   useCalendarStore,
   formatDateRangeLabel,
@@ -193,6 +194,18 @@ const GroupingPage = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [addCardOpen, setAddCardOpen] = useState(false);
 
+  // EditCardDetailPanel 구조화 편집/선택처리 전용 상태
+  const [editResolving, setEditResolving] = useState(false);
+  const [editResolveError, setEditResolveError] = useState<string | null>(null);
+  const editPollRef = useRef<(() => void) | null>(null);
+
+  // editCard 가 바뀔 때 이전 폴링 취소 + 에러 초기화
+  useEffect(() => {
+    editPollRef.current?.();
+    setEditResolving(false);
+    setEditResolveError(null);
+  }, [editCard?.id]);
+
   const refresh = useCallback(
     async (signal?: AbortSignal): Promise<void> => {
       if (!tripId) return;
@@ -256,6 +269,167 @@ const GroupingPage = () => {
 
   // tripId 변경/언마운트 시 진행 중 폴링 정리
   useEffect(() => () => pollCancelRef.current?.(), [tripId]);
+  useEffect(() => () => editPollRef.current?.(), [tripId]);
+
+  // EditCardDetailPanel 구조화 편집용 폴링: 처리 완료 시 결과 피드백
+  const startEditResolvePoll = useCallback(
+    (instanceId: string) => {
+      if (!tripId) return;
+      editPollRef.current?.();
+
+      let cancelled = false;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      editPollRef.current = () => {
+        cancelled = true;
+        if (timer) clearTimeout(timer);
+      };
+      const startedAt = Date.now();
+
+      const settle = async (timedOut: boolean) => {
+        try {
+          const [groupsRes, cardsRes] = await Promise.all([
+            fetchGroups03(tripId),
+            fetchCards(tripId),
+          ]);
+          if (cancelled) return;
+          dispatch({
+            type: 'REFRESH_SUCCESS',
+            groups: groupsRes,
+            contextSummary: cardsRes.context_summary,
+          });
+          const stillProblem = groupsRes.fix_required.some(
+            (c) => c.instance_id === instanceId
+          );
+          setEditResolving(false);
+          if (!stillProblem) {
+            setEditOpen(false);
+          } else {
+            setEditResolveError(
+              timedOut
+                ? '재처리가 시간 내에 끝나지 않았어요. 잠시 후 다시 시도해 주세요.'
+                : '현재 정보로는 위치를 찾지 못했어요. 장소명이나 주소를 더 정확히 입력해 주세요.'
+            );
+          }
+        } catch {
+          if (!cancelled) {
+            setEditResolving(false);
+            setEditResolveError(
+              '재처리 결과를 확인하지 못했어요. 새로고침을 시도해 주세요.'
+            );
+          }
+        }
+      };
+
+      const tick = async () => {
+        if (cancelled) return;
+        try {
+          const [groupsRes, cardsRes] = await Promise.all([
+            fetchGroups03(tripId),
+            fetchCards(tripId),
+          ]);
+          if (cancelled) return;
+          dispatch({
+            type: 'REFRESH_SUCCESS',
+            groups: groupsRes,
+            contextSummary: cardsRes.context_summary,
+          });
+          const card = cardsRes.cards.find((c) => c.instance_id === instanceId);
+          if (!card || card.processing_status !== 'processing')
+            return settle(false);
+        } catch {
+          // 일시적 실패는 다음 tick 에서 재시도
+        }
+        if (Date.now() - startedAt > POLL_TIMEOUT_MS) return settle(true);
+        if (!cancelled) timer = setTimeout(tick, POLL_INTERVAL_MS);
+      };
+
+      timer = setTimeout(tick, POLL_INTERVAL_MS);
+    },
+    [tripId]
+  );
+
+  // 처리필요 숙소/교통 카드의 구조화 필드 편집 저장
+  const handleResolveByStructuredEdit = useCallback(
+    async ({
+      payload,
+      locationChanged,
+    }: {
+      payload: CardPatchRequest;
+      locationChanged: boolean;
+    }) => {
+      if (!tripId || !editCard || editResolving) return;
+      const instanceId = editCard.id;
+      setEditResolveError(null);
+      setEditResolving(true);
+      try {
+        await patchCard(tripId, instanceId, payload);
+      } catch (error) {
+        setEditResolving(false);
+        setEditResolveError(errorMessageOf(error, '저장에 실패했습니다.'));
+        return;
+      }
+      if (!locationChanged) {
+        // 비위치 필드만 → 즉시 갱신, 폴링 없음
+        try {
+          const [groupsRes, cardsRes] = await Promise.all([
+            fetchGroups03(tripId),
+            fetchCards(tripId),
+          ]);
+          dispatch({
+            type: 'REFRESH_SUCCESS',
+            groups: groupsRes,
+            contextSummary: cardsRes.context_summary,
+          });
+        } catch {
+          /* 실패 시 무시 */
+        }
+        setEditResolving(false);
+        setEditOpen(false);
+        return;
+      }
+      startEditResolvePoll(instanceId);
+    },
+    [tripId, editCard, editResolving, startEditResolvePoll]
+  );
+
+  // notes 보완 입력 → AI 재파싱 트리거 (EditCardDetailPanel 에서 직접 notes 입력 시)
+  const handleResolveByNotesEdit = useCallback(
+    async (notes: string) => {
+      if (!tripId || !editCard || editResolving) return;
+      const instanceId = editCard.id;
+      setEditResolveError(null);
+      setEditResolving(true);
+      try {
+        await patchCard(tripId, instanceId, { notes });
+      } catch (error) {
+        setEditResolving(false);
+        setEditResolveError(
+          errorMessageOf(error, '재처리 요청에 실패했습니다.')
+        );
+        return;
+      }
+      startEditResolvePoll(instanceId);
+    },
+    [tripId, editCard, editResolving, startEditResolvePoll]
+  );
+
+  // 선택처리 — 기존 location/name 을 notes 로 자동 전송
+  const handleSelectProcessEdit = useCallback(async () => {
+    if (!tripId || !editCard || editResolving) return;
+    const autoNotes = editCard.editDetail?.selectProcessNotes;
+    if (!autoNotes) return;
+    const instanceId = editCard.id;
+    setEditResolveError(null);
+    setEditResolving(true);
+    try {
+      await patchCard(tripId, instanceId, { notes: autoNotes });
+    } catch (error) {
+      setEditResolving(false);
+      setEditResolveError(errorMessageOf(error, '재처리 요청에 실패했습니다.'));
+      return;
+    }
+    startEditResolvePoll(instanceId);
+  }, [tripId, editCard, editResolving, startEditResolvePoll]);
 
   // 초기 로딩 / tripId 변경 시 재로딩
   useEffect(() => {
@@ -388,11 +562,12 @@ const GroupingPage = () => {
     if (!card || !tripId) return Promise.resolve(false);
     // 선택 칩 + 답변을 한 덩어리 자연어(notes)로 합쳐 보낸다.
     // 백엔드는 undecided 카드의 notes 입력을 카드 레벨 AI 재파싱으로 처리한다.
-    const notes = [...payload.choices, payload.answer]
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .join(', ');
-    if (!notes) return Promise.resolve(false);
+    // 입력이 없으면 카드명을 fallback으로 전송해 AI가 최소 컨텍스트로 재파싱할 수 있게 한다.
+    const notes =
+      [...payload.choices, payload.answer]
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .join(', ') || card.name;
     return runCardMutation(
       () => patchCard(tripId, card.id, { notes }),
       '확인 처리에 실패했습니다.'
@@ -597,16 +772,22 @@ const GroupingPage = () => {
         onOpenChange={setEditOpen}
         card={editCard}
         onConfirm={(payload) => {
-          // 수정 재처리 전용 API는 아직 미구현. 연결되면 별도 mutation으로 교체 예정.
-          console.log('[GroupingPage] edit payload (미구현)', payload);
-          dispatch({
-            type: 'BUSY_FAIL',
-            message: '수정 재처리 API는 아직 연결되지 않았습니다.',
-          });
+          // 비구조화(질문/입력) 카드 경로 — notes로 전송
+          const notes = payload.answer.trim();
+          if (!notes || !tripId || !editCard) return;
+          runCardMutation(
+            () => patchCard(tripId, editCard.id, { notes }),
+            '확인 처리에 실패했습니다.'
+          );
         }}
         onSaveMemo={async (memo) => {
           await handleSaveMemo(editCard, memo);
         }}
+        onResolveByStructuredEdit={handleResolveByStructuredEdit}
+        onResolveByNotes={handleResolveByNotesEdit}
+        onSelectProcess={handleSelectProcessEdit}
+        resolving={editResolving}
+        resolveError={editResolveError}
       />
 
       <AddCardModal

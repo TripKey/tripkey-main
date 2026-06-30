@@ -229,6 +229,24 @@ const cardToDetail = (card: Card): ArrangeCardDetailViewModel => ({
   aiHint: card.tips ?? card.blocked_reason ?? undefined,
   memo: card.memo ?? '',
   notes: card.notes ?? '',
+  structuredFields:
+    card.category === 'accommodation' || card.category === 'transport'
+      ? {
+          location: card.location ?? undefined,
+          checkIn: card.check_in ?? undefined,
+          checkOut: card.check_out ?? undefined,
+          timeConstraint: card.time_constraint ?? undefined,
+          flightNumber: card.flight_number ?? undefined,
+        }
+      : undefined,
+  structuredEditCategory:
+    card.category === 'accommodation'
+      ? 'accommodation'
+      : card.category === 'transport'
+        ? 'transport'
+        : undefined,
+  canSelectProcess: canResolveByNotes(card) && !!(card.location ?? card.name),
+  selectProcessNotes: card.location ?? card.name ?? undefined,
 });
 
 /** 좌측 목록의 배치 가능 카드(드래그 가능). add 응답 등에서도 재사용한다. */
@@ -270,7 +288,13 @@ const cardToAttentionCard = (
     // 처리필요 카드만 notes 재파싱(self-heal) 가능 플래그를 채운다. 제외 카드는 해결 대상이 아니다.
     detail:
       kind === 'unavailable'
-        ? { ...cardToDetail(card), canResolveByNotes: canResolveByNotes(card) }
+        ? {
+            ...cardToDetail(card),
+            canResolveByNotes: canResolveByNotes(card),
+            canResolveByStructuredEdit:
+              card.category === 'accommodation' ||
+              card.category === 'transport',
+          }
         : cardToDetail(card),
     // 제외 카드는 의도적으로 뺀 항목이므로 안내하지 않는다.
     actionGuide: kind === 'unavailable' ? attentionGuide(card) : undefined,
