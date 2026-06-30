@@ -104,7 +104,6 @@ const ArrangePage = () => {
   const storeTripId = useOnboardingStore((s) => s.tripId);
   const setStoreTripId = useOnboardingStore((s) => s.actions.setTripId);
   const form = useOnboardingStore((s) => s.form);
-  const navigate = useNavigate();
   const { type: calendarType, exactDate, flexDate } = useCalendarStore();
   const tripId: string | null = urlTripId ?? storeTripId;
 
