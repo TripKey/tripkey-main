@@ -661,6 +661,16 @@ const ArrangePage = () => {
     }
   };
 
+  // 우측 보드 카드 클릭 → 상세 패널 열기.
+  // 원본(좌측에서 드래그해 배치한 카드)이 보존되어 있으면 우선 사용하고,
+  // 없으면(초기 로드 시 이미 보드에 있던 카드) toArrangeCard 로 변환해 폴백한다.
+  const handleCardClick = (cardId: string) => {
+    const scheduled = days.flatMap((d) => d.cards).find((c) => c.id === cardId);
+    if (!scheduled) return;
+    const saved = originalCardsRef.current.get(cardId);
+    openCardDetail(saved?.card ?? toArrangeCard(scheduled));
+  };
+
   // 일정 확정 — POST /confirm. 성공 시 확정 상태로 전환.
   const handleConfirm = async () => {
     if (!tripId) return;
@@ -841,6 +851,7 @@ const ArrangePage = () => {
                     onDropCard={(payload, index) =>
                       handleDropOnDay(payload, day.id, index)
                     }
+                    onCardClick={handleCardClick}
                   />
                 ))}
               </div>

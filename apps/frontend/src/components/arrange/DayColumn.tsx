@@ -27,6 +27,8 @@ type DayColumnProps = DayColumnViewModel & {
   draggingCardId?: string | null;
   /** 드래그가 진행 중이면 모든 컬럼을 드롭 가능 상태로 강조 */
   dragActive?: boolean;
+  /** 배치된 카드 클릭 시 상세 패널 열기 */
+  onCardClick?: (cardId: string) => void;
 };
 
 // 카드 사이/끝의 삽입 위치 표시 선.
@@ -44,6 +46,7 @@ const DayColumn = ({
   onCardDragEnd,
   draggingCardId,
   dragActive = false,
+  onCardClick,
 }: DayColumnProps) => {
   const isEmpty = cards.length === 0;
   const [isOver, setIsOver] = useState(false);
@@ -163,7 +166,12 @@ const DayColumn = ({
                     draggingCardId === card.id && 'opacity-40'
                   )}
                 >
-                  <ScheduleCard {...card} />
+                  <ScheduleCard
+                    {...card}
+                    onClick={
+                      !card.fixedTime ? () => onCardClick?.(card.id) : undefined
+                    }
+                  />
                 </div>
               </Fragment>
             );

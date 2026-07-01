@@ -16,17 +16,23 @@ const ACCENT_BAR: Record<PlaceCardAccent, string> = {
   muted: 'bg-muted-foreground/30',
 };
 
+type ScheduleCardProps = ScheduledCardViewModel & { onClick?: () => void };
+
 const ScheduleCard = ({
   name,
   accent = 'green',
   badges = [],
   fixedTime,
   timeLabel,
-}: ScheduledCardViewModel) => {
+  onClick,
+}: ScheduleCardProps) => {
   // 고정 시작 시간 카드 — 옅은 primary 톤 박스
   if (fixedTime) {
     return (
-      <div className="rounded-xl border border-primary/30 bg-primary/5 px-3.5 py-3">
+      <div
+        className="rounded-xl border border-primary/30 bg-primary/5 px-3.5 py-3"
+        onClick={onClick}
+      >
         <p className="text-[11px] font-medium text-primary/80">
           고정 시작 시간
         </p>
@@ -43,7 +49,10 @@ const ScheduleCard = ({
   }
 
   return (
-    <div className="flex overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+    <div
+      className="flex overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10"
+      onClick={onClick}
+    >
       <span
         aria-hidden="true"
         className={cn('w-1 shrink-0', ACCENT_BAR[accent])}
