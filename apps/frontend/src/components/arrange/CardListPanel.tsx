@@ -29,6 +29,8 @@ type CardListPanelProps = {
   onReturnCard?: (cardId: string) => void;
   /** 현재 드래그 중인 카드 id(흐림 처리용) */
   draggingCardId?: string | null;
+  /** 이미 Day 보드에 배치된 카드 id 목록 */
+  placedCardIds?: Set<string>;
   /** 드래그가 진행 중이면 패널을 드롭 가능 상태로 강조 */
   dragActive?: boolean;
 };
@@ -43,6 +45,7 @@ const CardListPanel = ({
   onDragCardEnd,
   onReturnCard,
   draggingCardId,
+  placedCardIds,
   dragActive = false,
 }: CardListPanelProps) => {
   // 카드가 모두 배치되어 비워진 그룹은 목록에서 숨긴다.
@@ -109,6 +112,7 @@ const CardListPanel = ({
                 onDragStart={() => onDragCardStart?.(card.id)}
                 onDragEnd={onDragCardEnd}
                 isDragging={draggingCardId === card.id}
+                isPlaced={placedCardIds?.has(card.id) === true}
               />
             ))}
           </CardGroupSection>

@@ -31,6 +31,7 @@ type EditCardDetailPanelProps = {
   card: PlaceCardViewModel | null;
   onConfirm?: (payload: { answer: string }) => void;
   onSaveMemo?: (memo: string) => void;
+  onSaveDisplay?: (payload: CardPatchRequest) => void;
   /** 처리필요 숙소/교통 카드의 구조화 필드 편집 → 저장(+위치 변경 시 재처리) */
   onResolveByStructuredEdit?: (args: {
     payload: CardPatchRequest;
@@ -50,6 +51,7 @@ const EditCardDetailPanel = ({
   card,
   onConfirm,
   onSaveMemo,
+  onSaveDisplay,
   onResolveByStructuredEdit,
   onResolveByNotes,
   onSelectProcess,
@@ -66,6 +68,7 @@ const EditCardDetailPanel = ({
           onClose={() => onOpenChange(false)}
           onConfirm={onConfirm}
           onSaveMemo={onSaveMemo}
+          onSaveDisplay={onSaveDisplay}
           onResolveByStructuredEdit={onResolveByStructuredEdit}
           onResolveByNotes={onResolveByNotes}
           onSelectProcess={onSelectProcess}
@@ -85,6 +88,7 @@ const EditCardDetailBody = ({
   onClose,
   onConfirm,
   onSaveMemo,
+  onSaveDisplay,
   onResolveByStructuredEdit,
   onResolveByNotes,
   onSelectProcess,
@@ -95,6 +99,7 @@ const EditCardDetailBody = ({
   onClose: () => void;
   onConfirm?: (payload: { answer: string }) => void;
   onSaveMemo?: (memo: string) => void;
+  onSaveDisplay?: (payload: CardPatchRequest) => void;
   onResolveByStructuredEdit?: (args: {
     payload: CardPatchRequest;
     locationChanged: boolean;
@@ -115,6 +120,32 @@ const EditCardDetailBody = ({
   const initialMemo = detail.memo ?? '';
   const [memo, setMemo] = useState(initialMemo);
   const memoDirty = memo.trim() !== initialMemo.trim();
+  const initialName = card.name;
+  const initialDuration = detail.estimatedDurationMin;
+  const [editingDisplay, setEditingDisplay] = useState(false);
+  const [displayName, setDisplayName] = useState(initialName);
+  const [durationMinutes, setDurationMinutes] = useState(
+    initialDuration == null ? '' : String(initialDuration)
+  );
+  const normalizedDisplayName = displayName.trim();
+  const parsedDuration =
+    durationMinutes.trim() === ''
+      ? undefined
+      : Number.parseInt(durationMinutes, 10);
+  const validDuration =
+    parsedDuration === undefined ||
+    (Number.isFinite(parsedDuration) && parsedDuration >= 0);
+  const displayDirty =
+    normalizedDisplayName !== initialName.trim() ||
+    (durationMinutes.trim() === ''
+      ? initialDuration != null
+      : parsedDuration !== initialDuration);
+  const canSaveDisplay =
+    editingDisplay &&
+    !resolving &&
+    normalizedDisplayName.length > 0 &&
+    validDuration &&
+    (displayDirty || memoDirty);
 
   // 구조화 편집 필드 상태
   const sf = detail.structuredFields;
@@ -173,6 +204,24 @@ const EditCardDetailBody = ({
     }
   };
 
+  const resetDisplayEdit = () => {
+    setDisplayName(initialName);
+    setDurationMinutes(initialDuration == null ? '' : String(initialDuration));
+    setEditingDisplay(false);
+  };
+
+  const handleSaveDisplay = () => {
+    if (!canSaveDisplay) return;
+    const payload: CardPatchRequest = {
+      name: normalizedDisplayName,
+      memo,
+    };
+    if (parsedDuration !== undefined) {
+      payload.estimated_duration_min = parsedDuration;
+    }
+    onSaveDisplay?.(payload);
+  };
+
   return (
     <>
       {/*헤더(고정)*/}
@@ -192,9 +241,36 @@ const EditCardDetailBody = ({
             </button>
           </Dialog.Close>
         </div>
-        <Dialog.Title className="mt-3 text-xl font-bold text-foreground">
-          {card.name}
-        </Dialog.Title>
+        <div className="mt-3 flex items-start gap-3">
+          {editingDisplay ? (
+            <input
+              type="text"
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-xl font-bold text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
+              aria-label="카드 이름"
+            />
+          ) : (
+            <Dialog.Title className="min-w-0 flex-1 text-xl font-bold text-foreground">
+              {card.name}
+            </Dialog.Title>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-0.5 h-8 shrink-0 px-3 text-xs"
+            disabled={resolving}
+            onClick={() =>
+              editingDisplay ? resetDisplayEdit() : setEditingDisplay(true)
+            }
+          >
+            {editingDisplay ? '취소' : '수정'}
+          </Button>
+        </div>
+        {editingDisplay && (
+          <Dialog.Title className="sr-only">{card.name}</Dialog.Title>
+        )}
         <Dialog.Description className="sr-only">
           {card.name} 카드의 배치 불가 안내, 상태·상세 정보, 보정 질문, 사용자
           메모
@@ -235,12 +311,46 @@ const EditCardDetailBody = ({
               {card.region && (
                 <DetailRow icon={MapPin} label="위치" value={card.region} />
               )}
-              {card.durationLabel && (
-                <DetailRow
-                  icon={Clock}
-                  label="예상 소요 시간"
-                  value={card.durationLabel}
-                />
+              {editingDisplay ? (
+                <li className="flex gap-3">
+                  <Clock
+                    className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <label className="text-xs text-muted-foreground">
+                      예상 소요 시간
+                    </label>
+                    <div className="mt-1 flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step={5}
+                        inputMode="numeric"
+                        value={durationMinutes}
+                        onChange={(event) =>
+                          setDurationMinutes(event.target.value)
+                        }
+                        placeholder="예) 90"
+                        className="h-10 w-28 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
+                      />
+                      <span className="text-sm text-muted-foreground">분</span>
+                    </div>
+                    {!validDuration && (
+                      <p className="mt-1 text-xs text-destructive">
+                        0 이상의 숫자로 입력해 주세요.
+                      </p>
+                    )}
+                  </div>
+                </li>
+              ) : (
+                card.durationLabel && (
+                  <DetailRow
+                    icon={Clock}
+                    label="예상 소요 시간"
+                    value={card.durationLabel}
+                  />
+                )
               )}
               {detail.userIntent && (
                 <DetailRow
@@ -356,14 +466,25 @@ const EditCardDetailBody = ({
           >
             닫기
           </Button>
-          <Button
-            type="button"
-            className="h-11 flex-1 text-sm font-semibold"
-            disabled={!canConfirm}
-            onClick={handleConfirm}
-          >
-            {resolving ? '재처리 중…' : '확인하기'}
-          </Button>
+          {editingDisplay ? (
+            <Button
+              type="button"
+              className="h-11 flex-1 text-sm font-semibold"
+              disabled={!canSaveDisplay}
+              onClick={handleSaveDisplay}
+            >
+              수정 저장
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              className="h-11 flex-1 text-sm font-semibold"
+              disabled={!canConfirm}
+              onClick={handleConfirm}
+            >
+              {resolving ? '재처리 중…' : '확인하기'}
+            </Button>
+          )}
         </PanelActions>
       ) : (
         <PanelActions>
@@ -375,23 +496,36 @@ const EditCardDetailBody = ({
           >
             닫기
           </Button>
-          <Button
-            type="button"
-            className="h-11 flex-1 text-sm font-semibold"
-            disabled={!canConfirm}
-            onClick={handleConfirm}
-          >
-            확인하기
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 flex-1 text-sm font-semibold"
-            disabled={!memoDirty}
-            onClick={() => onSaveMemo?.(memo)}
-          >
-            메모 저장
-          </Button>
+          {editingDisplay ? (
+            <Button
+              type="button"
+              className="h-11 flex-1 text-sm font-semibold"
+              disabled={!canSaveDisplay}
+              onClick={handleSaveDisplay}
+            >
+              수정 저장
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="button"
+                className="h-11 flex-1 text-sm font-semibold"
+                disabled={!canConfirm}
+                onClick={handleConfirm}
+              >
+                확인하기
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 flex-1 text-sm font-semibold"
+                disabled={!memoDirty}
+                onClick={() => onSaveMemo?.(memo)}
+              >
+                메모 저장
+              </Button>
+            </>
+          )}
         </PanelActions>
       )}
     </>

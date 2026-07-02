@@ -6,6 +6,7 @@ import RequireTrip from './components/common/RequireTrip';
 import SplashScreen from './components/common/SplashScreen';
 import { queryClient } from './lib/query-client';
 import ArrangePage from './pages/ArrangePage';
+import CardDetailPreviewPage from './pages/CardDetailPreviewPage';
 import ConfirmPage from './pages/ConfirmPage';
 import DumpPage from './pages/DumpPage';
 import GroupingPage from './pages/GroupingPage';
@@ -74,6 +75,7 @@ const AppContent = () => {
             </RequireTrip>
           }
         />
+        <Route path="/card-detail-preview" element={<CardDetailPreviewPage />} />
       </Routes>
       {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
       {transitioning && (

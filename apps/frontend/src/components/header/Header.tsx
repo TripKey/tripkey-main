@@ -1,4 +1,4 @@
-import { Calendar, Check, MapPin, Users } from 'lucide-react';
+import { Calendar, Check, Eye, MapPin, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -90,11 +90,18 @@ const Header = ({
           <div />
         )}
 
-        {actions ? (
-          <div className="flex items-center gap-2">{actions}</div>
-        ) : (
-          <div />
-        )}
+        <div className="flex items-center gap-2">
+          {import.meta.env.MODE === 'development' && (
+            <Link
+              to="/card-detail-preview"
+              className="inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-background px-2.5 text-[0.8rem] font-medium transition-colors hover:bg-muted"
+            >
+              <Eye className="size-3.5" aria-hidden="true" />
+              패널 프리뷰
+            </Link>
+          )}
+          {actions}
+        </div>
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <Stepper currentIndex={currentIndex} />
         </div>

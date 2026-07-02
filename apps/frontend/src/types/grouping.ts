@@ -109,6 +109,8 @@ export type CardDetailViewModel = {
   placementStatus: string;
   /** "상세 정보" — "원하셨던 내용"(사용자가 처음 적은 의도 한 줄). 없으면 그 행 생략 */
   userIntent?: string;
+  /** 이름/소요시간 표시 수정용 원본 예상 소요 시간(분). 없으면 빈 입력으로 표시 */
+  estimatedDurationMin?: number | null;
   /**
    * "상세 정보" — "알아두면 좋아요"(amber 강조 행). 없으면 카드의 reminder 를 대신 쓰고,
    * 그것도 없으면 행 자체를 생략한다.
@@ -159,6 +161,8 @@ export type SelectCardDetailViewModel = {
   placementStatus: string;
   /** "상세 정보" — "원하셨던 내용"(사용자가 처음 적은 의도 한 줄). 없으면 그 행 생략 */
   userIntent?: string;
+  /** 이름/소요시간 표시 수정용 원본 예상 소요 시간(분). 없으면 빈 입력으로 표시 */
+  estimatedDurationMin?: number | null;
   /**
    * "상세 정보" — "알아두면 좋아요"(amber 강조 행). 없으면 카드의 reminder 를 대신 쓰고,
    * 그것도 없으면 행 자체를 생략한다.
@@ -214,6 +218,8 @@ export type EditCardDetailViewModel = {
   placementStatus: string;
   /** "상세 정보" — "원하셨던 내용"(사용자가 처음 적은 의도 한 줄). 없으면 그 행 생략 */
   userIntent?: string;
+  /** 이름/소요시간 표시 수정용 원본 예상 소요 시간(분). 없으면 빈 입력으로 표시 */
+  estimatedDurationMin?: number | null;
   /**
    * "상세 정보" — "알아두면 좋아요"(amber 강조 행). 없으면 카드의 reminder 를 대신 쓰고,
    * 그것도 없으면 행 자체를 생략한다.
