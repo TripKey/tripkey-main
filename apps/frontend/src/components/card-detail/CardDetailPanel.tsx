@@ -181,7 +181,7 @@ const CardDetailBody = ({
     !resolving &&
     normalizedDisplayName.length > 0 &&
     validDuration &&
-    (displayDirty || memoDirty);
+    displayDirty;
 
   const [selectedChoices, setSelectedChoices] = useState<string[]>(
     detail.selectedChoices ?? []
@@ -246,7 +246,6 @@ const CardDetailBody = ({
     if (!canSaveDisplay) return;
     const payload: CardPatchRequest = {
       name: normalizedDisplayName,
-      memo,
     };
     if (parsedDuration !== undefined) {
       payload.estimated_duration_min = parsedDuration;
@@ -411,7 +410,7 @@ const CardDetailBody = ({
               onTimeConstraintChange={setTimeConstraint}
               flightNumber={flightNumber}
               onFlightNumberChange={setFlightNumber}
-              disabled={resolving}
+              disabled={resolving || editingDisplay}
               canSelectProcess={detail.canSelectProcess}
               onSelectProcess={onSelectProcess}
             />
@@ -427,7 +426,7 @@ const CardDetailBody = ({
             onToggleChoice={toggleChoice}
             answer={answer}
             onAnswerChange={setAnswer}
-            disabled={resolving}
+            disabled={resolving || editingDisplay}
           />
         )}
 
@@ -447,6 +446,7 @@ const CardDetailBody = ({
           included={included}
           onExclude={onExclude}
           onInclude={onInclude}
+          disabled={editingDisplay}
         />
       </div>
 
@@ -459,7 +459,17 @@ const CardDetailBody = ({
         >
           닫기
         </Button>
-        {editingDisplay ? (
+        {showConfirmButton && (
+          <Button
+            type="button"
+            className="h-11 flex-1 text-sm font-semibold"
+            disabled={editingDisplay || !canConfirm}
+            onClick={handleConfirm}
+          >
+            {resolving ? '재처리 중...' : '확인하기'}
+          </Button>
+        )}
+        {editingDisplay && (
           <Button
             type="button"
             className="h-11 flex-1 text-sm font-semibold"
@@ -468,17 +478,8 @@ const CardDetailBody = ({
           >
             수정 저장
           </Button>
-        ) : showConfirmButton ? (
-          <Button
-            type="button"
-            className="h-11 flex-1 text-sm font-semibold"
-            disabled={!canConfirm}
-            onClick={handleConfirm}
-          >
-            {resolving ? '재처리 중...' : '확인하기'}
-          </Button>
-        ) : null}
-        {included && !editingDisplay && (
+        )}
+        {included && (
           <Button
             type="button"
             variant={showConfirmButton ? 'outline' : 'default'}
@@ -544,6 +545,7 @@ const QuestionInputSection = ({
       value={answer}
       onChange={onAnswerChange}
       placeholder="선택한 내용 외에 더 남기고 싶은 내용을 적어주세요..."
+      disabled={disabled}
     />
   </section>
 );

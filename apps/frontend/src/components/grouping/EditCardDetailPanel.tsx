@@ -145,7 +145,7 @@ const EditCardDetailBody = ({
     !resolving &&
     normalizedDisplayName.length > 0 &&
     validDuration &&
-    (displayDirty || memoDirty);
+    displayDirty;
 
   // 구조화 편집 필드 상태
   const sf = detail.structuredFields;
@@ -214,7 +214,6 @@ const EditCardDetailBody = ({
     if (!canSaveDisplay) return;
     const payload: CardPatchRequest = {
       name: normalizedDisplayName,
-      memo,
     };
     if (parsedDuration !== undefined) {
       payload.estimated_duration_min = parsedDuration;
@@ -388,7 +387,7 @@ const EditCardDetailBody = ({
               onTimeConstraintChange={setTimeConstraint}
               flightNumber={flightNumber}
               onFlightNumberChange={setFlightNumber}
-              disabled={resolving}
+              disabled={resolving || editingDisplay}
               canSelectProcess={detail.canSelectProcess}
               onSelectProcess={onSelectProcess}
             />
@@ -408,7 +407,7 @@ const EditCardDetailBody = ({
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    disabled={resolving}
+                    disabled={resolving || editingDisplay}
                     placeholder="예) 도톤보리 글리코 사인 앞 / 오사카시 추오구 도톤보리 1-10-2"
                     rows={3}
                     className="mt-3 w-full resize-none rounded-xl border border-input bg-background px-3.5 py-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none disabled:opacity-60"
@@ -445,6 +444,7 @@ const EditCardDetailBody = ({
                 value={answer}
                 onChange={setAnswer}
                 placeholder="필요한 내용을 자유롭게 입력해주세요..."
+                disabled={editingDisplay}
               />
             </section>
 
@@ -466,7 +466,15 @@ const EditCardDetailBody = ({
           >
             닫기
           </Button>
-          {editingDisplay ? (
+          <Button
+            type="button"
+            className="h-11 flex-1 text-sm font-semibold"
+            disabled={editingDisplay || !canConfirm}
+            onClick={handleConfirm}
+          >
+            {resolving ? '재처리 중…' : '확인하기'}
+          </Button>
+          {editingDisplay && (
             <Button
               type="button"
               className="h-11 flex-1 text-sm font-semibold"
@@ -474,15 +482,6 @@ const EditCardDetailBody = ({
               onClick={handleSaveDisplay}
             >
               수정 저장
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              className="h-11 flex-1 text-sm font-semibold"
-              disabled={!canConfirm}
-              onClick={handleConfirm}
-            >
-              {resolving ? '재처리 중…' : '확인하기'}
             </Button>
           )}
         </PanelActions>
@@ -496,7 +495,15 @@ const EditCardDetailBody = ({
           >
             닫기
           </Button>
-          {editingDisplay ? (
+          <Button
+            type="button"
+            className="h-11 flex-1 text-sm font-semibold"
+            disabled={editingDisplay || !canConfirm}
+            onClick={handleConfirm}
+          >
+            확인하기
+          </Button>
+          {editingDisplay && (
             <Button
               type="button"
               className="h-11 flex-1 text-sm font-semibold"
@@ -505,27 +512,16 @@ const EditCardDetailBody = ({
             >
               수정 저장
             </Button>
-          ) : (
-            <>
-              <Button
-                type="button"
-                className="h-11 flex-1 text-sm font-semibold"
-                disabled={!canConfirm}
-                onClick={handleConfirm}
-              >
-                확인하기
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 flex-1 text-sm font-semibold"
-                disabled={!memoDirty}
-                onClick={() => onSaveMemo?.(memo)}
-              >
-                메모 저장
-              </Button>
-            </>
           )}
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 flex-1 text-sm font-semibold"
+            disabled={!memoDirty}
+            onClick={() => onSaveMemo?.(memo)}
+          >
+            메모 저장
+          </Button>
         </PanelActions>
       )}
     </>
