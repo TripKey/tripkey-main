@@ -287,3 +287,64 @@ async def test_many_misses_use_route_matrix_not_per_leg(monkeypatch) -> None:
     assert res.source == "google"
     assert res.ordered_instance_ids == ["C", "D", "B", "A"]
     assert res.total_duration_seconds == 40
+
+
+@pytest.mark.asyncio
+async def test_matrix_stats_logged_on_full_hit(monkeypatch, caplog) -> None:
+    # 적중률/과금 모니터링(#274): 전체 히트 시 stats 로그(cache_hits=전체, billed=0)
+    import logging
+
+    monkeypatch.setattr(svc, "_places_api_key", lambda: "k")
+    monkeypatch.setattr(route_matrix_cache, "cache_enabled", lambda: True)
+
+    stops = _stops()
+    cached = {}
+    for i in range(4):
+        for j in range(4):
+            if i != j:
+                a, b = stops[i].coordinates, stops[j].coordinates
+                cached[route_matrix_cache.pair_key(a.lat, a.lng, b.lat, b.lng)] = 100
+
+    async def fake_get_durations(keys):
+        return cached
+
+    monkeypatch.setattr(route_matrix_cache, "get_durations", fake_get_durations)
+
+    with caplog.at_level(logging.INFO, logger="app.services.route_order_service"):
+        await svc.optimize_order(OptimizeOrderRequest(stops=stops))
+
+    stats = [r.getMessage() for r in caplog.records if "route_matrix stats" in r.getMessage()]
+    assert len(stats) == 1
+    assert "pairs=12 cache_hits=12 misses=0 fill=none billed_elements=0" in stats[0]
+
+
+@pytest.mark.asyncio
+async def test_matrix_stats_logged_on_per_leg_fill(monkeypatch, caplog) -> None:
+    # 부분 미스 per-leg 경로: misses/billed_elements 가 빠진 pair 수와 일치해야 한다
+    import logging
+
+    monkeypatch.setattr(svc, "_places_api_key", lambda: "k")
+    monkeypatch.setattr(route_matrix_cache, "cache_enabled", lambda: True)
+
+    async def partial_get(keys):
+        ks = list(keys)
+        return {k: 600 for k in ks[:-2]}  # 마지막 2개만 미스
+
+    monkeypatch.setattr(route_matrix_cache, "get_durations", partial_get)
+
+    async def noop_put(rows):
+        return None
+
+    monkeypatch.setattr(route_matrix_cache, "put_durations", noop_put)
+
+    async def fake_routes(origin, destination, travel_mode, api_key):
+        return {"duration_seconds": 300, "distance_meters": 1000}
+
+    monkeypatch.setattr(svc, "_call_routes_api", fake_routes)
+
+    with caplog.at_level(logging.INFO, logger="app.services.route_order_service"):
+        await svc.optimize_order(OptimizeOrderRequest(stops=_stops()))
+
+    stats = [r.getMessage() for r in caplog.records if "route_matrix stats" in r.getMessage()]
+    assert len(stats) == 1
+    assert "pairs=12 cache_hits=10 misses=2 fill=per-leg billed_elements=2" in stats[0]

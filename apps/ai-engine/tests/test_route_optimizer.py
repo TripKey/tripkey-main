@@ -121,6 +121,95 @@ async def test_optimize_falls_back_when_no_api_key(monkeypatch) -> None:
     assert resp.legs[0].source == "estimated"
 
 
+from app.services import route_matrix_cache
+
+
+def _leg_request() -> RouteRequest:
+    return RouteRequest(legs=[RouteLeg(
+        from_instance_id="a", to_instance_id="b",
+        origin=Coordinates(lat=34.70, lng=135.50),
+        destination=Coordinates(lat=34.67, lng=135.49),
+    )])
+
+
+@pytest.mark.asyncio
+async def test_verify_shares_drive_pair_to_matrix_cache(monkeypatch) -> None:
+    # #274 pair 공유: verify 미스에서 얻은 DRIVE 결과가 route_matrix_cache 에 교차 적재된다
+    async def fake_call(origin, destination, travel_mode, api_key):
+        table = {
+            "WALK": {"duration_seconds": 3000, "distance_meters": 4000},
+            "TRANSIT": {"duration_seconds": 1320, "distance_meters": 5400},
+            "DRIVE": {"duration_seconds": 1500, "distance_meters": 5200},
+        }
+        return table[travel_mode]
+
+    monkeypatch.setattr(route_optimizer, "_places_api_key", lambda: "k")
+    monkeypatch.setattr(route_optimizer, "_call_routes_api", fake_call)
+    monkeypatch.setattr(route_matrix_cache, "cache_enabled", lambda: True)
+
+    written: list[dict] = []
+
+    async def capture_put(rows):
+        written.extend(rows)
+
+    monkeypatch.setattr(route_matrix_cache, "put_durations", capture_put)
+
+    resp = await route_optimizer.optimize_routes(_leg_request())
+
+    # 응답은 best-mode(transit) 그대로 — 공유 적재가 verify 결과를 바꾸면 안 됨
+    assert resp.legs[0].mode == "transit"
+    assert resp.legs[0].duration_seconds == 1320
+    # 캐시에는 DRIVE 메트릭(1500)이 적재된다 (best-mode 1320 이 아니라)
+    assert len(written) == 1
+    row = written[0]
+    assert row["mode"] == route_matrix_cache.MODE
+    assert row["duration_seconds"] == 1500
+    assert row["distance_meters"] == 5200
+    assert row["pair_key"] == route_matrix_cache.pair_key(34.70, 135.50, 34.67, 135.49)
+
+
+@pytest.mark.asyncio
+async def test_no_share_when_cache_disabled(monkeypatch) -> None:
+    async def fake_call(origin, destination, travel_mode, api_key):
+        return {"duration_seconds": 600, "distance_meters": 2000}
+
+    monkeypatch.setattr(route_optimizer, "_places_api_key", lambda: "k")
+    monkeypatch.setattr(route_optimizer, "_call_routes_api", fake_call)
+    monkeypatch.setattr(route_matrix_cache, "cache_enabled", lambda: False)
+
+    async def must_not_put(rows):
+        raise AssertionError("캐시 비활성 시 교차 적재하면 안 됨")
+
+    monkeypatch.setattr(route_matrix_cache, "put_durations", must_not_put)
+
+    resp = await route_optimizer.optimize_routes(_leg_request())
+    assert resp.legs[0].source == "google"
+
+
+@pytest.mark.asyncio
+async def test_no_share_when_drive_call_fails(monkeypatch) -> None:
+    # DRIVE 만 실패 → best-mode 는 정상 반환하되 matrix 캐시 적재는 없어야 함
+    async def fake_call(origin, destination, travel_mode, api_key):
+        if travel_mode == "DRIVE":
+            return None
+        return {"duration_seconds": 900, "distance_meters": 1500}
+
+    monkeypatch.setattr(route_optimizer, "_places_api_key", lambda: "k")
+    monkeypatch.setattr(route_optimizer, "_call_routes_api", fake_call)
+    monkeypatch.setattr(route_matrix_cache, "cache_enabled", lambda: True)
+
+    written: list[dict] = []
+
+    async def capture_put(rows):
+        written.extend(rows)
+
+    monkeypatch.setattr(route_matrix_cache, "put_durations", capture_put)
+
+    resp = await route_optimizer.optimize_routes(_leg_request())
+    assert resp.legs[0].source == "google"
+    assert written == []
+
+
 from httpx import ASGITransport, AsyncClient
 
 

@@ -43,6 +43,27 @@ def pair_key(o_lat: float, o_lng: float, d_lat: float, d_lng: float, mode: str =
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
 
+def build_row(
+    o_lat: float,
+    o_lng: float,
+    d_lat: float,
+    d_lng: float,
+    duration_seconds: int,
+    distance_meters,
+) -> dict:
+    """put_durations 적재용 row(DRIVE). 좌표는 pair_key 와 동일 기준으로 반올림해 저장한다."""
+    return {
+        "pair_key": pair_key(o_lat, o_lng, d_lat, d_lng),
+        "origin_lat": round_coord(o_lat),
+        "origin_lng": round_coord(o_lng),
+        "dest_lat": round_coord(d_lat),
+        "dest_lng": round_coord(d_lng),
+        "mode": MODE,
+        "duration_seconds": duration_seconds,
+        "distance_meters": distance_meters,
+    }
+
+
 def _headers() -> dict:
     return {
         "apikey": SUPABASE_SERVICE_ROLE_KEY,
