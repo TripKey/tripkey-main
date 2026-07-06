@@ -16,8 +16,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * SCR-04 동선 최적화 1차
@@ -29,6 +32,9 @@ import java.util.UUID;
 public class OptimizeService {
 
     private static final double COORD_PRECISION = 100_000.0; // 좌표 5자리(약 1m) 반올림
+
+    // time_constraint 자유 텍스트(예: "14:30 예약")에서 예약 시각 추출 — #275 시간창 제약
+    private static final Pattern RESERVED_TIME = Pattern.compile("([01]?\\d|2[0-3]):([0-5]\\d)");
 
     private final TripRepository tripRepository;
     private final PlaceCardRepository placeCardRepository;
@@ -51,13 +57,18 @@ public class OptimizeService {
 
             List<AiOptimizeOrderRequest.Stop> stops = new ArrayList<>();
             for (PlaceCard card : cards) {
+                boolean pinned = card.getTimeConstraint() != null && !card.getTimeConstraint().isBlank();
                 stops.add(new AiOptimizeOrderRequest.Stop(
                         card.getInstanceId().toString(),
-                        new AiOptimizeOrderRequest.Coord(round(card.getLat()), round(card.getLng()))));
+                        new AiOptimizeOrderRequest.Coord(round(card.getLat()), round(card.getLng())),
+                        pinned,
+                        reservedTime(card.getTimeConstraint()),
+                        card.getEstimatedDurationMin() == null ? null : card.getEstimatedDurationMin().intValue()));
             }
 
+            String start = startAnchor(cards);
             AiOptimizeOrderResponse response = aiEngineClient.optimizeOrder(
-                    new AiOptimizeOrderRequest(stops, accommodationAnchor(cards), flightEndAnchor(cards)));
+                    new AiOptimizeOrderRequest(stops, start, endAnchor(cards, start)));
 
             List<UUID> orderedIds = response.orderedInstanceIds().stream()
                     .map(UUID::fromString)
@@ -70,7 +81,45 @@ public class OptimizeService {
         return OptimizeResponse.of(tripId, days);
     }
 
-    /** Day 시작 앵커 — 숙소 카드가 있으면 그 instance_id, 없으면 null(시작 자유). */
+    /**
+     * Day 시작 앵커 — 도착 항공편(outbound, 첫날 공항 도착 후 시작)이 있으면 그 카드,
+     * 없으면 숙소 카드, 둘 다 없으면 null(시작 자유). #275
+     */
+    private static String startAnchor(List<PlaceCard> cards) {
+        String outbound = flightByRole(cards, "outbound");
+        return outbound != null ? outbound : accommodationAnchor(cards);
+    }
+
+    /**
+     * Day 종료 앵커 — 출발 항공편(inbound, 마지막날 출발 전 종료)이 있으면 그 카드,
+     * 없으면 역할 없는 교통 카드(시작 앵커 제외), 그것도 없으면 숙소(귀가 closed-tour:
+     * 시작 앵커와 같은 id 가 전달되면 AI 가 숙소 복귀 순환 경로로 최적화한다). #275
+     * (좌표 없는 항공 카드는 stops 에 없어 AI 가 무시)
+     */
+    private static String endAnchor(List<PlaceCard> cards, String startAnchor) {
+        String inbound = flightByRole(cards, "inbound");
+        if (inbound != null) {
+            return inbound;
+        }
+        for (PlaceCard card : cards) {
+            if ("transport".equals(card.getCategory())
+                    && !Objects.equals(card.getInstanceId().toString(), startAnchor)) {
+                return card.getInstanceId().toString();
+            }
+        }
+        return accommodationAnchor(cards);
+    }
+
+    private static String flightByRole(List<PlaceCard> cards, String role) {
+        for (PlaceCard card : cards) {
+            if ("transport".equals(card.getCategory()) && role.equals(card.getFlightRole())) {
+                return card.getInstanceId().toString();
+            }
+        }
+        return null;
+    }
+
+    /** 숙소 카드가 있으면 그 instance_id, 없으면 null. */
     private static String accommodationAnchor(List<PlaceCard> cards) {
         for (PlaceCard card : cards) {
             if ("accommodation".equals(card.getCategory())) {
@@ -80,17 +129,16 @@ public class OptimizeService {
         return null;
     }
 
-    /**
-     * Day 종료 앵커 — 교통(항공) 카드가 있으면 그 instance_id(마지막날 출발 전 종료), 없으면 null(종료 자유).
-     * 시작 앵커(숙소)와 카테고리가 달라 충돌하지 않는다. (좌표 없는 항공 카드는 stops 에 없어 AI 가 무시)
-     */
-    private static String flightEndAnchor(List<PlaceCard> cards) {
-        for (PlaceCard card : cards) {
-            if ("transport".equals(card.getCategory())) {
-                return card.getInstanceId().toString();
-            }
+    /** time_constraint 자유 텍스트에서 첫 "HH:MM" 을 추출해 정규화. 없으면 null. */
+    private static String reservedTime(String timeConstraint) {
+        if (timeConstraint == null) {
+            return null;
         }
-        return null;
+        Matcher m = RESERVED_TIME.matcher(timeConstraint);
+        if (!m.find()) {
+            return null;
+        }
+        return String.format("%02d:%02d", Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)));
     }
 
     /** RouteService.groupByDay 와 동일 기준: 제외 X, day 있음, 좌표 있음, day_order 정렬. */

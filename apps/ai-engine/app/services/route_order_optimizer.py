@@ -39,7 +39,8 @@ def solve_open_path(
 ) -> list[int]:
     """최소 비용 개방 경로의 인덱스 순서. start/end 지정 시 양 끝을 고정한다.
 
-    end 가 start 와 같거나 범위를 벗어나면 종료 자유로 처리한다(귀가 closed-tour 는 후속 슬라이스).
+    end 가 start 와 같거나 범위를 벗어나면 종료 자유로 처리한다
+    (귀가 closed-tour 는 route_order_constrained 의 OR-tools 솔버가 담당).
     """
     n = len(matrix)
     if n <= 1:

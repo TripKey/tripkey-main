@@ -14,6 +14,9 @@ public record AiOptimizeOrderRequest(
 
     public record Stop(
             @JsonProperty("instance_id") String instanceId,
-            Coord coordinates
+            Coord coordinates,
+            boolean pinned,
+            @JsonProperty("reserved_time") String reservedTime,
+            @JsonProperty("duration_min") Integer durationMin
     ) {}
 }

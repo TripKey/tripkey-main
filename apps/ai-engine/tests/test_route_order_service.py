@@ -271,6 +271,132 @@ async def test_partial_cache_miss_uses_per_leg(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_closed_tour_when_start_equals_end(monkeypatch) -> None:
+    # 시작=종료 앵커(숙소 귀가) → 복귀 비용 포함 closed-tour 최적화 (#275)
+    monkeypatch.setattr(svc, "_places_api_key", lambda: "k")
+    elements = _line_matrix_elements()
+
+    async def fake_post(self, url, json, headers):
+        return httpx.Response(200, json=elements, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+
+    res = await svc.optimize_order(
+        OptimizeOrderRequest(stops=_stops(), start_instance_id="C", end_instance_id="C")
+    )
+    assert res.source == "google"
+    assert res.ordered_instance_ids[0] == "C"
+    assert sorted(res.ordered_instance_ids) == ["A", "B", "C", "D"]
+    # 일직선 순환 비용 = 2 × 전체 구간(30) = 60 (복귀 구간 포함)
+    assert res.total_duration_seconds == 60
+
+
+@pytest.mark.asyncio
+async def test_pinned_stop_keeps_position(monkeypatch) -> None:
+    # 고정 카드(pin): B(입력 3번째, 예약시각 없음) 는 그 위치 그대로 유지 (#275)
+    monkeypatch.setattr(svc, "_places_api_key", lambda: "k")
+    elements = _line_matrix_elements()
+
+    async def fake_post(self, url, json, headers):
+        return httpx.Response(200, json=elements, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+
+    stops = _stops()
+    stops[3] = stops[3].model_copy(update={"pinned": True})  # B @ index 3
+    res = await svc.optimize_order(OptimizeOrderRequest(stops=stops))
+    assert res.ordered_instance_ids[3] == "B"
+    # B 마지막 고정 시 유일 최적: D → C → A → B (40)
+    assert res.ordered_instance_ids == ["D", "C", "A", "B"]
+    assert res.total_duration_seconds == 40
+
+
+@pytest.mark.asyncio
+async def test_constraints_wired_to_solver(monkeypatch) -> None:
+    # 예약시각/고정/체류시간이 제약 솔버 인자로 올바르게 전달되는지 (#275)
+    monkeypatch.setattr(svc, "_places_api_key", lambda: None)
+
+    captured = {}
+
+    def fake_solve(matrix, start=None, end=None, closed_tour=False,
+                   pinned_positions=None, time_windows=None, service_times=None):
+        captured.update(
+            start=start, end=end, closed_tour=closed_tour,
+            pins=pinned_positions, windows=time_windows, services=service_times,
+        )
+        return [1, 0, 3, 2]
+
+    monkeypatch.setattr(svc, "solve_constrained", fake_solve)
+
+    stops = _stops()
+    stops[0] = stops[0].model_copy(update={"reserved_time": "14:30", "duration_min": 90})
+    stops[3] = stops[3].model_copy(update={"pinned": True})
+    res = await svc.optimize_order(
+        OptimizeOrderRequest(stops=stops, start_instance_id="A")
+    )
+    assert captured["start"] == 1 and captured["end"] is None
+    assert captured["closed_tour"] is False
+    assert captured["windows"] == {0: (14 * 3600 + 30 * 60) - svc.DAY_START_SECONDS}
+    assert captured["pins"] == {3: 3}
+    assert captured["services"][0] == 90 * 60
+    assert res.ordered_instance_ids == ["A", "C", "B", "D"]
+
+
+@pytest.mark.asyncio
+async def test_infeasible_constraints_fall_back_to_unconstrained(monkeypatch) -> None:
+    # 제약 충돌(해 없음) 시 무제약 최적화로 폴백 — 귀가(복귀) 비용도 미포함 (#275)
+    monkeypatch.setattr(svc, "_places_api_key", lambda: "k")
+    elements = _line_matrix_elements()
+
+    async def fake_post(self, url, json, headers):
+        return httpx.Response(200, json=elements, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+    monkeypatch.setattr(svc, "solve_constrained", lambda *a, **k: None)
+
+    res = await svc.optimize_order(
+        OptimizeOrderRequest(stops=_stops(), start_instance_id="C", end_instance_id="C")
+    )
+    assert res.ordered_instance_ids == ["C", "D", "B", "A"]  # 개방 경로 폴백
+    assert res.total_duration_seconds == 40
+
+
+def test_blend_walk_estimates_prefers_walk_on_short_legs() -> None:
+    # 약 90m 구간: DRIVE 600초보다 도보 추정이 빠르면 min 으로 대체 (#275 mode)
+    stops = [
+        OptimizeStop(instance_id="P", coordinates=Coordinates(lat=34.70, lng=135.5000)),
+        OptimizeStop(instance_id="Q", coordinates=Coordinates(lat=34.70, lng=135.5010)),
+    ]
+    matrix = [[0, 600], [600, 0]]
+    svc._blend_walk_estimates(stops, matrix)
+    walk = svc._walk_seconds(stops[0].coordinates, stops[1].coordinates)
+    assert walk < 600
+    assert matrix[0][1] == walk and matrix[1][0] == walk
+
+
+def test_blend_walk_keeps_drive_on_long_legs() -> None:
+    # 약 9km 구간: 도보 추정(수천 초)보다 DRIVE 600초가 빠르면 유지
+    stops = [
+        OptimizeStop(instance_id="P", coordinates=Coordinates(lat=34.70, lng=135.50)),
+        OptimizeStop(instance_id="Q", coordinates=Coordinates(lat=34.70, lng=135.60)),
+    ]
+    matrix = [[0, 600], [600, 0]]
+    svc._blend_walk_estimates(stops, matrix)
+    assert matrix[0][1] == 600 and matrix[1][0] == 600
+
+
+def test_reserved_seconds_parsing() -> None:
+    assert svc._reserved_seconds("14:30") == (14 * 3600 + 30 * 60) - svc.DAY_START_SECONDS
+    assert svc._reserved_seconds("09:00") == 0
+    assert svc._reserved_seconds("07:00") == 0  # 일정 시작 이전은 0 으로 클램프
+    assert svc._reserved_seconds("9:05") == 300
+    assert svc._reserved_seconds(None) is None
+    assert svc._reserved_seconds("") is None
+    assert svc._reserved_seconds("25:00") is None
+    assert svc._reserved_seconds("정오쯤") is None
+
+
+@pytest.mark.asyncio
 async def test_many_misses_use_route_matrix_not_per_leg(monkeypatch) -> None:
     # 미스가 임계(PER_LEG_MAX_PAIRS=8)보다 많으면 per-leg 대신 Route Matrix 1회 (cold 폭증 방지)
     monkeypatch.setattr(svc, "_places_api_key", lambda: "k")
