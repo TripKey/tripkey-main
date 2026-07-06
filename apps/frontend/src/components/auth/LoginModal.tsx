@@ -41,7 +41,6 @@ const LoginModal = ({ open, onOpenChange, onProceed }: LoginModalProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="overflow-hidden p-0 sm:max-w-sm">
-        {/* 상단: 로고 + 타이틀 (은은한 그라데이션 배경으로 임팩트) */}
         <div className="bg-linear-to-br from-primary/20 via-primary/5 to-background px-6 pt-9 pb-6 text-center">
           <img
             src={logoUrl}
@@ -62,28 +61,28 @@ const LoginModal = ({ open, onOpenChange, onProceed }: LoginModalProps) => {
         <div className="flex flex-col gap-2.5 px-6 pb-6">
           <Button
             disabled
-            className="h-11 w-full bg-[#FEE500] text-[15px] font-semibold text-[#191600] hover:bg-[#FDD835]"
+            className="relative h-11 w-full bg-[#FEE500] text-[15px] font-semibold text-[#191600] hover:bg-[#FDD835]"
             onClick={() => handleSocialLogin('kakao')}
           >
-            <KakaoIcon className="size-4.5" />
+            <KakaoIcon className="absolute top-1/2 left-4 size-4.5 -translate-y-1/2" />
             카카오로 시작하기
           </Button>
           <Button
             disabled
-            className="h-11 w-full bg-[#03C75A] text-[15px] font-semibold text-white hover:bg-[#02B350]"
+            className="relative h-11 w-full bg-[#03C75A] text-[15px] font-semibold text-white hover:bg-[#02B350]"
             onClick={() => handleSocialLogin('naver')}
           >
-            <NaverIcon className="size-4.5" />
+            <NaverIcon className="absolute top-1/2 left-4 size-4.5 -translate-y-1/2" />
             네이버로 시작하기
           </Button>
           <Button
             disabled
             variant="outline"
-            className="h-11 w-full bg-white text-[15px] font-semibold text-neutral-800 hover:bg-neutral-50"
+            className="relative h-11 w-full bg-white text-[15px] font-semibold text-neutral-800 hover:bg-neutral-50"
             onClick={() => handleSocialLogin('google')}
           >
-            <GoogleIcon className="size-4.5" />
-            구글로 계속하기
+            <GoogleIcon className="absolute top-1/2 left-4 size-4.5 -translate-y-1/2" />
+            구글로 시작하기
           </Button>
           <p className="text-center text-xs text-muted-foreground">
             소셜 로그인은 준비 중이에요
@@ -131,7 +130,7 @@ const GoogleIcon = ({ className }: { className?: string }) => (
 
 const KakaoIcon = ({ className }: { className?: string }) => (
   <svg
-    viewBox="0 0 24 24"
+    viewBox="0 0 22 22"
     fill="currentColor"
     className={className}
     aria-hidden="true"
@@ -142,7 +141,7 @@ const KakaoIcon = ({ className }: { className?: string }) => (
 
 const NaverIcon = ({ className }: { className?: string }) => (
   <svg
-    viewBox="0 0 24 24"
+    viewBox="0 0 25 25"
     fill="currentColor"
     className={className}
     aria-hidden="true"
