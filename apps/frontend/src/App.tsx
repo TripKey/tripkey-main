@@ -2,6 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 
+import LoginModal from './components/auth/LoginModal';
 import RequireTrip from './components/common/RequireTrip';
 import SplashScreen from './components/common/SplashScreen';
 import { queryClient } from './lib/query-client';
@@ -34,13 +35,13 @@ const AppContent = () => {
     setTransitioning(true);
   };
 
+  const [loginOpen, setLoginOpen] = useState(false);
+  const openLogin = () => setLoginOpen(true);
+
   return (
     <>
       <Routes>
-        <Route
-          path="/"
-          element={<MainPage onStartPlanning={startPlanning} />}
-        />
+        <Route path="/" element={<MainPage onStartPlanning={openLogin} />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route
           path="/dump"
@@ -79,6 +80,11 @@ const AppContent = () => {
       {transitioning && (
         <SplashScreen onFinish={() => setTransitioning(false)} />
       )}
+      <LoginModal
+        open={loginOpen}
+        onOpenChange={setLoginOpen}
+        onProceed={startPlanning}
+      />
     </>
   );
 };
