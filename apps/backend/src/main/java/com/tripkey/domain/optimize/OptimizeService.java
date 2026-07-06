@@ -129,7 +129,7 @@ public class OptimizeService {
         return null;
     }
 
-    /** time_constraint 자유 텍스트에서 첫 "HH:MM" 을 추출해 정규화. 없으면 null. */
+    /** time_constraint 자유 텍스트에서 첫 "HH:MM" 을 추출해 정규화. 없거나 파싱 불가면 null. */
     private static String reservedTime(String timeConstraint) {
         if (timeConstraint == null) {
             return null;
@@ -138,7 +138,11 @@ public class OptimizeService {
         if (!m.find()) {
             return null;
         }
-        return String.format("%02d:%02d", Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)));
+        try {
+            return String.format("%02d:%02d", Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)));
+        } catch (NumberFormatException e) {
+            return null; // 정규식상 도달 불가지만 정적 분석 만족용 방어
+        }
     }
 
     /** RouteService.groupByDay 와 동일 기준: 제외 X, day 있음, 좌표 있음, day_order 정렬. */
