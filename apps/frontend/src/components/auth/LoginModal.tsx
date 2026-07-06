@@ -61,6 +61,7 @@ const LoginModal = ({ open, onOpenChange, onProceed }: LoginModalProps) => {
         {/* 버튼 영역 */}
         <div className="flex flex-col gap-2.5 px-6 pb-6">
           <Button
+            disabled
             className="h-11 w-full bg-[#FEE500] text-[15px] font-semibold text-[#191600] hover:bg-[#FDD835]"
             onClick={() => handleSocialLogin('kakao')}
           >
@@ -68,6 +69,7 @@ const LoginModal = ({ open, onOpenChange, onProceed }: LoginModalProps) => {
             카카오로 시작하기
           </Button>
           <Button
+            disabled
             className="h-11 w-full bg-[#03C75A] text-[15px] font-semibold text-white hover:bg-[#02B350]"
             onClick={() => handleSocialLogin('naver')}
           >
@@ -75,6 +77,7 @@ const LoginModal = ({ open, onOpenChange, onProceed }: LoginModalProps) => {
             네이버로 시작하기
           </Button>
           <Button
+            disabled
             variant="outline"
             className="h-11 w-full bg-white text-[15px] font-semibold text-neutral-800 hover:bg-neutral-50"
             onClick={() => handleSocialLogin('google')}
@@ -82,6 +85,9 @@ const LoginModal = ({ open, onOpenChange, onProceed }: LoginModalProps) => {
             <GoogleIcon className="size-4.5" />
             구글로 계속하기
           </Button>
+          <p className="text-center text-xs text-muted-foreground">
+            소셜 로그인은 준비 중이에요
+          </p>
 
           <div className="my-1 flex items-center gap-3">
             <span className="h-px flex-1 bg-border" aria-hidden="true" />
@@ -89,12 +95,9 @@ const LoginModal = ({ open, onOpenChange, onProceed }: LoginModalProps) => {
             <span className="h-px flex-1 bg-border" aria-hidden="true" />
           </div>
 
-          <Button
-            variant="ghost"
-            className="w-full text-muted-foreground"
-            onClick={goOnboarding}
-          >
-            로그인 없이 게스트로 시작
+          {/* 지금 유일하게 동작하는 경로 → 주 버튼으로 강조 */}
+          <Button className="h-11 w-full" onClick={goOnboarding}>
+            게스트로 시작하기
           </Button>
         </div>
       </DialogContent>
