@@ -65,6 +65,31 @@ const ADDED_GROUP_ID = 'added';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 30000;
 
+const buildSelectionNotes = ({
+  cardName,
+  selectedText,
+  destinations,
+  region,
+  userIntent,
+}: {
+  cardName: string;
+  selectedText: string;
+  destinations: string[];
+  region?: string;
+  userIntent?: string;
+}) => {
+  const selectedCandidate = selectedText.trim() || cardName;
+  return [
+    `사용자가 선택한 후보: ${selectedCandidate}`,
+    `기존 카드명: ${cardName}`,
+    destinations.length > 0 ? `여행지: ${destinations.join(', ')}` : null,
+    region ? `지역 힌트: ${region}` : null,
+    userIntent ? `기존 요청: ${userIntent}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+};
+
 // 좌측 목록 카드 → Day 보드에 배치되는 일정 카드로 변환(로컬 드래그앤드롭용).
 const toScheduledCard = (
   card: ArrangeCardViewModel
@@ -718,9 +743,13 @@ const ArrangePage = () => {
       .map((value) => value.trim())
       .filter(Boolean)
       .join(', ');
-    const notes = selectedText
-      ? `${detailCard.name}: ${selectedText}`
-      : detailCard.name;
+    const notes = buildSelectionNotes({
+      cardName: detailCard.name,
+      selectedText,
+      destinations: meta.destinations,
+      region: detailCard.detail?.region,
+      userIntent: detailCard.detail?.userIntent,
+    });
     await handleResolveByNotes(notes);
   };
 
