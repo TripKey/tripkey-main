@@ -157,23 +157,33 @@ const Stepper = ({ currentIndex }: { currentIndex: number }) => {
               : 'upcoming';
         return (
           <li key={step.id} className="flex items-center gap-2">
-            {status === 'current' ? (
+            <span className="flex items-center gap-1.5">
+              {/* 도형 크기는 상태와 무관하게 고정(size-6), 색/채움만 변경 */}
               <span
-                aria-current="step"
-                className="rounded-full bg-primary px-3.5 py-1 font-medium text-primary-foreground"
+                aria-hidden="true"
+                className={cn(
+                  'flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+                  status === 'done' && 'bg-muted-foreground text-background',
+                  status === 'current' &&
+                    'bg-primary text-primary-foreground ring-2 ring-primary/25 ring-offset-1 ring-offset-background',
+                  status === 'upcoming' &&
+                    'border border-border bg-background text-muted-foreground'
+                )}
+              >
+                {status === 'done' ? <Check className="size-3.5" /> : index + 1}
+              </span>
+              <span
+                aria-current={status === 'current' ? 'step' : undefined}
+                className={cn(
+                  'font-medium',
+                  status === 'upcoming'
+                    ? 'text-muted-foreground'
+                    : 'text-foreground'
+                )}
               >
                 {renderStepLabel(step)}
               </span>
-            ) : status === 'done' ? (
-              <span className="flex items-center gap-1 font-medium text-primary">
-                <Check className="h-4 w-4" aria-hidden="true" />
-                {renderStepLabel(step)}
-              </span>
-            ) : (
-              <span className="text-muted-foreground">
-                {renderStepLabel(step)}
-              </span>
-            )}
+            </span>
             {!isLast && (
               <span aria-hidden="true" className="h-px w-6 bg-border" />
             )}
