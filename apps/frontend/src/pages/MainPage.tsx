@@ -109,7 +109,23 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative isolate min-h-screen bg-background">
+      {/* 헤더+히어로 뒤로 깔리는 몽환 오로라 배경 */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[105vh] overflow-hidden mask-[linear-gradient(to_bottom,#000_78%,transparent)]"
+      >
+        {/* 그리드 텍스처 (아주 옅게) */}
+        <div className="absolute inset-0 hero-grid" />
+        {/* 몽환적 오라 — 보라를 중심으로 파랑·핑크·청록이 번짐, 크고 느리게 숨쉼 */}
+        <div className="absolute -top-40 left-1/2 size-184 -translate-x-1/2 rounded-full bg-violet-500/25 blur-3xl animate-[aura-breathe_26s_ease-in-out_infinite] motion-reduce:animate-none dark:bg-violet-500/22" />
+        <div className="absolute top-[6%] left-[2%] size-80 rounded-full bg-indigo-400/40 blur-3xl animate-[aura-breathe_30s_ease-in-out_infinite] [animation-delay:-8s] motion-reduce:animate-none dark:bg-indigo-500/22" />
+        <div className="absolute top-[22%] right-[-4%] size-96 rounded-full bg-fuchsia-400/35 blur-3xl animate-[aura-breathe_34s_ease-in-out_infinite] [animation-delay:-16s] motion-reduce:animate-none dark:bg-fuchsia-500/20" />
+        <div className="absolute bottom-[2%] left-[14%] size-80 rounded-full bg-sky-400/30 blur-3xl animate-[aura-breathe_28s_ease-in-out_infinite] [animation-delay:-4s] motion-reduce:animate-none dark:bg-sky-500/18" />
+        <div className="absolute right-[16%] bottom-[16%] size-72 rounded-full bg-pink-400/28 blur-3xl animate-[aura-breathe_32s_ease-in-out_infinite] [animation-delay:-20s] motion-reduce:animate-none dark:bg-pink-500/16" />
+        {/* 밝은 코어 — 은은한 빛무리 */}
+        <div className="absolute top-[16%] left-1/2 size-40 -translate-x-1/2 rounded-full bg-fuchsia-200/45 blur-3xl animate-[aura-breathe_18s_ease-in-out_infinite] [animation-delay:-9s] motion-reduce:animate-none dark:bg-fuchsia-300/20" />
+      </div>
       {/* 헤더 */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
@@ -132,24 +148,8 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
         </div>
       </header>
 
-      {/* 히어로 */}
-      <section className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center overflow-hidden bg-linear-to-b from-muted/40 to-background px-6 text-center">
-        {/* 히어로 배경 레이어 (보라 오로라 + 그리드 텍스처) */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
-        >
-          {/* 그리드 텍스처 (아주 옅게) */}
-          <div className="absolute inset-0 hero-grid" />
-          {/* 몽환적 오라 — 보라를 중심으로 파랑·핑크·청록이 번짐, 크고 느리게 숨쉼 */}
-          <div className="absolute -top-40 left-1/2 size-[46rem] -translate-x-1/2 rounded-full bg-violet-500/25 blur-3xl animate-[aura-breathe_26s_ease-in-out_infinite] motion-reduce:animate-none dark:bg-violet-500/22" />
-          <div className="absolute top-[6%] left-[2%] size-80 rounded-full bg-indigo-400/40 blur-3xl animate-[aura-breathe_30s_ease-in-out_infinite] [animation-delay:-8s] motion-reduce:animate-none dark:bg-indigo-500/22" />
-          <div className="absolute top-[22%] right-[-4%] size-96 rounded-full bg-fuchsia-400/35 blur-3xl animate-[aura-breathe_34s_ease-in-out_infinite] [animation-delay:-16s] motion-reduce:animate-none dark:bg-fuchsia-500/20" />
-          <div className="absolute bottom-[2%] left-[14%] size-80 rounded-full bg-sky-400/30 blur-3xl animate-[aura-breathe_28s_ease-in-out_infinite] [animation-delay:-4s] motion-reduce:animate-none dark:bg-sky-500/18" />
-          <div className="absolute right-[16%] bottom-[16%] size-72 rounded-full bg-pink-400/28 blur-3xl animate-[aura-breathe_32s_ease-in-out_infinite] [animation-delay:-20s] motion-reduce:animate-none dark:bg-pink-500/16" />
-          {/* 밝은 코어 — 은은한 빛무리 */}
-          <div className="absolute top-[16%] left-1/2 size-40 -translate-x-1/2 rounded-full bg-fuchsia-200/45 blur-3xl animate-[aura-breathe_18s_ease-in-out_infinite] [animation-delay:-9s] motion-reduce:animate-none dark:bg-fuchsia-300/20" />
-        </div>
+      {/* 히어로 (배경 오로라는 상위 레이어에서 헤더 뒤까지 깔림) */}
+      <section className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-6 text-center">
         <div
           className={cn(
             'relative z-10 flex flex-col items-center',
