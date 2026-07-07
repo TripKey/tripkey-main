@@ -103,6 +103,14 @@ const toArrangeCardFromScheduled = (
   processing: card.processing,
 });
 
+const toUpdatedScheduledCard = (
+  card: Card,
+  previous: ScheduledCardViewModel
+): ScheduledCardViewModel => ({
+  ...toScheduledCard(cardToStockCard(card)),
+  fixedTime: previous.fixedTime,
+});
+
 const ArrangePage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -500,7 +508,8 @@ const ArrangePage = () => {
   };
 
   // 좌측 그룹을 서버 최신(groups04)으로 다시 그린다.
-  // Day 보드는 로컬 미저장 배치를 보존하고, 좌측 Stock 은 배치된 카드도 계속 노출한다.
+  // Day 보드는 로컬 미저장 배치를 보존하되, 이미 배치된 카드의 표시 상태는 서버 최신값으로 동기화한다.
+  // 좌측 Stock 은 배치된 카드도 계속 노출한다.
   const refreshLeftGroupsPreservingBoard = async (): Promise<{
     groups: ArrangeCardGroup[];
     unavailableIds: Set<string>;
@@ -511,7 +520,19 @@ const ArrangePage = () => {
       fetchCards(tripId),
     ]);
     const fresh = mapToArrangeViewModel(groupsRes, cardsRes, meta).groups;
+    const cardsById = new Map(
+      cardsRes.cards.map((card) => [card.instance_id, card])
+    );
     setGroups(fresh);
+    setDays((prev) =>
+      prev.map((day) => ({
+        ...day,
+        cards: day.cards.map((card) => {
+          const latest = cardsById.get(card.id);
+          return latest ? toUpdatedScheduledCard(latest, card) : card;
+        }),
+      }))
+    );
     return {
       groups: fresh,
       unavailableIds: new Set(groupsRes.unavailable.map((c) => c.instance_id)),
@@ -520,7 +541,6 @@ const ArrangePage = () => {
 
   const applyUpdatedCardLocally = (updated: Card) => {
     const updatedStockCard = cardToStockCard(updated);
-    const updatedScheduledCard = toScheduledCard(updatedStockCard);
     setGroups((prev) =>
       prev.map((group) => ({
         ...group,
@@ -533,7 +553,9 @@ const ArrangePage = () => {
       prev.map((day) => ({
         ...day,
         cards: day.cards.map((card) =>
-          card.id === updated.instance_id ? updatedScheduledCard : card
+          card.id === updated.instance_id
+            ? toUpdatedScheduledCard(updated, card)
+            : card
         ),
       }))
     );
