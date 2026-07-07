@@ -158,13 +158,13 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
         >
           <span className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-sm">
             <MapPin className="size-3.5" aria-hidden="true" />
-            AI 여행 플래너
+            TripKey · AI 여행 플래너
           </span>
           <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
             여행 계획, 더 쉽게
           </h1>
           <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-            가고 싶은 곳만 던져두면 동선까지 정리해주는 여행 플래너
+            가고 싶은 곳만 던져두면, TripKey가 동선까지 정리해줘요
           </p>
           <div className="relative mt-8">
             <Button
