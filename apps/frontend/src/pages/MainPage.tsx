@@ -133,8 +133,13 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
       </header>
 
       {/* 히어로 */}
-      <section className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center bg-linear-to-b from-muted/40 to-background px-6 text-center">
-        <div className={cn('flex flex-col items-center', reveal(heroIn))}>
+      <section className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center overflow-hidden bg-linear-to-b from-muted/40 to-background px-6 text-center">
+        <div
+          className={cn(
+            'relative z-10 flex flex-col items-center',
+            reveal(heroIn)
+          )}
+        >
           <span className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-sm">
             <MapPin className="size-3.5" aria-hidden="true" />
             AI 여행 플래너
@@ -145,13 +150,19 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
           <p className="mt-5 max-w-xl text-lg text-muted-foreground">
             가고 싶은 곳만 던져두면 동선까지 정리해주는 여행 플래너
           </p>
-          <Button
-            size="lg"
-            className="mt-8 h-14 cursor-pointer rounded-full px-10 text-base font-semibold transition-transform hover:bg-primary/90 hover:scale-[1.03] active:scale-95"
-            onClick={startPlanning}
-          >
-            여행 계획 세우기
-          </Button>
+          <div className="relative mt-8">
+            <Button
+              size="lg"
+              className="peer relative z-10 h-14 cursor-pointer rounded-full px-10 text-base font-semibold transition-transform hover:bg-primary/90 hover:scale-[1.03] active:scale-95"
+              onClick={startPlanning}
+            >
+              여행 계획 세우기
+            </Button>
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 -z-0 m-auto size-40 animate-pulse rounded-full bg-primary/30 blur-2xl transition-transform duration-500 ease-out peer-hover:scale-125 motion-reduce:animate-none"
+            />
+          </div>
         </div>
         <div
           aria-hidden="true"
