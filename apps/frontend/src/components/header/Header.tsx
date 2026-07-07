@@ -1,9 +1,14 @@
-import { Calendar, Check, MapPin, Users } from 'lucide-react';
+import { Calendar, Check, MapPin, UserRound, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 export type StepStatus = 'done' | 'current' | 'upcoming';
@@ -30,7 +35,6 @@ export type HeaderProps = {
   extraDestinations?: number;
   travelers?: number;
   dateRange?: string;
-  userInitials?: string;
   actions?: ReactNode;
   showTripMeta?: boolean;
   /** true면 헤더 내용을 전체폭으로(워크스페이스형: 배치·확정). 기본은 가운데 정렬(문서형). */
@@ -43,7 +47,6 @@ const Header = ({
   extraDestinations = 2,
   travelers = 2,
   dateRange = '5월 10일 ~ 5월 14일',
-  userInitials = 'KY',
   actions,
   showTripMeta = true,
   fluid = false,
@@ -62,11 +65,22 @@ const Header = ({
         <Link to="/" className="flex items-center gap-2">
           <span className="text-xl font-bold tracking-tight">TripKey</span>
         </Link>
-        <Avatar className="h-9 w-9">
-          <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
-            {userInitials}
-          </AvatarFallback>
-        </Avatar>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="프로필 (준비 중)"
+              className="cursor-default rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <Avatar className="h-9 w-9">
+                <AvatarFallback className="bg-muted text-muted-foreground">
+                  <UserRound className="size-4.5" aria-hidden="true" />
+                </AvatarFallback>
+              </Avatar>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>프로필 기능은 준비 중이에요</TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="border-t border-border">
