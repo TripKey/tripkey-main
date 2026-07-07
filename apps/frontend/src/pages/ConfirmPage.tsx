@@ -121,6 +121,7 @@ const ConfirmPage = () => {
   return (
     <div className="flex min-h-screen flex-col bg-muted">
       <Header
+        fluid
         currentStepId="confirm"
         destination={summary.destination}
         extraDestinations={summary.extraDestinations}
@@ -160,7 +161,7 @@ const ConfirmPage = () => {
       )}
 
       <main className="grid flex-1 grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="flex flex-col gap-6 border-r border-border bg-card px-8 py-10">
+        <aside className="flex flex-col gap-6 border-r border-border bg-card px-6 py-10">
           <div>
             <p className="text-xs font-semibold tracking-widest text-primary">
               FINAL REVIEW

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export type StepStatus = 'done' | 'current' | 'upcoming';
 
@@ -32,6 +33,8 @@ export type HeaderProps = {
   userInitials?: string;
   actions?: ReactNode;
   showTripMeta?: boolean;
+  /** true면 헤더 내용을 전체폭으로(워크스페이스형: 배치·확정). 기본은 가운데 정렬(문서형). */
+  fluid?: boolean;
 };
 
 const Header = ({
@@ -43,16 +46,20 @@ const Header = ({
   userInitials = 'KY',
   actions,
   showTripMeta = true,
+  fluid = false,
 }: HeaderProps) => {
   const currentIndex = STEPS.findIndex((step) => step.id === currentStepId);
+  const widthClass = fluid ? 'w-full' : 'mx-auto w-full max-w-6xl';
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background">
-      <div className="flex h-16 items-center justify-between px-6">
-        <Link to="/" className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-base font-bold text-primary-foreground">
-            T
-          </span>
+      <div
+        className={cn(
+          'flex h-16 items-center justify-between px-6',
+          widthClass
+        )}
+      >
+        <Link to="/" className="flex items-center gap-2">
           <span className="text-xl font-bold tracking-tight">TripKey</span>
         </Link>
         <Avatar className="h-9 w-9">
@@ -62,41 +69,52 @@ const Header = ({
         </Avatar>
       </div>
 
-      <div className="relative flex h-16 items-center justify-between gap-6 border-t border-border px-6">
-        {showTripMeta ? (
-          <div className="flex items-center gap-5 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <MapPin className="h-4 w-4" aria-hidden="true" />
-              <span className="font-medium text-foreground">{destination}</span>
-              {extraDestinations > 0 && (
-                <Badge
-                  variant="secondary"
-                  className="ml-0.5 px-1.5 py-0 text-[11px]"
-                >
-                  +{extraDestinations}
-                </Badge>
-              )}
+      <div className="border-t border-border">
+        <div
+          className={cn(
+            'relative flex h-16 items-center justify-between gap-6 px-6',
+            widthClass
+          )}
+        >
+          {showTripMeta ? (
+            <div className="flex items-center gap-5 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <MapPin className="h-4 w-4" aria-hidden="true" />
+                <span className="font-medium text-foreground">
+                  {destination}
+                </span>
+                {extraDestinations > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="ml-0.5 px-1.5 py-0 text-[11px]"
+                  >
+                    +{extraDestinations}
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Users className="h-4 w-4" aria-hidden="true" />
+                <span className="font-medium text-foreground">
+                  {travelers}인
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Calendar className="h-4 w-4" aria-hidden="true" />
+                <span className="font-medium text-foreground">{dateRange}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Users className="h-4 w-4" aria-hidden="true" />
-              <span className="font-medium text-foreground">{travelers}인</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Calendar className="h-4 w-4" aria-hidden="true" />
-              <span className="font-medium text-foreground">{dateRange}</span>
-            </div>
-          </div>
-        ) : (
-          <div />
-        )}
+          ) : (
+            <div />
+          )}
 
-        {actions ? (
-          <div className="flex items-center gap-2">{actions}</div>
-        ) : (
-          <div />
-        )}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <Stepper currentIndex={currentIndex} />
+          {actions ? (
+            <div className="flex items-center gap-2">{actions}</div>
+          ) : (
+            <div />
+          )}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <Stepper currentIndex={currentIndex} />
+          </div>
         </div>
       </div>
     </header>

@@ -732,6 +732,7 @@ const ArrangePage = () => {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-muted">
       <Header
+        fluid
         currentStepId="arrange"
         destination={summary.destination}
         extraDestinations={summary.extraDestinations}
@@ -743,7 +744,7 @@ const ArrangePage = () => {
             onClick={() => setAddCardOpen(true)}
             disabled={!tripId || busy}
           >
-            <Plus className="size-4" aria-hidden="true" />
+            <Plus aria-hidden="true" />
             카드 추가하기
           </Button>
         }
