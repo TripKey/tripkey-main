@@ -19,6 +19,7 @@ import {
   SERVICE_FEATURES,
   TRAVEL_TIPS,
 } from '@/dev-fixtures/travel-content';
+import { useReveal } from '@/hooks/useReveal';
 import { cn } from '@/lib/utils';
 
 const TIP_ICONS: Record<string, LucideIcon> = {
@@ -26,6 +27,12 @@ const TIP_ICONS: Record<string, LucideIcon> = {
   'tip-pack': Luggage,
   'tip-route': Route,
 };
+
+const reveal = (shown: boolean) =>
+  cn(
+    'transition-all duration-500 ease-out',
+    shown ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+  );
 
 // CTA를 누르면 App 레벨 스플래시를 띄운 채 온보딩으로 진입한다.
 type MainPageProps = {
@@ -43,24 +50,24 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // 추천 여행지 섹션이 화면에 들어오면 카드를 순서대로 등장시킨다 (한 번만).
-  const destRef = useRef<HTMLDivElement>(null);
-  const [cardsRevealed, setCardsRevealed] = useState(false);
+  // 랜딩은 항상 맨 위에서 시작한다 (새로고침 시 브라우저 스크롤 복원 방지).
   useEffect(() => {
-    const el = destRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setCardsRevealed(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.2 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
+    const prev = history.scrollRestoration;
+    history.scrollRestoration = 'manual';
+    window.scrollTo(0, 0);
+    return () => {
+      history.scrollRestoration = prev;
+    };
   }, []);
+
+  // 히어로는 첫 로드에 한 번 페이드인한다.
+  const [heroIn, setHeroIn] = useState(false);
+  useEffect(() => setHeroIn(true), []);
+
+  // 스크롤로 들어올 때 등장시킬 섹션들.
+  const features = useReveal<HTMLElement>();
+  const destinations = useReveal<HTMLDivElement>();
+  const tips = useReveal<HTMLDivElement>();
 
   // 기능 카루셀 자동 슬라이드 (hover/터치 시 멈춤, 끝나면 처음으로, 모션 민감 사용자는 제외).
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -127,23 +134,25 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
 
       {/* 히어로 */}
       <section className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center bg-linear-to-b from-muted/40 to-background px-6 text-center">
-        <span className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-sm">
-          <MapPin className="size-3.5" aria-hidden="true" />
-          AI 여행 플래너
-        </span>
-        <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-          여행 계획, 더 쉽게
-        </h1>
-        <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-          가고 싶은 곳만 던져두면 동선까지 정리해주는 여행 플래너
-        </p>
-        <Button
-          size="lg"
-          className="mt-8 h-14 cursor-pointer rounded-full px-10 text-base font-semibold transition-transform hover:bg-primary/90 hover:scale-[1.03] active:scale-95"
-          onClick={startPlanning}
-        >
-          여행 계획 세우기
-        </Button>
+        <div className={cn('flex flex-col items-center', reveal(heroIn))}>
+          <span className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-sm">
+            <MapPin className="size-3.5" aria-hidden="true" />
+            AI 여행 플래너
+          </span>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
+            여행 계획, 더 쉽게
+          </h1>
+          <p className="mt-5 max-w-xl text-lg text-muted-foreground">
+            가고 싶은 곳만 던져두면 동선까지 정리해주는 여행 플래너
+          </p>
+          <Button
+            size="lg"
+            className="mt-8 h-14 cursor-pointer rounded-full px-10 text-base font-semibold transition-transform hover:bg-primary/90 hover:scale-[1.03] active:scale-95"
+            onClick={startPlanning}
+          >
+            여행 계획 세우기
+          </Button>
+        </div>
         <div
           aria-hidden="true"
           className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce text-muted-foreground"
@@ -153,7 +162,10 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
       </section>
 
       {/* 기능 소개 — 옆으로 넘기는 카루셀 */}
-      <section className="mx-auto max-w-6xl px-6 py-16">
+      <section
+        ref={features.ref}
+        className={cn('mx-auto max-w-6xl px-6 py-16', reveal(features.shown))}
+      >
         <h2 className="text-2xl font-bold tracking-tight">
           TripKey로 할 수 있는 것
         </h2>
@@ -207,17 +219,12 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
         <p className="mt-1 text-sm text-muted-foreground">
           요즘 인기 있는 여행지를 둘러보세요
         </p>
-        <div ref={destRef} className="mt-8 flex flex-col gap-5">
+        <div ref={destinations.ref} className="mt-8 flex flex-col gap-5">
           {FEATURED_DESTINATIONS.slice(0, 4).map((dest, i) => (
             <div
               key={dest.id}
               style={{ transitionDelay: `${i * 100}ms` }}
-              className={cn(
-                'transition-all duration-500 ease-out',
-                cardsRevealed
-                  ? 'translate-y-0 opacity-100'
-                  : 'translate-y-6 opacity-0'
-              )}
+              className={reveal(destinations.shown)}
             >
               <div className="group relative h-72 overflow-hidden rounded-2xl shadow-sm transition-shadow hover:shadow-xl">
                 <img
@@ -243,7 +250,10 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
 
       {/* 여행 팁 */}
       <section className="bg-muted/30 py-16">
-        <div className="mx-auto max-w-5xl px-6">
+        <div
+          ref={tips.ref}
+          className={cn('mx-auto max-w-5xl px-6', reveal(tips.shown))}
+        >
           <h2 className="text-2xl font-bold tracking-tight">여행 팁</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             떠나기 전 알아두면 좋은 것들
