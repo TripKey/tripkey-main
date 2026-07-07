@@ -81,9 +81,11 @@ const OnboardingPage = () => {
       />
       <div className="onboarding-page">
         <main className="onboarding-page__main">
-          <header className="onboarding-page__header">
-            <h1 className="onboarding-page__title">여행 기본 정보</h1>
-            <p className="onboarding-page__desc">
+          <header className="mb-2">
+            <h1 className="mb-1.5 text-xl font-bold tracking-tight text-foreground">
+              여행 기본 정보
+            </h1>
+            <p className="text-sm text-muted-foreground">
               어디로, 얼마나, 누구와 떠나나요
             </p>
           </header>

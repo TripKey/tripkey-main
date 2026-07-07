@@ -126,9 +126,11 @@ const DumpPage = () => {
       />
       <main className="dump-page">
         <section className="dump-container">
-          <div className="dump-header">
-            <h1>여행 정보 입력</h1>
-            <p>
+          <div className="flex flex-col gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-foreground">
+              여행 정보 입력
+            </h1>
+            <p className="text-sm leading-relaxed text-muted-foreground">
               가고 싶은 곳, 하고 싶은 것, 떠오르는 생각을 자유롭게 적어주세요
             </p>
           </div>
