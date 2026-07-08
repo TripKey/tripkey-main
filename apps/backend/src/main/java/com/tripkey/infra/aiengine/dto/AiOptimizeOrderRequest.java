@@ -6,13 +6,17 @@ import java.util.List;
 
 public record AiOptimizeOrderRequest(
         List<Stop> stops,
-        @JsonProperty("start_instance_id") String startInstanceId
+        @JsonProperty("start_instance_id") String startInstanceId,
+        @JsonProperty("end_instance_id") String endInstanceId
 ) {
 
     public record Coord(double lat, double lng) {}
 
     public record Stop(
             @JsonProperty("instance_id") String instanceId,
-            Coord coordinates
+            Coord coordinates,
+            boolean pinned,
+            @JsonProperty("reserved_time") String reservedTime,
+            @JsonProperty("duration_min") Integer durationMin
     ) {}
 }

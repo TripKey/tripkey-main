@@ -52,6 +52,7 @@ class OptimizeServiceTest {
         lenient().when(c.getLng()).thenReturn(lng);
         lenient().when(c.getCategory()).thenReturn(category);
         lenient().when(c.getIsExcluded()).thenReturn(excluded);
+        lenient().when(c.getEstimatedDurationMin()).thenReturn(null); // Mockito 기본값(0) 방지
         return c;
     }
 
@@ -94,11 +95,115 @@ class OptimizeServiceTest {
         verify(aiEngineClient, times(1)).optimizeOrder(captor.capture());
         AiOptimizeOrderRequest req = captor.getValue();
         assertThat(req.startInstanceId()).isEqualTo(acc.toString());
+        // 항공편 없음 → 종료 앵커 = 숙소(시작과 동일) → AI 가 귀가 closed-tour 로 최적화 (#275)
+        assertThat(req.endInstanceId()).isEqualTo(acc.toString());
         assertThat(req.stops()).hasSize(3);
         // day_order 정렬: acc(0) → place1(1) → place2(2)
         assertThat(req.stops().get(0).instanceId()).isEqualTo(acc.toString());
         assertThat(req.stops().get(1).instanceId()).isEqualTo(p1.toString());
         assertThat(req.stops().get(2).instanceId()).isEqualTo(p2.toString());
+    }
+
+    @Test
+    void optimizePassesOutboundFlightAsStartAnchor() {
+        UUID tripId = UUID.randomUUID();
+        UUID acc = UUID.randomUUID();
+        UUID place = UUID.randomUUID();
+        UUID flight = UUID.randomUUID();
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        PlaceCard accCard = card(acc, 1, (short) 0, 34.70, 135.50, "accommodation", false);
+        PlaceCard placeCard = card(place, 1, (short) 1, 34.71, 135.51, "place", false);
+        PlaceCard flightCard = card(flight, 1, (short) 2, 34.79, 135.44, "transport", false);
+        lenient().when(flightCard.getFlightRole()).thenReturn("outbound"); // 첫날 도착편
+
+        when(placeCardRepository.findAllByTripId(tripId))
+                .thenReturn(List.of(accCard, placeCard, flightCard));
+        when(aiEngineClient.optimizeOrder(any())).thenReturn(
+                new AiOptimizeOrderResponse(
+                        List.of(flight.toString(), place.toString(), acc.toString()), 1500, "google"));
+
+        optimizeService.optimize(tripId);
+
+        ArgumentCaptor<AiOptimizeOrderRequest> captor =
+                ArgumentCaptor.forClass(AiOptimizeOrderRequest.class);
+        verify(aiEngineClient).optimizeOrder(captor.capture());
+        AiOptimizeOrderRequest req = captor.getValue();
+        // 도착 항공(outbound) = 시작 앵커, 숙소 = 종료 앵커(공항 도착 → 관광 → 숙소 체크인)
+        assertThat(req.startInstanceId()).isEqualTo(flight.toString());
+        assertThat(req.endInstanceId()).isEqualTo(acc.toString());
+    }
+
+    @Test
+    void optimizePassesPinAndReservedTimeConstraints() {
+        UUID tripId = UUID.randomUUID();
+        UUID p1 = UUID.randomUUID();
+        UUID p2 = UUID.randomUUID();
+        UUID p3 = UUID.randomUUID();
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        PlaceCard reserved = card(p1, 1, (short) 0, 34.70, 135.50, "food", false);
+        lenient().when(reserved.getTimeConstraint()).thenReturn("14:30 예약");
+        lenient().when(reserved.getEstimatedDurationMin()).thenReturn((short) 90);
+        PlaceCard pinnedNoTime = card(p2, 1, (short) 1, 34.71, 135.51, "place", false);
+        lenient().when(pinnedNoTime.getTimeConstraint()).thenReturn("오후 늦게");
+        PlaceCard free = card(p3, 1, (short) 2, 34.72, 135.52, "place", false);
+
+        when(placeCardRepository.findAllByTripId(tripId))
+                .thenReturn(List.of(reserved, pinnedNoTime, free));
+        when(aiEngineClient.optimizeOrder(any())).thenReturn(
+                new AiOptimizeOrderResponse(
+                        List.of(p1.toString(), p2.toString(), p3.toString()), 900, "google"));
+
+        optimizeService.optimize(tripId);
+
+        ArgumentCaptor<AiOptimizeOrderRequest> captor =
+                ArgumentCaptor.forClass(AiOptimizeOrderRequest.class);
+        verify(aiEngineClient).optimizeOrder(captor.capture());
+        List<AiOptimizeOrderRequest.Stop> stops = captor.getValue().stops();
+        // 예약 시각 파싱: pinned + reserved_time + 체류시간
+        assertThat(stops.get(0).pinned()).isTrue();
+        assertThat(stops.get(0).reservedTime()).isEqualTo("14:30");
+        assertThat(stops.get(0).durationMin()).isEqualTo(90);
+        // HH:MM 없는 time_constraint → 위치 고정만 (reserved_time 없음)
+        assertThat(stops.get(1).pinned()).isTrue();
+        assertThat(stops.get(1).reservedTime()).isNull();
+        // 제약 없는 카드
+        assertThat(stops.get(2).pinned()).isFalse();
+        assertThat(stops.get(2).reservedTime()).isNull();
+        assertThat(stops.get(2).durationMin()).isNull();
+    }
+
+    @Test
+    void optimizePassesFlightCardAsEndAnchor() {
+        UUID tripId = UUID.randomUUID();
+        UUID acc = UUID.randomUUID();
+        UUID place = UUID.randomUUID();
+        UUID flight = UUID.randomUUID();
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        PlaceCard accCard = card(acc, 1, (short) 0, 34.70, 135.50, "accommodation", false);
+        PlaceCard placeCard = card(place, 1, (short) 1, 34.71, 135.51, "place", false);
+        PlaceCard flightCard = card(flight, 1, (short) 2, 34.79, 135.44, "transport", false);
+
+        when(placeCardRepository.findAllByTripId(tripId))
+                .thenReturn(List.of(accCard, placeCard, flightCard));
+        when(aiEngineClient.optimizeOrder(any())).thenReturn(
+                new AiOptimizeOrderResponse(
+                        List.of(acc.toString(), place.toString(), flight.toString()), 1200, "google"));
+
+        optimizeService.optimize(tripId);
+
+        ArgumentCaptor<AiOptimizeOrderRequest> captor =
+                ArgumentCaptor.forClass(AiOptimizeOrderRequest.class);
+        verify(aiEngineClient).optimizeOrder(captor.capture());
+        AiOptimizeOrderRequest req = captor.getValue();
+        // 시작=숙소, 종료=항공(교통) 카드
+        assertThat(req.startInstanceId()).isEqualTo(acc.toString());
+        assertThat(req.endInstanceId()).isEqualTo(flight.toString());
     }
 
     @Test
