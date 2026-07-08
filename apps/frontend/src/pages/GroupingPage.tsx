@@ -52,6 +52,31 @@ import { useOnboardingStore } from '../utils/onboarding-store';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 30000;
 
+const buildSelectionNotes = ({
+  cardName,
+  selectedText,
+  destinations,
+  region,
+  userIntent,
+}: {
+  cardName: string;
+  selectedText: string;
+  destinations: string[];
+  region?: string;
+  userIntent?: string;
+}) => {
+  const selectedCandidate = selectedText.trim() || cardName;
+  return [
+    `사용자가 선택한 후보: ${selectedCandidate}`,
+    `기존 카드명: ${cardName}`,
+    destinations.length > 0 ? `여행지: ${destinations.join(', ')}` : null,
+    region ? `지역 힌트: ${region}` : null,
+    userIntent ? `기존 요청: ${userIntent}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+};
+
 const FALLBACK_SUMMARY: TripSummaryViewModel = {
   destinations: [],
   dateRange: '-',
@@ -464,27 +489,10 @@ const GroupingPage = () => {
 
   const busy = state.phase === 'ready' && state.busy;
 
-  // 재파싱(processing) 중인 카드가 하나라도 있으면 다음 단계 진행 차단.
-  // (excluded 는 일정에서 빠지므로 검사 제외)
-  const hasProcessingCard =
-    state.phase === 'ready' &&
-    [
-      ...state.groups.input_required,
-      ...state.groups.select_required,
-      ...state.groups.fix_required,
-      ...state.groups.review_only,
-    ].some((card) => card.processing_status === 'processing');
-
   // SCR-04 진입은 미해결 카드(input/select/fix_required) 잔존 여부로 차단하지 않는다.
-  // 기획상 SCR-04는 "완성된 카드만 배치하는 화면"이 아니라, 위치/좌표가 아직 없는
-  // 카드도 사용자가 Day에 올려보며 적합성을 확인하는 화면이기 때문이다.
-  // (재파싱 processing 중인 카드만 일시적으로 대기시킨다.)
-  const nextDisabled = busy || hasProcessingCard;
-
-  // 재파싱 진행 중일 때만 안내. 미해결 카드는 차단 사유가 아니므로 문구를 띄우지 않는다.
-  const nextGuideText = hasProcessingCard
-    ? '카드 정보를 정리하는 중이에요. 잠시 후 다시 시도해 주세요.'
-    : undefined;
+  // 기획상 SCR-04는 "완성된 카드만 배치하는 화면"이 아니라, 결정/입력/위치 확인이
+  // 필요한 카드도 이어서 확인하며 일정 배치까지 가져가는 화면이기 때문이다.
+  const nextDisabled = busy;
 
   const loading = state.phase === 'loading';
 
@@ -555,19 +563,43 @@ const GroupingPage = () => {
     return ok;
   };
 
+  const handleSaveDisplay = async (
+    card: PlaceCardViewModel | null,
+    payload: CardPatchRequest
+  ) => {
+    if (!card || !tripId) return false;
+    const ok = await runCardMutation(
+      () => patchCard(tripId, card.id, payload),
+      '카드 수정에 실패했습니다.'
+    );
+    if (ok) {
+      window.alert('카드 정보가 저장되었습니다.');
+    }
+    return ok;
+  };
+
   const handleConfirmSelect = (
     card: PlaceCardViewModel | null,
     payload: { choices: string[]; answer: string }
   ) => {
     if (!card || !tripId) return Promise.resolve(false);
-    // 선택 칩 + 답변을 한 덩어리 자연어(notes)로 합쳐 보낸다.
-    // 백엔드는 undecided 카드의 notes 입력을 카드 레벨 AI 재파싱으로 처리한다.
-    // 입력이 없으면 카드명을 fallback으로 전송해 AI가 최소 컨텍스트로 재파싱할 수 있게 한다.
-    const notes =
+    // 선택값을 단순 문장으로 던지지 않고 "선택 후보"와 여행 맥락을 분리해
+    // card-level parse/Places lookup 이 장소명을 우선 검색하도록 돕는다.
+    const selectedText =
       [...payload.choices, payload.answer]
         .map((value) => value.trim())
         .filter(Boolean)
-        .join(', ') || card.name;
+        .join(', ');
+    const notes = buildSelectionNotes({
+      cardName: card.name,
+      selectedText,
+      destinations: tripDetailQuery.data?.destinations ?? destinations,
+      region: card.region,
+      userIntent:
+        card.selectDetail?.userIntent ??
+        card.detail?.userIntent ??
+        card.editDetail?.userIntent,
+    });
     return runCardMutation(
       () => patchCard(tripId, card.id, { notes }),
       '확인 처리에 실패했습니다.'
@@ -647,7 +679,7 @@ const GroupingPage = () => {
               onClick={() => setAddCardOpen(true)}
               disabled={busy || !tripId}
             >
-              <Plus className="h-4 w-4" aria-hidden="true" />
+              <Plus aria-hidden="true" />
               카드 추가하기
             </Button>
           </>
@@ -720,7 +752,6 @@ const GroupingPage = () => {
             <TripSummaryCard
               {...summary}
               nextDisabled={nextDisabled}
-              guideText={nextGuideText}
               onNext={() =>
                 navigate(tripId ? `/arrange?tripId=${tripId}` : '/arrange')
               }
@@ -742,6 +773,11 @@ const GroupingPage = () => {
         }}
         onSaveMemo={async (memo) => {
           await handleSaveMemo(reviewCard, memo);
+        }}
+        onSaveDisplay={async (payload) => {
+          if (await handleSaveDisplay(reviewCard, payload)) {
+            setReviewOpen(false);
+          }
         }}
       />
 
@@ -765,6 +801,11 @@ const GroupingPage = () => {
         onSaveMemo={async (memo) => {
           await handleSaveMemo(selectCard, memo);
         }}
+        onSaveDisplay={async (payload) => {
+          if (await handleSaveDisplay(selectCard, payload)) {
+            setSelectOpen(false);
+          }
+        }}
       />
 
       <EditCardDetailPanel
@@ -783,6 +824,11 @@ const GroupingPage = () => {
         onSaveMemo={async (memo) => {
           await handleSaveMemo(editCard, memo);
         }}
+        onSaveDisplay={async (payload) => {
+          if (await handleSaveDisplay(editCard, payload)) {
+            setEditOpen(false);
+          }
+        }}
         onResolveByStructuredEdit={handleResolveByStructuredEdit}
         onResolveByNotes={handleResolveByNotesEdit}
         onSelectProcess={handleSelectProcessEdit}
@@ -793,6 +839,8 @@ const GroupingPage = () => {
       <AddCardModal
         open={addCardOpen}
         onOpenChange={setAddCardOpen}
+        tripStartDate={tripDetailQuery.data?.start_date}
+        travelDays={tripDetailQuery.data?.travel_days}
         onSubmit={async (draft) => {
           if (!tripId) return;
           setAddCardOpen(false);

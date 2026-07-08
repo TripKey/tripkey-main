@@ -124,11 +124,9 @@ class CardServiceTest {
                         "trip",
                         null,
                         "축제 기간입니다",
-                        null
-                ),
+                        null),
                 tripId,
-                null
-        );
+                null);
         when(alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId)).thenReturn(List.of(alert));
 
         CardsResponse response = cardService.getCards(tripId);
@@ -218,8 +216,7 @@ class CardServiceTest {
                 "저녁 방문",
                 null,
                 null,
-                null
-        );
+                null, null, null);
 
         CardDto created = cardService.addCard(tripId, request);
 
@@ -241,7 +238,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardAddRequest request = new CardAddRequest(
-                "도톤보리", "place", "오사카 중앙구", null, null, null, null, null, null);
+                "도톤보리", "place", "오사카 중앙구", null, null, null, null, null, null, null, null);
 
         CardDto created = cardService.addCard(tripId, request);
 
@@ -258,12 +255,42 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardAddRequest request = new CardAddRequest(
-                "이치란 라멘", "food", "난바", null, null, null, null, null, null);
+                "이치란 라멘", "food", "난바", null, null, null, null, null, null, null, null);
 
         CardDto created = cardService.addCard(tripId, request);
 
         assertThat(created.processingStatus()).isEqualTo("processing");
         verify(cardInputParsingProcessor).parseAndEnrich(eq(tripId), any(), isNull());
+    }
+
+    @Test
+    void addCardAiRequestPassesNaturalLanguageInputToCardParsing() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardAddRequest request = new CardAddRequest(
+                "오사카 맛집 요청",
+                "food",
+                "오사카",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "ai_request",
+                "오사카 맛집을 더 찾아야 해"
+        );
+
+        CardDto created = cardService.addCard(tripId, request);
+
+        assertThat(created.classification()).isEqualTo("undecided");
+        assertThat(created.processingStatus()).isEqualTo("processing");
+        assertThat(created.actionType()).isEqualTo("input_required");
+        verify(cardInputParsingProcessor)
+                .parseAndEnrich(eq(tripId), any(), eq("오사카 맛집을 더 찾아야 해"));
     }
 
     @Test
@@ -275,7 +302,7 @@ class CardServiceTest {
 
         // flightNumber 없음 → 중복검사 스킵. transport 는 좌표 불필요 → 즉시 completed, 재처리 없음
         CardAddRequest request = new CardAddRequest(
-                "공항 이동", "transport", null, null, "08:30", null, null, null, null);
+                "공항 이동", "transport", null, null, "08:30", null, null, null, null, null, null);
 
         CardDto created = cardService.addCard(tripId, request);
 
@@ -291,7 +318,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardAddRequest request = new CardAddRequest(
-                "환전", "etc", null, null, null, null, null, null, null);
+                "환전", "etc", null, null, null, null, null, null, null, null, null);
 
         CardDto created = cardService.addCard(tripId, request);
 
@@ -315,8 +342,7 @@ class CardServiceTest {
                 null,
                 "2025-08-01",
                 "2025-08-04",
-                null
-        );
+                null, null, null);
 
         CardDto created = cardService.addCard(tripId, request);
 
@@ -343,11 +369,85 @@ class CardServiceTest {
                 null,
                 null,
                 null,
-                "KE723"
+                "KE723",
+                null,
+                null
         );
 
         assertThatThrownBy(() -> cardService.addCard(tripId, request))
                 .isInstanceOf(FlightCardDuplicateRoleException.class);
+    }
+
+    @Test
+    void addCardCreatesStructuredFlightCard() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardAddRequest request = new CardAddRequest(
+                "항공편",
+                "transport",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "KE723",
+                "2026-07-01T08:30:00+09:00",
+                "outbound",
+                "ICN",
+                "KIX",
+                "manual",
+                null
+        );
+
+        CardDto created = cardService.addCard(tripId, request);
+
+        assertThat(created.name()).isEqualTo("ICN → KIX");
+        assertThat(created.category()).isEqualTo("transport");
+        assertThat(created.processingStatus()).isEqualTo("completed");
+        assertThat(created.source()).isEqualTo("user_input");
+        assertThat(created.flightNumber()).isEqualTo("KE723");
+        assertThat(created.flightDatetime()).isEqualTo("2026-07-01T08:30:00+09:00");
+        assertThat(created.flightRole()).isEqualTo("outbound");
+        assertThat(created.departureAirport()).isEqualTo("ICN");
+        assertThat(created.arrivalAirport()).isEqualTo("KIX");
+        verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
+    }
+
+    @Test
+    void addCardCreatesMiddleFlightWithoutFlightRole() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardAddRequest request = new CardAddRequest(
+                "항공편",
+                "transport",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "JL101",
+                null,
+                "middle",
+                null,
+                null,
+                "manual",
+                null
+        );
+
+        CardDto created = cardService.addCard(tripId, request);
+
+        assertThat(created.name()).isEqualTo("JL101 항공편");
+        assertThat(created.source()).isEqualTo("user_input");
+        assertThat(created.flightNumber()).isEqualTo("JL101");
+        assertThat(created.flightRole()).isNull();
     }
 
     @Test
@@ -363,8 +463,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardPatchRequest request = new CardPatchRequest(
-                null, "confirmed", null, null, null, null, null, null, null, null
-        );
+                null, "confirmed", null, null, null, null, null, null, null, null);
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
@@ -382,8 +481,7 @@ class CardServiceTest {
                 .thenReturn(Optional.of(card));
 
         CardPatchRequest request = new CardPatchRequest(
-                null, "open_question", null, null, null, null, null, null, null, null
-        );
+                null, "open_question", null, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> cardService.patchCard(tripId, instanceId, request))
                 .isInstanceOf(InvalidClassificationTransitionException.class);
@@ -398,8 +496,7 @@ class CardServiceTest {
                 .thenReturn(Optional.empty());
 
         CardPatchRequest request = new CardPatchRequest(
-                null, null, true, null, null, null, null, null, null, null
-        );
+                null, null, true, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> cardService.patchCard(tripId, instanceId, request))
                 .isInstanceOf(CardNotFoundException.class);
@@ -419,8 +516,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardPatchRequest request = new CardPatchRequest(
-                null, null, null, null, null, null, null, null, "오사카 난바", null
-        );
+                null, null, null, null, null, null, null, null, "오사카 난바", null);
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
@@ -443,8 +539,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardPatchRequest request = new CardPatchRequest(
-                null, null, null, null, null, "2025-08-02", "2025-08-05", null, null, null
-        );
+                null, null, null, null, null, "2025-08-02", "2025-08-05", null, null, null);
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
@@ -470,8 +565,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardPatchRequest request = new CardPatchRequest(
-                null, null, null, null, null, "2025-08-03", null, null, "오사카 난바", null
-        );
+                null, null, null, null, null, "2025-08-03", null, null, "오사카 난바", null);
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
@@ -496,8 +590,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardPatchRequest request = new CardPatchRequest(
-                null, null, null, null, null, null, null, null, "인천공항", null
-        );
+                null, null, null, null, null, null, null, null, "인천공항", null);
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
@@ -545,8 +638,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardPatchRequest request = new CardPatchRequest(
-                null, null, null, "친구 집은 오사카 난바역 근처야", null, null, null, null, null, null
-        );
+                null, null, null, "친구 집은 오사카 난바역 근처야", null, null, null, null, null, null);
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
@@ -568,8 +660,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardPatchRequest request = new CardPatchRequest(
-                null, null, null, "스시 옵션 말고 난바 라멘집으로 할게", null, null, null, null, null, null
-        );
+                null, null, null, "스시 옵션 말고 난바 라멘집으로 할게", null, null, null, null, null, null);
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
@@ -591,8 +682,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardPatchRequest request = new CardPatchRequest(
-                null, null, null, "도톤보리 글리코 사인으로 확정", null, null, null, null, null, null
-        );
+                null, null, null, "도톤보리 글리코 사인으로 확정", null, null, null, null, null, null);
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
@@ -614,8 +704,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardPatchRequest request = new CardPatchRequest(
-                null, null, null, "여기 포함해줘", null, null, null, null, null, null
-        );
+                null, null, null, "여기 포함해줘", null, null, null, null, null, null);
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
@@ -639,8 +728,7 @@ class CardServiceTest {
 
         CardPatchRequest request = new CardPatchRequest(
                 null, null, null, "난바역 근처 호텔로 확정", null,
-                "2025-08-02", "2025-08-05", null, "오사카 난바", null
-        );
+                "2025-08-02", "2025-08-05", null, "오사카 난바", null);
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
@@ -665,8 +753,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardPatchRequest request = new CardPatchRequest(
-                null, null, null, "여기 가자", null, null, null, null, null, null
-        );
+                null, null, null, "여기 가자", null, null, null, null, null, null);
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
@@ -689,8 +776,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardPatchRequest request = new CardPatchRequest(
-                null, null, null, "여기 포함해줘", null, null, null, null, null, null
-        );
+                null, null, null, "여기 포함해줘", null, null, null, null, null, null);
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
@@ -712,8 +798,7 @@ class CardServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         CardPatchRequest request = new CardPatchRequest(
-                null, null, null, null, "자유 메모만 저장", null, null, null, null, null
-        );
+                null, null, null, null, "자유 메모만 저장", null, null, null, null, null);
 
         CardDto updated = cardService.patchCard(tripId, instanceId, request);
 
@@ -722,25 +807,74 @@ class CardServiceTest {
         verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
     }
 
+    @Test
+    void patchCardDisplayFieldsDoesNotTriggerCardLevelParsing() {
+        UUID tripId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        PlaceCard card = needsInputCard(tripId);
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId))
+                .thenReturn(Optional.of(card));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CardPatchRequest request = new CardPatchRequest(
+                null, null, null, null, "표시용 메모", null, null, null, null, null,
+                "난바 저녁 맛집", (short) 75);
+
+        CardDto updated = cardService.patchCard(tripId, instanceId, request);
+
+        assertThat(updated.name()).isEqualTo("난바 저녁 맛집");
+        assertThat(updated.estimatedDurationMin()).isEqualTo((short) 75);
+        assertThat(updated.memo()).isEqualTo("표시용 메모");
+        assertThat(updated.processingStatus()).isEqualTo("pending");
+        verify(cardInputParsingProcessor, never()).parseAndEnrich(any(), any(), any());
+    }
+
+    @Test
+    void duplicateCardReturnsNewInstanceWithoutDayPlacement() {
+        UUID tripId = UUID.randomUUID();
+        PlaceCard original = undecidedReadyPartialCard(tripId);
+        original.onCreate();
+        UUID originalId = original.getInstanceId();
+        original.applyDayPlacement(1, 1, (short) 60);
+
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findByInstanceIdAndTripId(originalId, tripId))
+                .thenReturn(Optional.of(original));
+        when(placeCardRepository.save(any(PlaceCard.class)))
+                .thenAnswer(invocation -> {
+                    PlaceCard saved = invocation.getArgument(0);
+                    saved.onCreate();
+                    return saved;
+                });
+
+        CardDto duplicate = cardService.duplicateCard(tripId, originalId);
+
+        assertThat(duplicate.instanceId()).isNotEqualTo(originalId);
+        assertThat(duplicate.name()).isEqualTo(original.getName());
+        assertThat(duplicate.day()).isNull();
+        assertThat(duplicate.dayOrder()).isNull();
+        assertThat(duplicate.isExcluded()).isFalse();
+    }
+
     private PlaceCard userPlaceCard(UUID tripId) {
         return PlaceCard.createUserCard(
-                tripId, "도톤보리", "place", null, null, null, null, null, null, null
-        );
+                tripId, "도톤보리", "place", null, null, null, null, null, null, null);
     }
 
     private PlaceCard userAccommodationCard(UUID tripId) {
         return PlaceCard.createUserCard(
                 tripId, "난바 호텔", "accommodation", null, null, null, null,
-                "2025-08-01", "2025-08-04", null
-        );
+                "2025-08-01", "2025-08-04", null);
     }
 
     private PlaceCard openQuestionCard(UUID tripId) {
         com.tripkey.infra.aiengine.dto.AiPlaceCardDto dto = new com.tripkey.infra.aiengine.dto.AiPlaceCardDto(
                 null, "테라로사", "food", "open_question", "ready_partial",
                 false, false, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null
-        );
+                null, null, null, null, null, null, null, null, null, null);
         return PlaceCard.createFromAiResponse(tripId, dto, "ai_parse");
     }
 
@@ -748,8 +882,7 @@ class CardServiceTest {
         com.tripkey.infra.aiengine.dto.AiPlaceCardDto dto = new com.tripkey.infra.aiengine.dto.AiPlaceCardDto(
                 null, "친구집", "place", "undecided", "needs_input",
                 false, false, null, null, null, null, null, null, null,
-                "친구집 위치를 알려주세요", null, null, null, null, null, null, null, null
-        );
+                "친구집 위치를 알려주세요", null, null, null, null, null, null, null, null, null);
         return PlaceCard.createFromAiResponse(tripId, dto, "ai_parse");
     }
 
@@ -757,8 +890,7 @@ class CardServiceTest {
         com.tripkey.infra.aiengine.dto.AiPlaceCardDto dto = new com.tripkey.infra.aiengine.dto.AiPlaceCardDto(
                 null, "저녁 식당", "food", "undecided", "ready_partial",
                 false, false, null, null, null, null, null, null, null,
-                "어떤 식당으로 할까요?", List.of("스시", "라멘"), null, null, null, null, null, null, null
-        );
+                "어떤 식당으로 할까요?", List.of("스시", "라멘"), null, null, null, null, null, null, null, null);
         return PlaceCard.createFromAiResponse(tripId, dto, "ai_parse");
     }
 }

@@ -230,10 +230,7 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link to="/" className="flex items-center gap-2">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-              T
-            </span>
-            <span className="text-lg font-bold tracking-tight">TripKey</span>
+            <span className="text-xl font-bold tracking-tight">TripKey</span>
           </Link>
           <Button
             size="sm"
@@ -488,13 +485,42 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
         ref={features.ref}
         className={cn('mx-auto max-w-6xl px-6 py-16', reveal(features.shown))}
       >
-        <h2 className="text-3xl font-bold tracking-tight sm:text-3xl">
-          추천 여행지
-        </h2>
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-3xl font-bold tracking-tight">추천 여행지</h2>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                <span className="relative flex size-1.5">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/70 motion-reduce:animate-none" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-primary" />
+                </span>
+                서비스 중
+              </span>
+            </div>
+            <p className="mt-3 text-base text-muted-foreground">
+              지금 만나볼 수 있는 여행지예요. 옆으로 넘겨 둘러보세요.
+            </p>
+          </div>
 
-        <p className="mt-3 text-base text-muted-foreground">
-          옆으로 넘겨보며 다음 여행지를 찾아보세요
-        </p>
+          <div className="hidden shrink-0 gap-2 sm:flex">
+            <button
+              type="button"
+              aria-label="이전"
+              onClick={() => scrollCarousel(-1)}
+              className="flex size-10 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-muted"
+            >
+              <ChevronLeft className="size-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="다음"
+              onClick={() => scrollCarousel(1)}
+              className="flex size-10 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-muted"
+            >
+              <ChevronRight className="size-5" />
+            </button>
+          </div>
+        </div>
         <div
           ref={carouselRef}
           className="mt-8 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-4 scrollbar-none"
@@ -526,7 +552,7 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
           ))}
         </div>
 
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-5 flex justify-center gap-2 sm:hidden">
           <button
             type="button"
             aria-label="이전"

@@ -13,9 +13,9 @@ import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import ArrangeCardDetailPanel from '@/components/arrange/ArrangeCardDetailPanel';
 import CardListPanel from '@/components/arrange/CardListPanel';
 import DayColumn from '@/components/arrange/DayColumn';
+import CardDetailPanel from '@/components/card-detail/CardDetailPanel';
 import AddCardModal from '@/components/grouping/AddCardModal';
 import Header from '@/components/header/Header';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ import {
   useArrangeCardsQuery,
   useConfirmPlacementMutation,
   useDaysQuery,
+  useDuplicateCardMutation,
   useGroups04Query,
   usePatchCardMutation,
   useReorderGroupsMutation,
@@ -37,7 +38,7 @@ import type {
   ScheduledCardViewModel,
 } from '@/types/arrange';
 import type { RouteWarning } from '@/types/arrange-api';
-import type { CardPatchRequest } from '@/types/grouping-api';
+import type { Card, CardPatchRequest } from '@/types/grouping-api';
 import type { ArrangeDragPayload } from '@/utils/arrange-dnd';
 
 import { fetchGroups04 } from '../utils/arrange-api';
@@ -64,6 +65,31 @@ const ADDED_GROUP_ID = 'added';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 30000;
 
+const buildSelectionNotes = ({
+  cardName,
+  selectedText,
+  destinations,
+  region,
+  userIntent,
+}: {
+  cardName: string;
+  selectedText: string;
+  destinations: string[];
+  region?: string;
+  userIntent?: string;
+}) => {
+  const selectedCandidate = selectedText.trim() || cardName;
+  return [
+    `사용자가 선택한 후보: ${selectedCandidate}`,
+    `기존 카드명: ${cardName}`,
+    destinations.length > 0 ? `여행지: ${destinations.join(', ')}` : null,
+    region ? `지역 힌트: ${region}` : null,
+    userIntent ? `기존 요청: ${userIntent}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+};
+
 // 좌측 목록 카드 → Day 보드에 배치되는 일정 카드로 변환(로컬 드래그앤드롭용).
 const toScheduledCard = (
   card: ArrangeCardViewModel
@@ -72,15 +98,8 @@ const toScheduledCard = (
   name: card.name,
   accent: card.accent,
   badges: card.badges,
-});
-
-// 배치 보드 카드 → 좌측 목록 카드로 되돌릴 때의 폴백 변환(원본 보존 실패 시).
-const toArrangeCard = (card: ScheduledCardViewModel): ArrangeCardViewModel => ({
-  id: card.id,
-  name: card.name,
-  accent: card.accent,
-  badges: card.badges,
-  draggable: true,
+  detail: card.detail,
+  processing: card.processing,
 });
 
 // index 위치에 item 삽입(미지정·범위 초과 시 맨 뒤).
@@ -96,6 +115,26 @@ const errorMessageOf = (error: unknown, fallback: string): string => {
   if (error instanceof Error) return error.message;
   return fallback;
 };
+
+const toArrangeCardFromScheduled = (
+  card: ScheduledCardViewModel
+): ArrangeCardViewModel => ({
+  id: card.id,
+  name: card.name,
+  accent: card.accent,
+  badges: card.badges,
+  draggable: !card.fixedTime,
+  detail: card.detail,
+  processing: card.processing,
+});
+
+const toUpdatedScheduledCard = (
+  card: Card,
+  previous: ScheduledCardViewModel
+): ScheduledCardViewModel => ({
+  ...toScheduledCard(cardToStockCard(card)),
+  fixedTime: previous.fixedTime,
+});
 
 const ArrangePage = () => {
   const navigate = useNavigate();
@@ -117,6 +156,7 @@ const ArrangePage = () => {
 
   const patchCardMutation = usePatchCardMutation(tripId);
   const addCardMutation = useAddCardMutation(tripId);
+  const duplicateCardMutation = useDuplicateCardMutation(tripId);
   const reorderMutation = useReorderGroupsMutation(tripId);
   const verifyMutation = useVerifyPlacementMutation(tripId);
   const confirmMutation = useConfirmPlacementMutation(tripId);
@@ -183,11 +223,6 @@ const ArrangePage = () => {
   }, [dayColumns]);
 
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
-  // 좌측 → Day 배치 시 원본 카드를 보존한다. 좌측으로 되돌릴 때 detail/메모 등
-  // ScheduledCardViewModel 이 들고 있지 않은 필드까지 복원하기 위함.
-  const originalCardsRef = useRef<
-    Map<string, { card: ArrangeCardViewModel; groupId: string }>
-  >(new Map());
   const [detailCard, setDetailCard] = useState<ArrangeCardViewModel | null>(
     null
   );
@@ -205,12 +240,8 @@ const ArrangePage = () => {
 
   // 진행 중인 재처리 폴링 취소 핸들. 카드 전환/언마운트 시 정리한다.
   const resolvePollRef = useRef<(() => void) | null>(null);
-  // 폴링 콜백(비동기)이 최신 보드/패널 상태를 읽도록 ref 로 보관한다.
-  const daysRef = useRef<DayColumnViewModel[]>([]);
+  // 폴링 콜백(비동기)이 최신 패널 상태를 읽도록 ref 로 보관한다.
   const detailCardIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    daysRef.current = days;
-  }, [days]);
   useEffect(() => {
     detailCardIdRef.current = detailCard?.id ?? null;
   }, [detailCard]);
@@ -224,6 +255,10 @@ const ArrangePage = () => {
   const unplacedCount = groups
     .flatMap((group) => group.cards)
     .filter((card) => card.draggable !== false).length;
+  const placedCardIds = useMemo(
+    () => new Set(days.flatMap((day) => day.cards.map((card) => card.id))),
+    [days]
+  );
 
   const openCardDetail = (card: ArrangeCardViewModel) => {
     // 처리필요 카드도 alert 로 끝내지 않고, 해결 패널을 그대로 열어 인플레이스로 해결한다.
@@ -236,7 +271,7 @@ const ArrangePage = () => {
   };
 
   // 좌측 목록 카드 → Day 에 배치(targetIndex 위치 삽입).
-  const placeFromList = (
+  const placeFromList = async (
     cardId: string,
     targetDayId: string,
     targetIndex?: number
@@ -246,14 +281,48 @@ const ArrangePage = () => {
     // 드래그 불가(처리 필요/제외) 카드는 배치하지 않는다.
     if (!card || group == null || card.draggable === false) return;
 
-    // 되돌리기 복원용으로 원본 카드 + 원래 그룹 id 보존.
-    originalCardsRef.current.set(cardId, { card, groupId: group.id });
-    setGroups((prev) =>
-      prev.map((g) => ({
-        ...g,
-        cards: g.cards.filter((c) => c.id !== cardId),
-      }))
+    const alreadyPlaced = days.some((day) =>
+      day.cards.some((placed) => placed.id === cardId)
     );
+
+    if (alreadyPlaced) {
+      const duplicate = window.confirm(
+        `'${card.name}' 카드는 이미 배치되어 있어요. 새 카드로 복제해서 한 번 더 배치할까요?`
+      );
+      if (!duplicate) return;
+      try {
+        const created = await duplicateCardMutation.mutateAsync(cardId);
+        const clonedCard = cardToStockCard(created);
+        setGroups((prev) =>
+          prev.map((g) =>
+            g.id === group.id ? { ...g, cards: [...g.cards, clonedCard] } : g
+          )
+        );
+        setDays((prev) =>
+          prev.map((day) =>
+            day.id === targetDayId
+              ? {
+                  ...day,
+                  cards: insertAt(
+                    day.cards,
+                    toScheduledCard(clonedCard),
+                    targetIndex
+                  ),
+                }
+              : day
+          )
+        );
+        setNotice(`'${card.name}' 카드를 복제해서 배치했어요.`);
+      } catch (error) {
+        const message = errorMessageOf(error, '카드 복제에 실패했습니다.');
+        setActionError(
+          message.includes('404')
+            ? '카드 복제 API를 찾지 못했어요. 백엔드 배포 상태를 확인해 주세요.'
+            : message
+        );
+      }
+      return;
+    }
     setDays((prev) =>
       prev.map((day) =>
         day.id === targetDayId
@@ -309,7 +378,7 @@ const ArrangePage = () => {
     targetIndex?: number
   ) => {
     if (payload.fromDayId === null) {
-      placeFromList(payload.cardId, targetDayId, targetIndex);
+      void placeFromList(payload.cardId, targetDayId, targetIndex);
     } else {
       moveBetweenDays(
         { cardId: payload.cardId, fromDayId: payload.fromDayId },
@@ -331,9 +400,6 @@ const ArrangePage = () => {
       return;
     }
 
-    const saved = originalCardsRef.current.get(cardId);
-    const restored = saved?.card ?? toArrangeCard(scheduled);
-
     setDays((prev) =>
       prev.map((d) =>
         d.id === fromDay!.id
@@ -341,33 +407,12 @@ const ArrangePage = () => {
           : d
       )
     );
-    setGroups((prev) => {
-      // 원래 그룹이 남아 있으면 그곳으로, 아니면 "추가한 카드" 또는 첫 그룹으로 폴백.
-      const originGroupId = saved?.groupId;
-      const targetGroupId =
-        originGroupId && prev.some((g) => g.id === originGroupId)
-          ? originGroupId
-          : prev.some((g) => g.id === ADDED_GROUP_ID)
-            ? ADDED_GROUP_ID
-            : prev[0]?.id;
-      if (targetGroupId) {
-        return prev.map((g) =>
-          g.id === targetGroupId ? { ...g, cards: [...g.cards, restored] } : g
-        );
-      }
-      // 좌측이 완전히 비어 있던 경우 새 그룹 생성.
-      return [
-        {
-          id: 'restored',
-          title: '카드 목록',
-          description: '다시 Day에 배치할 수 있어요.',
-          cards: [restored],
-        },
-      ];
-    });
-    originalCardsRef.current.delete(cardId);
     setDraggingCardId(null);
     setConfirmed(false);
+  };
+
+  const openScheduledCardDetail = (card: ScheduledCardViewModel) => {
+    openCardDetail(toArrangeCardFromScheduled(card));
   };
 
   // 모달에서 추가한 카드 → 서버 저장 후 좌측 "추가한 카드" 그룹에 올린다.
@@ -437,9 +482,59 @@ const ArrangePage = () => {
     }
   };
 
+  const handleSaveDisplay = async (payload: CardPatchRequest) => {
+    if (!tripId || !detailCard) return;
+    setActionError(null);
+    try {
+      const updated = await patchCardMutation.mutateAsync({
+        instanceId: detailCard.id,
+        payload,
+      });
+      applyUpdatedCardLocally(updated);
+      setDetailOpen(false);
+    } catch (error) {
+      setActionError(errorMessageOf(error, '카드 수정에 실패했습니다.'));
+    }
+  };
+
+  const handleToggleInclusion = async (included: boolean) => {
+    if (!tripId || !detailCard) return;
+    const instanceId = detailCard.id;
+    setActionError(null);
+    try {
+      await patchCardMutation.mutateAsync({
+        instanceId,
+        payload: { is_excluded: !included },
+      });
+      if (!included) {
+        setDays((prev) =>
+          prev.map((day) => ({
+            ...day,
+            cards: day.cards.filter((card) => card.id !== instanceId),
+          }))
+        );
+      }
+      await refreshLeftGroupsPreservingBoard();
+      setDetailOpen(false);
+      setNotice(
+        included
+          ? '카드를 다시 일정 후보에 포함했어요.'
+          : '카드를 이번 여행 일정에서 제외했어요.'
+      );
+      setConfirmed(false);
+    } catch (error) {
+      setActionError(
+        errorMessageOf(
+          error,
+          included ? '복원 처리에 실패했습니다.' : '제외 처리에 실패했습니다.'
+        )
+      );
+    }
+  };
+
   // 좌측 그룹을 서버 최신(groups04)으로 다시 그린다.
-  // 단, 우측 보드에 배치(로컬·미저장)된 카드는 좌측에 다시 나타나지 않도록 제외해
-  // "mutation 후 query invalidate 안 함" 불변식(미저장 배치 보존)을 깨지 않는다.
+  // Day 보드는 로컬 미저장 배치를 보존하되, 이미 배치된 카드의 표시 상태는 서버 최신값으로 동기화한다.
+  // 좌측 Stock 은 배치된 카드도 계속 노출한다.
   const refreshLeftGroupsPreservingBoard = async (): Promise<{
     groups: ArrangeCardGroup[];
     unavailableIds: Set<string>;
@@ -449,20 +544,49 @@ const ArrangePage = () => {
       fetchGroups04(tripId),
       fetchCards(tripId),
     ]);
-    const placedIds = new Set(
-      daysRef.current.flatMap((day) => day.cards.map((card) => card.id))
-    );
-    const fresh = mapToArrangeViewModel(groupsRes, cardsRes, meta).groups.map(
-      (group) => ({
-        ...group,
-        cards: group.cards.filter((card) => !placedIds.has(card.id)),
-      })
+    const fresh = mapToArrangeViewModel(groupsRes, cardsRes, meta).groups;
+    const cardsById = new Map(
+      cardsRes.cards.map((card) => [card.instance_id, card])
     );
     setGroups(fresh);
+    setDays((prev) =>
+      prev.map((day) => ({
+        ...day,
+        cards: day.cards.map((card) => {
+          const latest = cardsById.get(card.id);
+          return latest ? toUpdatedScheduledCard(latest, card) : card;
+        }),
+      }))
+    );
     return {
       groups: fresh,
       unavailableIds: new Set(groupsRes.unavailable.map((c) => c.instance_id)),
     };
+  };
+
+  const applyUpdatedCardLocally = (updated: Card) => {
+    const updatedStockCard = cardToStockCard(updated);
+    setGroups((prev) =>
+      prev.map((group) => ({
+        ...group,
+        cards: group.cards.map((card) =>
+          card.id === updated.instance_id ? updatedStockCard : card
+        ),
+      }))
+    );
+    setDays((prev) =>
+      prev.map((day) => ({
+        ...day,
+        cards: day.cards.map((card) =>
+          card.id === updated.instance_id
+            ? toUpdatedScheduledCard(updated, card)
+            : card
+        ),
+      }))
+    );
+    if (detailCardIdRef.current === updated.instance_id) {
+      setDetailCard(updatedStockCard);
+    }
   };
 
   // 재처리 폴링 공통 로직: patchCard 완료 후 instanceId 카드가 processing 을 벗어날 때까지
@@ -516,6 +640,25 @@ const ArrangePage = () => {
     timer = setTimeout(tick, POLL_INTERVAL_MS);
   };
 
+  const hasBackgroundProcessing = (cardsQuery.data?.cards ?? []).some(
+    (card) => card.processing_status === 'processing'
+  );
+
+  useEffect(() => {
+    if (!tripId || !hasBackgroundProcessing) return;
+    let cancelled = false;
+    const timer = setInterval(() => {
+      if (cancelled) return;
+      void refreshLeftGroupsPreservingBoard();
+      void cardsQuery.refetch();
+      void groups04Query.refetch();
+    }, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [tripId, hasBackgroundProcessing, cardsQuery, groups04Query]);
+
   // 처리필요 카드 해결 — 자연어(notes) 보완 입력으로 AI 재파싱 트리거.
   const handleResolveByNotes = async (notes: string) => {
     if (!tripId || !detailCard) return;
@@ -524,7 +667,12 @@ const ArrangePage = () => {
     setResolving(true);
     resolvePollRef.current?.();
     try {
-      await patchCardMutation.mutateAsync({ instanceId, payload: { notes } });
+      const updated = await patchCardMutation.mutateAsync({
+        instanceId,
+        payload: { notes },
+      });
+      applyUpdatedCardLocally(updated);
+      setDetailOpen(false);
     } catch (error) {
       setResolving(false);
       setResolveError(errorMessageOf(error, '재처리 요청에 실패했습니다.'));
@@ -586,6 +734,25 @@ const ArrangePage = () => {
     startResolvePoll(instanceId);
   };
 
+  const handleConfirmSelection = async (payload: {
+    choices: string[];
+    answer: string;
+  }) => {
+    if (!tripId || !detailCard) return;
+    const selectedText = [...payload.choices, payload.answer]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .join(', ');
+    const notes = buildSelectionNotes({
+      cardName: detailCard.name,
+      selectedText,
+      destinations: meta.destinations,
+      region: detailCard.detail?.region,
+      userIntent: detailCard.detail?.userIntent,
+    });
+    await handleResolveByNotes(notes);
+  };
+
   // 정리 반영 — POST /groups/reorder. "재정렬이 필요한 카드"를 클러스터로 재편입한 뒤
   // 좌측 목록만 갱신한다. 이미 Day 에 배치(로컬·미저장)한 카드는 그대로 둔다.
   const handleReorder = async () => {
@@ -596,17 +763,7 @@ const ArrangePage = () => {
       const fresh = await reorderMutation.mutateAsync();
       // 좌측 그룹(vm.groups)만 갱신한다. Day 보드는 로컬 상태를 유지한다.
       const vm = mapToArrangeViewModel(fresh, cardsQuery.data, meta);
-      const placedIds = new Set(
-        days.flatMap((day) => day.cards).map((card) => card.id)
-      );
-      setGroups(
-        vm.groups
-          .map((group) => ({
-            ...group,
-            cards: group.cards.filter((card) => !placedIds.has(card.id)),
-          }))
-          .filter((group) => group.cards.length > 0)
-      );
+      setGroups(vm.groups.filter((group) => group.cards.length > 0));
       setNotice('카드를 다시 정리했어요.');
     } catch (error) {
       setActionError(errorMessageOf(error, '카드 정리에 실패했습니다.'));
@@ -722,6 +879,7 @@ const ArrangePage = () => {
     verifyMutation.isPending ||
     confirmMutation.isPending ||
     addCardMutation.isPending ||
+    duplicateCardMutation.isPending ||
     reorderMutation.isPending;
 
   // "재정렬이 필요한 카드" 그룹이 있을 때만 정리 반영 버튼을 노출한다.
@@ -732,6 +890,7 @@ const ArrangePage = () => {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-muted">
       <Header
+        fluid
         currentStepId="arrange"
         destination={summary.destination}
         extraDestinations={summary.extraDestinations}
@@ -743,7 +902,7 @@ const ArrangePage = () => {
             onClick={() => setAddCardOpen(true)}
             disabled={!tripId || busy}
           >
-            <Plus className="size-4" aria-hidden="true" />
+            <Plus aria-hidden="true" />
             카드 추가하기
           </Button>
         }
@@ -821,6 +980,7 @@ const ArrangePage = () => {
               groups={groups}
               onSelectCard={openCardDetail}
               draggingCardId={draggingCardId}
+              placedCardIds={placedCardIds}
               dragActive={draggingCardId !== null}
               onDragCardStart={setDraggingCardId}
               onDragCardEnd={() => setDraggingCardId(null)}
@@ -836,6 +996,8 @@ const ArrangePage = () => {
                     {...day}
                     dragActive={draggingCardId !== null}
                     draggingCardId={draggingCardId}
+                    onSelectCard={openScheduledCardDetail}
+                    onRemoveCard={returnCardToList}
                     onCardDragStart={setDraggingCardId}
                     onCardDragEnd={() => setDraggingCardId(null)}
                     onDropCard={(payload, index) =>
@@ -879,12 +1041,15 @@ const ArrangePage = () => {
       </footer>
 
       {/* 카드 클릭 시 우측에서 열리는 상세 패널 */}
-      <ArrangeCardDetailPanel
+      <CardDetailPanel
         open={detailOpen}
         onOpenChange={setDetailOpen}
         card={detailCard}
         onSaveMemo={handleSaveMemo}
-        onResolveByNotes={handleResolveByNotes}
+        onSaveDisplay={handleSaveDisplay}
+        onExclude={() => void handleToggleInclusion(false)}
+        onInclude={() => void handleToggleInclusion(true)}
+        onConfirmSelection={(payload) => void handleConfirmSelection(payload)}
         onResolveByStructuredEdit={handleResolveByStructuredEdit}
         onSelectProcess={handleSelectProcess}
         resolving={resolving}
@@ -895,6 +1060,8 @@ const ArrangePage = () => {
       <AddCardModal
         open={addCardOpen}
         onOpenChange={setAddCardOpen}
+        tripStartDate={detail?.start_date}
+        travelDays={detail?.travel_days}
         onSubmit={handleAddCard}
       />
     </div>

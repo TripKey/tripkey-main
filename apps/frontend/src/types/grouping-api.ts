@@ -94,6 +94,12 @@ export type CardAddRequest = {
   check_in?: string;
   check_out?: string;
   flight_number?: string;
+  flight_datetime?: string;
+  flight_role?: 'outbound' | 'inbound' | 'middle';
+  departure_airport?: string;
+  arrival_airport?: string;
+  parse_mode?: 'manual' | 'ai_request';
+  natural_language_input?: string;
 };
 
 export type CardPatchRequest = {
@@ -102,6 +108,8 @@ export type CardPatchRequest = {
   is_excluded?: boolean;
   notes?: string;
   memo?: string;
+  name?: string;
+  estimated_duration_min?: number;
   check_in?: string;
   check_out?: string;
   flight_number?: string;

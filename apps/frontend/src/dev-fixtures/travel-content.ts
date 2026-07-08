@@ -1,9 +1,3 @@
-// 메인 랜딩 페이지용 목(mock) 데이터.
-import bangkokImage from '@/assets/bangkok.jpg';
-import danangImage from '@/assets/danang.jpg';
-import kyotoImage from '@/assets/kyoto.jpg';
-import osakaImage from '@/assets/osaka.jpg';
-
 export type DestinationItem = {
   id: string;
   name: string;
@@ -20,46 +14,98 @@ export type TravelTip = {
 
 export const FEATURED_DESTINATIONS: DestinationItem[] = [
   {
-    id: 'kyoto',
-    name: '교토',
-    country: '일본',
-    tagline: '천년 고도의 사찰과 골목',
-    image: kyotoImage,
-  },
-  {
     id: 'osaka',
     name: '오사카',
     country: '일본',
     tagline: '먹고 즐기는 미식의 도시',
-    image: osakaImage,
+    image:
+      'https://images.pexels.com/photos/35183439/pexels-photo-35183439.jpeg',
+  },
+  {
+    id: 'tokyo',
+    name: '도쿄',
+    country: '일본',
+    tagline: '전통과 미래가 공존하는 대도시',
+    image:
+      'https://images.pexels.com/photos/32276362/pexels-photo-32276362.jpeg',
+  },
+  {
+    id: 'kyoto',
+    name: '교토',
+    country: '일본',
+    tagline: '천년 고도의 사찰과 골목',
+    image:
+      'https://images.pexels.com/photos/20704787/pexels-photo-20704787.jpeg',
+  },
+  {
+    id: 'fukuoka',
+    name: '후쿠오카',
+    country: '일본',
+    tagline: '라멘과 바다가 어우러진 도시',
+    image: 'https://images.pexels.com/photos/7115326/pexels-photo-7115326.jpeg',
   },
   {
     id: 'bangkok',
     name: '방콕',
     country: '태국',
     tagline: '활기 넘치는 야시장과 사원',
-    image: bangkokImage,
+    image:
+      'https://images.pexels.com/photos/37751824/pexels-photo-37751824.jpeg',
+  },
+  {
+    id: 'hanoi',
+    name: '하노이',
+    country: '베트남',
+    tagline: '호수와 올드쿼터의 매력',
+    image:
+      'https://images.pexels.com/photos/33599582/pexels-photo-33599582.jpeg',
   },
   {
     id: 'danang',
     name: '다낭',
     country: '베트남',
     tagline: '해변과 리조트의 휴양지',
-    image: danangImage,
+    image:
+      'https://images.pexels.com/photos/26742984/pexels-photo-26742984.jpeg',
+  },
+  {
+    id: 'singapore',
+    name: '싱가포르',
+    country: '싱가포르',
+    tagline: '도심과 자연이 조화를 이루는 도시',
+    image:
+      'https://images.pexels.com/photos/28539711/pexels-photo-28539711.jpeg',
   },
   {
     id: 'taipei',
     name: '타이베이',
     country: '대만',
     tagline: '야시장과 차 문화의 매력',
-    image: 'https://picsum.photos/seed/taipei/800/400',
+    image:
+      'https://images.pexels.com/photos/17522451/pexels-photo-17522451.jpeg',
   },
   {
     id: 'paris',
     name: '파리',
     country: '프랑스',
     tagline: '예술과 낭만의 도시',
-    image: 'https://picsum.photos/seed/paris/800/400',
+    image:
+      'https://images.pexels.com/photos/31669723/pexels-photo-31669723.jpeg',
+  },
+  {
+    id: 'london',
+    name: '런던',
+    country: '영국',
+    tagline: '역사와 현대가 공존하는 도시',
+    image:
+      'https://images.pexels.com/photos/28701646/pexels-photo-28701646.jpeg',
+  },
+  {
+    id: 'new-york',
+    name: '뉴욕',
+    country: '미국',
+    tagline: '잠들지 않는 세계의 도시',
+    image: 'https://images.pexels.com/photos/5062133/pexels-photo-5062133.jpeg',
   },
 ];
 

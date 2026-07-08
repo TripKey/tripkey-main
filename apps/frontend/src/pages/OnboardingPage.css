@@ -5,23 +5,6 @@
   justify-content: center;
 }
 
-.onboarding-page__header {
-  margin-bottom: 8px;
-}
-
-.onboarding-page__title {
-  font-size: 22px;
-  font-weight: 700;
-  color: #111827;
-  margin: 0 0 6px 0;
-}
-
-.onboarding-page__desc {
-  font-size: 14px;
-  color: #6b7280;
-  margin: 0;
-}
-
 .onboarding-page__body {
   display: flex;
   flex-direction: column;
@@ -46,8 +29,9 @@
   width: 380px;
   padding: 40px 24px;
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: 136px;
+  align-self: flex-start;
+  height: fit-content;
 }
 
 .onboarding-page__card {

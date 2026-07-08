@@ -23,6 +23,37 @@ public record CardPatchRequest(
         @Schema(description = "숙소 또는 교통 카드의 위치 정보")
         String location,
         @Schema(description = "교통 카드의 시간 제약")
-        String timeConstraint
+        String timeConstraint,
+        @Schema(description = "사용자가 보는 카드 이름. 저장만 수행하며 AI 파싱을 트리거하지 않음")
+        String name,
+        @Schema(description = "사용자가 보는 예상 소요 시간(분). 저장만 수행하며 AI 파싱을 트리거하지 않음")
+        Short estimatedDurationMin
 ) {
+    public CardPatchRequest(
+            Boolean allowDuplicate,
+            String classification,
+            Boolean isExcluded,
+            String notes,
+            String memo,
+            String checkIn,
+            String checkOut,
+            String flightNumber,
+            String location,
+            String timeConstraint
+    ) {
+        this(
+                allowDuplicate,
+                classification,
+                isExcluded,
+                notes,
+                memo,
+                checkIn,
+                checkOut,
+                flightNumber,
+                location,
+                timeConstraint,
+                null,
+                null
+        );
+    }
 }

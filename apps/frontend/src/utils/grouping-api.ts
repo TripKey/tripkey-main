@@ -47,6 +47,16 @@ export const addCard = async (
   return response.data;
 };
 
+export const duplicateCard = async (
+  tripId: string,
+  instanceId: string
+): Promise<Card> => {
+  const response = await apiClient.post<Card>(
+    API_PATH.DUPLICATE_CARD(tripId, instanceId)
+  );
+  return response.data;
+};
+
 export const parseGroupingApiError = (error: unknown): ApiErrorBody | null => {
   if (!axios.isAxiosError(error)) {
     return null;

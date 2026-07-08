@@ -274,7 +274,9 @@ public class PlaceCard {
         if (departureAirport != null && arrivalAirport != null) {
             return departureAirport + " → " + arrivalAirport;
         }
-        String label = "inbound".equals(flightRole) ? "귀국편" : "출발편";
+        String label = "outbound".equals(flightRole)
+                ? "출발편"
+                : "inbound".equals(flightRole) ? "귀국편" : "항공편";
         if (flightNumber != null) {
             return flightNumber + " " + label;
         }
@@ -299,6 +301,9 @@ public class PlaceCard {
 
     public void setExcluded(boolean excluded) {
         this.isExcluded = excluded;
+        if (excluded) {
+            clearDayPlacement();
+        }
     }
 
     public void setAllowDuplicate(boolean value) {
@@ -311,6 +316,16 @@ public class PlaceCard {
 
     public void updateMemo(String memo) {
         this.memo = trimToNull(memo);
+    }
+
+    public void updateDisplayFields(String name, Short estimatedDurationMin) {
+        String normalizedName = trimToNull(name);
+        if (normalizedName != null) {
+            this.name = normalizedName;
+        }
+        if (estimatedDurationMin != null) {
+            this.estimatedDurationMin = estimatedDurationMin;
+        }
     }
 
     /** 좌표 확보를 위해 Places 재처리(lookup)가 필요한 카테고리인지. transport/etc 는 좌표 불필요. */
@@ -329,6 +344,47 @@ public class PlaceCard {
     public void clearDayPlacement() {
         this.day = null;
         this.dayOrder = null;
+    }
+
+    public PlaceCard duplicateForPlacement() {
+        PlaceCard card = new PlaceCard();
+        card.tripId = this.tripId;
+        card.placeId = this.placeId;
+        card.name = this.name;
+        card.category = this.category;
+        card.classification = this.classification;
+        card.placementStatus = this.placementStatus;
+        card.processingStatus = this.processingStatus;
+        card.actionType = this.actionType;
+        card.canExclude = this.canExclude;
+        card.allowDuplicate = this.allowDuplicate;
+        card.isExcluded = false;
+        card.isAiGenerated = this.isAiGenerated;
+        card.pendingReorder = false;
+        card.estimatedDurationMin = this.estimatedDurationMin;
+        card.lat = this.lat;
+        card.lng = this.lng;
+        card.location = this.location;
+        card.address = this.address;
+        card.timeConstraint = this.timeConstraint;
+        card.userContext = this.userContext;
+        card.tips = this.tips;
+        card.questionText = this.questionText;
+        card.options = this.options == null ? null : List.copyOf(this.options);
+        card.blockedReason = this.blockedReason;
+        card.tags = this.tags == null ? null : List.copyOf(this.tags);
+        card.source = this.source;
+        card.notes = this.notes;
+        card.memo = this.memo;
+        card.checkIn = this.checkIn;
+        card.checkOut = this.checkOut;
+        card.flightNumber = this.flightNumber;
+        card.flightDatetime = this.flightDatetime;
+        card.flightRole = this.flightRole;
+        card.departureAirport = this.departureAirport;
+        card.arrivalAirport = this.arrivalAirport;
+        card.searchAlias = this.searchAlias;
+        return card;
     }
 
     /**
@@ -488,6 +544,13 @@ public class PlaceCard {
     }
 
     public void markProcessing() {
+        this.processingStatus = "processing";
+        recomputeActionType();
+    }
+
+    public void markAiRequestPending() {
+        this.classification = "undecided";
+        this.placementStatus = "needs_input";
         this.processingStatus = "processing";
         recomputeActionType();
     }

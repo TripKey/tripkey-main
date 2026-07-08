@@ -25,6 +25,53 @@ public record CardAddRequest(
 
         String checkOut,
 
-        String flightNumber
+        String flightNumber,
+
+        String flightDatetime,
+
+        @Pattern(regexp = "outbound|inbound|middle",
+                message = "flightRole은 outbound / inbound / middle 중 하나여야 해요")
+        String flightRole,
+
+        String departureAirport,
+
+        String arrivalAirport,
+
+        @Pattern(regexp = "manual|ai_request",
+                message = "parseMode는 manual / ai_request 중 하나여야 해요")
+        String parseMode,
+
+        String naturalLanguageInput
 ) {
+        public CardAddRequest(
+                String name,
+                String category,
+                String location,
+                Short estimatedDurationMin,
+                String timeConstraint,
+                String memo,
+                String checkIn,
+                String checkOut,
+                String flightNumber,
+                String parseMode,
+                String naturalLanguageInput
+        ) {
+                this(
+                        name,
+                        category,
+                        location,
+                        estimatedDurationMin,
+                        timeConstraint,
+                        memo,
+                        checkIn,
+                        checkOut,
+                        flightNumber,
+                        null,
+                        null,
+                        null,
+                        null,
+                        parseMode,
+                        naturalLanguageInput
+                );
+        }
 }
