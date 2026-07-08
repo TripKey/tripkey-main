@@ -18,7 +18,6 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   FEATURED_DESTINATIONS,
-  SERVICE_FEATURES,
   TRAVEL_TIPS,
 } from '@/dev-fixtures/travel-content';
 import { useReveal } from '@/hooks/useReveal';
@@ -168,7 +167,6 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
   // 스크롤로 들어올 때 등장시킬 섹션들.
   const preview = useReveal<HTMLElement>();
   const features = useReveal<HTMLElement>();
-  const destinations = useReveal<HTMLDivElement>();
   const tips = useReveal<HTMLDivElement>();
 
   // 기능 카루셀 자동 슬라이드 (hover/터치 시 멈춤, 끝나면 처음으로, 모션 민감 사용자는 제외).
@@ -486,38 +484,48 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
         </div>
       </section>
 
-      {/* 기능 소개 — 옆으로 넘기는 카루셀 */}
       <section
         ref={features.ref}
         className={cn('mx-auto max-w-6xl px-6 py-16', reveal(features.shown))}
       >
-        <h2 className="text-2xl font-bold tracking-tight">
-          TripKey로 할 수 있는 것
+        <h2 className="text-3xl font-bold tracking-tight sm:text-3xl">
+          추천 여행지
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">옆으로 넘겨보세요</p>
+
+        <p className="mt-3 text-base text-muted-foreground">
+          옆으로 넘겨보며 다음 여행지를 찾아보세요
+        </p>
         <div
           ref={carouselRef}
           className="mt-8 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-4 scrollbar-none"
         >
-          {SERVICE_FEATURES.map((feature) => (
+          {FEATURED_DESTINATIONS.map((dest) => (
             <div
-              key={feature.id}
-              className={cn(
-                'flex h-96 w-72 shrink-0 snap-center flex-col rounded-3xl p-7',
-                feature.bg
-              )}
+              key={dest.id}
+              className="group relative h-96 w-80 shrink-0 snap-center overflow-hidden rounded-3xl"
             >
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-neutral-900">
-                  {feature.title}
-                </h3>
-                <p className="mt-3 text-sm leading-relaxed text-neutral-700">
-                  {feature.description}
-                </p>
+              <img
+                src={dest.image}
+                alt={dest.name}
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+
+              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-6">
+                <div>
+                  <h3 className="text-2xl font-bold text-white">{dest.name}</h3>
+                  <p className="mt-2 text-sm text-white/85">{dest.tagline}</p>
+                </div>
+
+                <span className="shrink-0 rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur">
+                  {dest.country}
+                </span>
               </div>
             </div>
           ))}
         </div>
+
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
@@ -527,6 +535,7 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
           >
             <ChevronLeft className="size-5" />
           </button>
+
           <button
             type="button"
             aria-label="다음"
@@ -538,52 +547,19 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
         </div>
       </section>
 
-      {/* 추천 여행지 */}
-      <section className="mx-auto max-w-3xl px-6 py-16">
-        <h2 className="text-2xl font-bold tracking-tight">추천 여행지</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          요즘 인기 있는 여행지를 둘러보세요
-        </p>
-        <div ref={destinations.ref} className="mt-8 flex flex-col gap-5">
-          {FEATURED_DESTINATIONS.slice(0, 4).map((dest, i) => (
-            <div
-              key={dest.id}
-              style={{ transitionDelay: `${i * 100}ms` }}
-              className={reveal(destinations.shown)}
-            >
-              <div className="group relative h-72 overflow-hidden rounded-2xl shadow-sm transition-shadow hover:shadow-xl">
-                <img
-                  src={dest.image}
-                  alt={dest.name}
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-linear-to-t from-black/75 via-black/15 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-6">
-                  <div>
-                    <p className="text-2xl font-bold text-white">{dest.name}</p>
-                    <p className="mt-1 text-sm text-white/85">{dest.tagline}</p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                    {dest.country}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* 여행 팁 */}
       <section className="bg-muted/30 py-16">
         <div
           ref={tips.ref}
-          className={cn('mx-auto max-w-5xl px-6', reveal(tips.shown))}
+          className={cn('mx-auto max-w-6xl px-6', reveal(tips.shown))}
         >
-          <h2 className="text-2xl font-bold tracking-tight">여행 팁</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h2 className="text-3xl font-bold tracking-tight sm:text-3xl">
+            여행 팁
+          </h2>
+          <p className="mt-3 text-base text-muted-foreground">
             떠나기 전 알아두면 좋은 것들
           </p>
-          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="mx-auto mt-8 max-w-5xl grid grid-cols-1 gap-4 sm:grid-cols-3">
             {TRAVEL_TIPS.map((tip) => {
               const Icon = TIP_ICONS[tip.id] ?? Lightbulb;
               return (
