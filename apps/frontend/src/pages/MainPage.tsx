@@ -1,14 +1,17 @@
 import {
+  Activity,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Clock,
   Lightbulb,
   Luggage,
   type LucideIcon,
   MapPin,
   Plane,
   Route,
+  Utensils,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -27,6 +30,105 @@ const TIP_ICONS: Record<string, LucideIcon> = {
   'tip-pack': Luggage,
   'tip-route': Route,
 };
+
+// 미리보기 섹션 왼쪽에 세로로 나열하는 서비스 강점 3가지
+const STRENGTHS = [
+  {
+    dot: 'bg-indigo-500',
+    title: '자유롭게 기록하세요',
+    desc: '여행은 완벽한 계획보다 떠오르는 생각에서 시작됩니다.\n\n가고 싶은 장소, 저장해 둔 링크, 친구가 추천한 맛집까지 형식 없이 적어보세요. AI가 내용을 이해해 여행 카드로 정리하고, 흩어진 아이디어를 하나의 여행으로 연결합니다.',
+  },
+  {
+    dot: 'bg-violet-500',
+    title: 'AI가 대신 정리합니다',
+    desc: '메모만 많아지고 정리는 늘 뒤로 미뤄지곤 합니다.\n\nTripKey는 비슷한 장소를 자동으로 묶고, 부족한 정보는 보완하여 보기 쉬운 여행 카드로 정리합니다. 여러 곳에 흩어진 정보도 한눈에 확인할 수 있습니다.',
+  },
+  {
+    dot: 'bg-fuchsia-500',
+    title: '이동까지 고려합니다',
+    desc: '좋은 여행은 이동보다 경험이 더 많아야 합니다.\n\nAI가 장소 간 거리와 이동 시간을 고려해 날짜별 일정을 자동으로 구성하고, 불필요한 이동을 줄인 효율적인 동선을 제안합니다.',
+  },
+];
+
+// 1번 강점 목업 — 흩어진 메모 칩
+const DUMP_NOTES = [
+  {
+    text: '오사카 3박 4일',
+    color: 'bg-amber-100 text-amber-900',
+    rotate: '-rotate-3',
+  },
+  {
+    text: '쿠로몬 시장',
+    color: 'bg-pink-100 text-pink-900',
+    rotate: 'rotate-2',
+  },
+  { text: '느긋하게', color: 'bg-sky-100 text-sky-900', rotate: '-rotate-1' },
+  {
+    text: '감성 카페 위주',
+    color: 'bg-violet-100 text-violet-900',
+    rotate: 'rotate-3',
+  },
+  {
+    text: '오사카성 꼭!',
+    color: 'bg-lime-100 text-lime-900',
+    rotate: '-rotate-2',
+  },
+  {
+    text: '밤엔 이자카야',
+    color: 'bg-amber-100 text-amber-900',
+    rotate: 'rotate-1',
+  },
+];
+
+// 제품 미리보기 목업 — 실제 PlaceCard 디자인을 그대로 반영
+const CARD_ACCENT = {
+  blue: 'bg-blue-500',
+  green: 'bg-green-500',
+  amber: 'bg-amber-500',
+} as const;
+
+const CARD_CATEGORY = {
+  food: { icon: Utensils, label: '맛집' },
+  place: { icon: MapPin, label: '장소' },
+  activity: { icon: Activity, label: '활동' },
+} as const;
+
+const PREVIEW_CARDS: {
+  name: string;
+  region: string;
+  duration: string;
+  category: keyof typeof CARD_CATEGORY;
+  accent: keyof typeof CARD_ACCENT;
+}[] = [
+  {
+    name: '쿠로몬 시장',
+    region: '닛폰바시',
+    duration: '1시간',
+    category: 'food',
+    accent: 'green',
+  },
+  {
+    name: '오사카성 공원',
+    region: '오사카성',
+    duration: '1시간 30분',
+    category: 'place',
+    accent: 'blue',
+  },
+  {
+    name: '나카노시마 강변 산책로',
+    region: '나카노시마',
+    duration: '40분',
+    category: 'activity',
+    accent: 'amber',
+  },
+  {
+    name: '우라난바 이자카야',
+    region: '우라난바',
+    duration: '1시간 30분',
+    category: 'food',
+    accent: 'green',
+  },
+];
 
 const reveal = (shown: boolean) =>
   cn(
@@ -65,6 +167,7 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
   useEffect(() => setHeroIn(true), []);
 
   // 스크롤로 들어올 때 등장시킬 섹션들.
+  const preview = useReveal<HTMLElement>();
   const features = useReveal<HTMLElement>();
   const destinations = useReveal<HTMLDivElement>();
   const tips = useReveal<HTMLDivElement>();
@@ -160,7 +263,7 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
             <MapPin className="size-3.5" aria-hidden="true" />
             TripKey · AI 여행 플래너
           </span>
-          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
+          <h1 className="text-4xl font-extrabold leading-tight tracking-tight sm:text-7xl">
             여행 계획, 더 쉽게
           </h1>
           <p className="mt-5 max-w-xl text-lg text-muted-foreground">
@@ -185,6 +288,202 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
           className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce text-muted-foreground"
         >
           <ChevronDown className="size-8" />
+        </div>
+      </section>
+
+      {/* 던지면 이렇게 정리돼요 — 왼쪽 강점 3가지 + 오른쪽 실제 카드 */}
+      <section
+        ref={preview.ref}
+        className={cn('mx-auto max-w-6xl px-6 py-20', reveal(preview.shown))}
+      >
+        <div className="text-center">
+          <h2 className="text-4xl font-bold tracking-tight sm:text-4xl">
+            던지면,{' '}
+            <span className="mx1 font-extrabold text-primary">알아서</span>{' '}
+            정리되는 여행
+          </h2>
+
+          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
+            형식 없이 기록하기만 하면,
+            <br />
+            TripKey가 정리부터 동선까지 대신 완성해드립니다.
+          </p>
+        </div>
+
+        <div className="mt-16 space-y-16 lg:space-y-36">
+          {/* 1. 자유롭게 던지기 — 흩어진 메모 칩 */}
+          <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
+            <div>
+              <span
+                aria-hidden="true"
+                className="inline-block size-2.5 rounded-full bg-indigo-500"
+              />
+              <h3 className="mt-3 text-2xl font-bold tracking-tight">
+                자유롭게 기록하세요
+              </h3>
+              <p className="mt-3 whitespace-pre-line text-[15px] leading-relaxed text-muted-foreground">
+                {STRENGTHS[0].desc}
+              </p>
+            </div>
+            <div className="relative">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -inset-6 -z-10 rounded-[2.5rem] bg-gradient-to-br from-indigo-400/30 via-sky-400/15 to-transparent blur-2xl"
+              />
+              <div className="rounded-3xl border border-border bg-background p-6 shadow-xl">
+                <div className="flex flex-wrap gap-2.5">
+                  {DUMP_NOTES.map((note) => (
+                    <span
+                      key={note.text}
+                      className={cn(
+                        'rounded-md px-3 py-2 text-sm font-medium shadow-sm',
+                        note.color,
+                        note.rotate
+                      )}
+                    >
+                      {note.text}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. 똑똑한 정리 — 정리된 카드 (좌우 반전) */}
+          <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
+            <div className="lg:order-2">
+              <span
+                aria-hidden="true"
+                className="inline-block size-2.5 rounded-full bg-violet-500"
+              />
+              <h3 className="mt-3 text-2xl font-bold tracking-tight">
+                AI가 대신 정리합니다
+              </h3>
+              <p className="mt-3 whitespace-pre-line text-[15px] leading-relaxed text-muted-foreground">
+                {STRENGTHS[1].desc}
+              </p>
+            </div>
+            <div className="relative lg:order-1">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -inset-6 -z-10 rounded-[2.5rem] bg-gradient-to-br from-violet-400/30 via-fuchsia-400/15 to-transparent blur-2xl"
+              />
+              <div className="rounded-3xl border border-border bg-background p-5 shadow-xl">
+                <div className="mb-4 flex items-center justify-between px-1">
+                  <p className="text-sm font-bold">오사카 · 1일차</p>
+                  <span className="rounded-md bg-indigo-50 px-1.5 py-0.5 text-xs font-semibold text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300">
+                    AI 정리 완료
+                  </span>
+                </div>
+                <div className="space-y-2.5">
+                  {PREVIEW_CARDS.slice(0, 3).map((card) => {
+                    const category = CARD_CATEGORY[card.category];
+                    const CategoryIcon = category.icon;
+                    return (
+                      <div
+                        key={card.name}
+                        className="flex overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            'w-1 shrink-0',
+                            CARD_ACCENT[card.accent]
+                          )}
+                        />
+                        <div className="flex flex-1 items-start gap-3 px-4 py-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-foreground">
+                              {card.name}
+                            </p>
+                            <p className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin
+                                  className="size-3.5"
+                                  aria-hidden="true"
+                                />
+                                {card.region}
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <Clock
+                                  className="size-3.5"
+                                  aria-hidden="true"
+                                />
+                                {card.duration}
+                              </span>
+                            </p>
+                          </div>
+                          <span className="inline-flex shrink-0 items-center gap-1 pt-0.5 text-xs font-medium text-muted-foreground">
+                            <CategoryIcon
+                              className="size-3.5"
+                              aria-hidden="true"
+                            />
+                            {category.label}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. 동선 자동 배치 — 날짜별 경로 */}
+          <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
+            <div>
+              <span
+                aria-hidden="true"
+                className="inline-block size-2.5 rounded-full bg-fuchsia-500"
+              />
+              <h3 className="mt-3 text-2xl font-bold tracking-tight">
+                이동까지 고려합니다
+              </h3>
+              <p className="mt-3 whitespace-pre-line text-[15px] leading-relaxed text-muted-foreground">
+                {STRENGTHS[2].desc}
+              </p>
+            </div>
+            <div className="relative">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -inset-6 -z-10 rounded-[2.5rem] bg-gradient-to-br from-fuchsia-400/30 via-pink-400/15 to-transparent blur-2xl"
+              />
+              <div className="flex items-center justify-center rounded-3xl border border-border bg-background p-10 shadow-xl">
+                <div className="flex items-center">
+                  {['1일', '2일', '3일'].map((day, i) => (
+                    <div key={day} className="flex items-center">
+                      <div
+                        className={cn(
+                          'flex size-12 items-center justify-center rounded-full text-sm font-bold text-white',
+                          ['bg-indigo-500', 'bg-violet-500', 'bg-fuchsia-500'][
+                            i
+                          ]
+                        )}
+                      >
+                        {day}
+                      </div>
+                      {i < 2 && (
+                        <span
+                          aria-hidden="true"
+                          className="mx-2 w-10 border-t-2 border-dashed border-border"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-16 text-center">
+          <Button
+            size="lg"
+            onClick={startPlanning}
+            className="h-12 cursor-pointer rounded-full px-8 font-semibold transition-transform hover:bg-primary/90 hover:scale-[1.03] active:scale-95"
+          >
+            내 일정 만들어보기
+          </Button>
         </div>
       </section>
 
