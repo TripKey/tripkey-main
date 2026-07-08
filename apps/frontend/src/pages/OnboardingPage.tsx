@@ -97,127 +97,131 @@ const OnboardingPage = () => {
       <div className="flex min-h-[calc(100vh-8rem)] items-start justify-center bg-linear-to-b from-muted/50 to-background px-4 pt-10 pb-16 sm:pt-14">
         <div
           className={cn(
-            'w-full max-w-5xl overflow-hidden rounded-3xl border border-border bg-card shadow-xl transition-opacity duration-800 ease-out',
+            'w-full max-w-5xl transition-opacity duration-800 ease-out',
             shown ? 'opacity-100' : 'opacity-0'
           )}
         >
-          <div className="grid lg:grid-cols-[1fr_340px]">
-            {/* 좌측: 입력 */}
-            <div className="p-8 sm:p-10">
-              <header>
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                  어디로 떠나볼까요?
-                </h1>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  간단히 알려주면 여행 준비를 시작할게요
-                </p>
-              </header>
+          <header className="mb-6">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              어디로 떠나볼까요?
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              간단히 알려주면 여행 준비를 시작할게요
+            </p>
+          </header>
 
-              <div className="mt-8 flex flex-col gap-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>
-                      여행 이름{' '}
-                      <span className="font-normal text-muted-foreground">
-                        (선택)
-                      </span>
-                    </Label>
-                    <input
-                      value={tripName}
-                      onChange={(e) => setForm({ tripName: e.target.value })}
-                      placeholder="예: 오사카 여행"
-                      className="h-10.5 w-full rounded-xl border border-input bg-background px-3.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                    />
-                  </div>
+          <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
+            <div className="grid lg:grid-cols-[1fr_340px]">
+              {/* 좌측: 입력 */}
+              <div className="p-8 sm:p-10">
+                <div className="flex flex-col gap-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>
+                        여행 이름{' '}
+                        <span className="font-normal text-muted-foreground">
+                          (선택)
+                        </span>
+                      </Label>
+                      <input
+                        value={tripName}
+                        onChange={(e) => setForm({ tripName: e.target.value })}
+                        placeholder="예: 오사카 여행"
+                        className="h-10.5 w-full rounded-xl border border-input bg-background px-3.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                      />
+                    </div>
 
-                  <div>
-                    <Label>인원</Label>
-                    <div className="flex h-10.5 items-center justify-between rounded-xl border border-border px-3">
-                      <button
-                        type="button"
-                        aria-label="인원 감소"
-                        onClick={() => changeTravelers(-1)}
-                        disabled={travelers <= 1}
-                        className="flex size-8 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-muted disabled:opacity-40"
-                      >
-                        <Minus className="size-4" />
-                      </button>
-                      <span className="text-sm font-semibold text-foreground">
-                        {travelers}명
-                      </span>
-                      <button
-                        type="button"
-                        aria-label="인원 증가"
-                        onClick={() => changeTravelers(1)}
-                        className="flex size-8 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-muted"
-                      >
-                        <Plus className="size-4" />
-                      </button>
+                    <div>
+                      <Label>인원</Label>
+                      <div className="flex h-10.5 items-center justify-between rounded-xl border border-border px-3">
+                        <button
+                          type="button"
+                          aria-label="인원 감소"
+                          onClick={() => changeTravelers(-1)}
+                          disabled={travelers <= 1}
+                          className="flex size-8 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                        >
+                          <Minus className="size-4" />
+                        </button>
+                        <span className="text-sm font-semibold text-foreground">
+                          {travelers}명
+                        </span>
+                        <button
+                          type="button"
+                          aria-label="인원 증가"
+                          onClick={() => changeTravelers(1)}
+                          className="flex size-8 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-muted"
+                        >
+                          <Plus className="size-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div>
-                  <Label>여행지</Label>
-                  <DestinationInput placeholder="도시명을 검색하세요" />
-                </div>
+                  <div>
+                    <Label>여행지</Label>
+                    <DestinationInput placeholder="도시명을 검색하세요" />
+                  </div>
 
-                <div>
-                  <Label>일정</Label>
-                  <TripCalendar />
+                  <div>
+                    <Label>일정</Label>
+                    <TripCalendar />
+                  </div>
                 </div>
               </div>
+
+              {/* 우측: 요약 (같은 박스 안에 통합) */}
+              <aside className="flex flex-col border-t border-border bg-muted/20 p-8 lg:border-l lg:border-t-0">
+                <h2 className="text-lg font-bold text-foreground">여행 요약</h2>
+
+                <ul className="mt-5 space-y-4">
+                  <SummaryRow icon={MapPin} label="여행지">
+                    <span className="font-semibold text-foreground">
+                      {destinations.length ? destinations.join(', ') : '-'}
+                    </span>
+                  </SummaryRow>
+                  <SummaryRow icon={Calendar} label="일정">
+                    <span className="font-semibold text-foreground">
+                      {dateRange}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {nights}박 {nights + 1}일
+                    </span>
+                  </SummaryRow>
+                  <SummaryRow icon={User} label="여행 인원">
+                    <span className="font-semibold text-foreground">
+                      {travelers}명
+                    </span>
+                  </SummaryRow>
+                </ul>
+
+                <Separator className="my-5" />
+
+                <ProgressStat
+                  label="입력 완료도"
+                  value={completionPct}
+                  valueLabel={progressValueLabel}
+                />
+
+                <Button
+                  onClick={handleNext}
+                  disabled={isNextDisabled}
+                  className="mt-5 h-11 w-full text-sm font-semibold"
+                >
+                  다음 단계로
+                </Button>
+                {isNextDisabled && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    여행지와 일정을 입력하면 다음 단계로 진행할 수 있어요.
+                  </p>
+                )}
+                {errorMessage && (
+                  <p className="mt-3 text-xs text-destructive">
+                    {errorMessage}
+                  </p>
+                )}
+              </aside>
             </div>
-
-            {/* 우측: 요약 (같은 박스 안에 통합) */}
-            <aside className="flex flex-col border-t border-border bg-muted/20 p-8 lg:border-l lg:border-t-0">
-              <h2 className="text-lg font-bold text-foreground">여행 요약</h2>
-
-              <ul className="mt-5 space-y-4">
-                <SummaryRow icon={MapPin} label="여행지">
-                  <span className="font-semibold text-foreground">
-                    {destinations.length ? destinations.join(', ') : '-'}
-                  </span>
-                </SummaryRow>
-                <SummaryRow icon={Calendar} label="일정">
-                  <span className="font-semibold text-foreground">
-                    {dateRange}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {nights}박 {nights + 1}일
-                  </span>
-                </SummaryRow>
-                <SummaryRow icon={User} label="여행 인원">
-                  <span className="font-semibold text-foreground">
-                    {travelers}명
-                  </span>
-                </SummaryRow>
-              </ul>
-
-              <Separator className="my-5" />
-
-              <ProgressStat
-                label="입력 완료도"
-                value={completionPct}
-                valueLabel={progressValueLabel}
-              />
-
-              <Button
-                onClick={handleNext}
-                disabled={isNextDisabled}
-                className="mt-5 h-11 w-full text-sm font-semibold"
-              >
-                다음 단계로
-              </Button>
-              {isNextDisabled && (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  여행지와 일정을 입력하면 다음 단계로 진행할 수 있어요.
-                </p>
-              )}
-              {errorMessage && (
-                <p className="mt-3 text-xs text-destructive">{errorMessage}</p>
-              )}
-            </aside>
           </div>
         </div>
       </div>
