@@ -42,6 +42,15 @@ public class CardController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @PostMapping("/{instanceId}/duplicate")
+    public ResponseEntity<CardDto> duplicateCard(
+            @PathVariable UUID tripId,
+            @PathVariable UUID instanceId) {
+
+        CardDto created = cardService.duplicateCard(tripId, instanceId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
     @PatchMapping("/{instanceId}")
     @Operation(
             summary = "카드 단건 수정",

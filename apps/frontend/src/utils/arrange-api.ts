@@ -8,7 +8,7 @@ import type {
 import { apiClient } from './api-client';
 import { API_PATH } from './constants';
 
-/** 좌측 "카드 목록"(배치 가능 스톡 + 처리 필요 + 제외) */
+/** 좌측 "카드 목록"(배치 가능 스톡 + 결정/확인 필요 + 제외) */
 export const fetchGroups04 = async (
   tripId: string
 ): Promise<Groups04Response> => {

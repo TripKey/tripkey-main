@@ -14,7 +14,12 @@ import {
   reorderGroups,
   verifyPlacement,
 } from '../utils/arrange-api';
-import { addCard, fetchCards, patchCard } from '../utils/grouping-api';
+import {
+  addCard,
+  duplicateCard,
+  fetchCards,
+  patchCard,
+} from '../utils/grouping-api';
 
 export const arrangeKeys = {
   groups04: (tripId: string) => ['arrange', tripId, 'groups04'] as const,
@@ -66,6 +71,12 @@ export const usePatchCardMutation = (tripId: string | null) =>
 export const useAddCardMutation = (tripId: string | null) =>
   useMutation({
     mutationFn: (payload: CardAddRequest) => addCard(tripId as string, payload),
+  });
+
+export const useDuplicateCardMutation = (tripId: string | null) =>
+  useMutation({
+    mutationFn: (instanceId: string) =>
+      duplicateCard(tripId as string, instanceId),
   });
 
 export const useReorderGroupsMutation = (tripId: string | null) =>

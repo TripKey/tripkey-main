@@ -36,8 +36,8 @@ public interface PlaceCardRepository extends JpaRepository<PlaceCard, UUID> {
             from place_cards
             where trip_id = :tripId
               and is_excluded = false
-              and placement_status in ('ready', 'ready_partial')
-              and processing_status = 'completed'
+              and placement_status <> 'blocked'
+              and processing_status <> 'processing'
               and geom is not null
             """, nativeQuery = true)
     List<Object[]> clusterAvailableCards(

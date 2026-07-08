@@ -245,8 +245,10 @@ export const ItineraryInclusionBox = ({
   included = true,
   onExclude,
   onInclude,
+  disabled = false,
 }: {
   included?: boolean;
+  disabled?: boolean;
   //제외하기 (included=true 일 때만 보임)
   onExclude?: () => void;
   //포함하기(included=false 일 때만 보임)
@@ -269,12 +271,19 @@ export const ItineraryInclusionBox = ({
         variant="outline"
         size="sm"
         className="shrink-0"
+        disabled={disabled}
         onClick={onExclude}
       >
         제외하기
       </Button>
     ) : (
-      <Button type="button" size="sm" className="shrink-0" onClick={onInclude}>
+      <Button
+        type="button"
+        size="sm"
+        className="shrink-0"
+        disabled={disabled}
+        onClick={onInclude}
+      >
         포함하기
       </Button>
     )}
@@ -298,10 +307,12 @@ export const AnswerField = ({
   value,
   onChange,
   placeholder,
+  disabled = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  disabled?: boolean;
 }) => (
   <div className="mt-4">
     <h4 className="text-sm font-semibold text-foreground">질문에 대한 답변</h4>
@@ -309,8 +320,9 @@ export const AnswerField = ({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
+      disabled={disabled}
       rows={3}
-      className="mt-3 w-full resize-none rounded-xl border border-input bg-background px-3.5 py-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
+      className="mt-3 w-full resize-none rounded-xl border border-input bg-background px-3.5 py-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none disabled:opacity-60"
     />
   </div>
 );

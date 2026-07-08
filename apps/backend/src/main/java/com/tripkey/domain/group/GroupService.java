@@ -95,16 +95,16 @@ public class GroupService {
             }
             String placement = card.getPlacementStatus();
             String processing = card.getProcessingStatus();
-            if ("blocked".equals(placement) || "needs_input".equals(placement) || "failed".equals(processing)) {
+            if ("processing".equals(processing) || "blocked".equals(placement)) {
                 unavailable.add(card);
                 continue;
             }
-            if ("processing".equals(processing) || Boolean.TRUE.equals(card.getPendingReorder())) {
+            if (requiresUserDecision(card) || card.getGeom() == null) {
+                unavailable.add(card);
+                continue;
+            }
+            if (Boolean.TRUE.equals(card.getPendingReorder())) {
                 pendingReorder.add(card);
-                continue;
-            }
-            if (card.getGeom() == null) {
-                unavailable.add(card);
                 continue;
             }
             availableCandidates.add(card);
@@ -181,6 +181,11 @@ public class GroupService {
                 .comparingInt((StockGroup g) -> g.cards().size()).reversed()
                 .thenComparing(StockGroup::label));
         return result;
+    }
+
+    private static boolean requiresUserDecision(PlaceCard card) {
+        return "undecided".equals(card.getClassification()) ||
+                "needs_input".equals(card.getPlacementStatus());
     }
 
     private List<String> tripDestinations(UUID tripId) {

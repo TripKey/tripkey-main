@@ -79,30 +79,68 @@ public class CardService {
             throw new FlightCardDuplicateRoleException();
         }
 
-        PlaceCard card = PlaceCard.createUserCard(
-                tripId,
-                request.name(),
-                request.category(),
-                request.location(),
-                request.estimatedDurationMin(),
-                request.timeConstraint(),
-                request.memo(),
-                request.checkIn(),
-                request.checkOut(),
-                request.flightNumber());
+        PlaceCard card = isStructuredFlightRequest(request)
+                ? PlaceCard.createFlightCard(
+                        tripId,
+                        request.flightNumber(),
+                        request.flightDatetime(),
+                        request.flightRole(),
+                        request.departureAirport(),
+                        request.arrivalAirport())
+                : PlaceCard.createUserCard(
+                        tripId,
+                        request.name(),
+                        request.category(),
+                        request.location(),
+                        request.estimatedDurationMin(),
+                        request.timeConstraint(),
+                        request.memo(),
+                        request.checkIn(),
+                        request.checkOut(),
+                        request.flightNumber());
 
-        // 메뉴얼 카드도 좌표 확보가 필요한 카테고리면 notes/구조화 경로와 동일하게 비동기 재처리(Places lookup)를
-        // 트리거한다(좌표 확보 → 종료 상태, 실패 시 #181 패턴). 좌표가 필요 없는 transport/etc 는
-        // 즉시 completed 로 두어 processing 영구 정지를 방지한다.
+        String naturalLanguageInput = trimToNull(request.naturalLanguageInput());
+        boolean aiRequest = "ai_request".equals(request.parseMode()) && naturalLanguageInput != null;
+        if (aiRequest) {
+            card.markAiRequestPending();
+        }
+
+        // 매뉴얼 카드도 좌표 확보가 필요한 카테고리면 notes/구조화 경로와 동일하게 비동기 재처리(Places lookup)를
+        // 트리거한다(좌표 확보 → 종료 상태, 실패 시 #181 패턴). AI 요청 모드는 자연어 원문을 함께 보내
+        // card-level parse 가 confirmed/undecided 상태를 결정하게 한다.
         boolean enrich = card.requiresPlacesEnrichment();
-        if (!enrich) {
+        if (!enrich && !aiRequest) {
             card.markProcessingCompleted();
         }
         placeCardRepository.save(card);
-        if (enrich) {
-            triggerInputParsingAfterCommit(tripId, card.getInstanceId(), null);
+        if (enrich || aiRequest) {
+            triggerInputParsingAfterCommit(
+                    tripId,
+                    card.getInstanceId(),
+                    aiRequest ? naturalLanguageInput : null
+            );
         }
         return CardDto.from(card);
+    }
+
+    private static boolean isStructuredFlightRequest(CardAddRequest request) {
+        return "transport".equals(request.category())
+                && (hasText(request.flightDatetime())
+                || hasText(request.flightRole())
+                || hasText(request.departureAirport())
+                || hasText(request.arrivalAirport()));
+    }
+
+    @Transactional
+    public CardDto duplicateCard(UUID tripId, UUID instanceId) {
+        if (!tripRepository.existsById(tripId)) {
+            throw new TripNotFoundException(tripId);
+        }
+
+        PlaceCard original = placeCardRepository.findByInstanceIdAndTripId(instanceId, tripId)
+                .orElseThrow(() -> new CardNotFoundException(tripId, instanceId));
+        PlaceCard duplicate = original.duplicateForPlacement();
+        return CardDto.from(placeCardRepository.save(duplicate));
     }
 
     @Transactional
@@ -129,6 +167,9 @@ public class CardService {
         }
         if (request.memo() != null) {
             card.updateMemo(request.memo());
+        }
+        if (request.name() != null || request.estimatedDurationMin() != null) {
+            card.updateDisplayFields(request.name(), request.estimatedDurationMin());
         }
         boolean shouldTriggerNotesParsing = notesInput != null && card.canStartNaturalLanguageParsingFromNotes();
 
@@ -177,6 +218,10 @@ public class CardService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static boolean hasText(String value) {
+        return trimToNull(value) != null;
     }
 
     private void triggerInputParsingAfterCommit(UUID tripId, UUID instanceId, String naturalLanguageInput) {
