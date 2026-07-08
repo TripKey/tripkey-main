@@ -3,7 +3,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
   Clock,
   Lightbulb,
   Luggage,
@@ -606,17 +605,24 @@ const MainPage = ({ onStartPlanning: startPlanning }: MainPageProps) => {
         </div>
       </section>
 
-      {/* 맨 위로 */}
-      <section className="mx-auto max-w-3xl px-6 py-16 text-center">
-        <Button
-          variant="outline"
-          size="lg"
-          className="cursor-pointer transition-transform active:scale-95"
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        >
-          <ChevronUp className="size-5" />맨 위로
-        </Button>
-      </section>
+      <footer className="border-t border-border/60 bg-background/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-6 py-8 text-sm text-muted-foreground md:flex-row">
+          <div>
+            <p className="font-semibold text-foreground">TripKey</p>
+            <p className="text-xs">당신의 여행을 가장 쉽게 계획하는 방법</p>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <a className="transition-colors hover:text-foreground">이용약관</a>
+            <a className="transition-colors hover:text-foreground">
+              개인정보처리방침
+            </a>
+            <a className="transition-colors hover:text-foreground">문의하기</a>
+          </div>
+
+          <p className="text-xs">© 2026 TripKey. All rights reserved.</p>
+        </div>
+      </footer>
     </div>
   );
 };
