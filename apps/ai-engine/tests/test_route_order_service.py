@@ -330,13 +330,19 @@ async def test_constraints_wired_to_solver(monkeypatch) -> None:
 
     stops = _stops()
     stops[0] = stops[0].model_copy(update={"reserved_time": "14:30", "duration_min": 90})
+    stops[2] = stops[2].model_copy(update={"open_time": "10:00", "close_time": "18:00"})
     stops[3] = stops[3].model_copy(update={"pinned": True})
     res = await svc.optimize_order(
         OptimizeOrderRequest(stops=stops, start_instance_id="A")
     )
     assert captured["start"] == 1 and captured["end"] is None
     assert captured["closed_tour"] is False
-    assert captured["windows"] == {0: (14 * 3600 + 30 * 60) - svc.DAY_START_SECONDS}
+    reserved = (14 * 3600 + 30 * 60) - svc.DAY_START_SECONDS
+    # 예약 = [t, t] 고정, 영업시간 = [open, close] 구간 창 (#292)
+    assert captured["windows"] == {
+        0: (reserved, reserved),
+        2: (3600, 9 * 3600),  # 10:00~18:00 → 09:00 기준 +1h ~ +9h
+    }
     assert captured["pins"] == {3: 3}
     assert captured["services"][0] == 90 * 60
     assert res.ordered_instance_ids == ["A", "C", "B", "D"]
@@ -491,3 +497,42 @@ async def test_matrix_stats_logged_on_per_leg_fill(monkeypatch, caplog) -> None:
     stats = [r.getMessage() for r in caplog.records if "route_matrix stats" in r.getMessage()]
     assert len(stats) == 1
     assert "pairs=12 cache_hits=10 misses=2 fill=per-leg billed_elements=2" in stats[0]
+
+
+def test_opening_window_parsing() -> None:
+    # 영업시간 → 일정 시작(09:00) 기준 초 구간. 유효하지 않으면 None (#292)
+    def stop(open_time, close_time):
+        return OptimizeStop(
+            instance_id="x", coordinates=Coordinates(lat=1.0, lng=2.0),
+            open_time=open_time, close_time=close_time,
+        )
+
+    assert svc._opening_window(stop("10:00", "18:00")) == (3600, 9 * 3600)
+    assert svc._opening_window(stop("07:00", "22:00")) == (0, 13 * 3600)  # 09:00 이전은 0 클램프
+    assert svc._opening_window(stop(None, None)) is None
+    assert svc._opening_window(stop("10:00", None)) is None
+    assert svc._opening_window(stop("07:00", "08:30")) is None  # 일정 시작 전에 닫음 → 제약 무의미
+    assert svc._opening_window(stop("18:00", "10:00")) is None  # 역전 구간
+    assert svc._opening_window(stop("정오", "18:00")) is None  # 형식 오류
+
+
+@pytest.mark.asyncio
+async def test_reserved_time_overrides_opening_hours(monkeypatch) -> None:
+    # 같은 카드에 예약시각과 영업시간이 모두 있으면 예약(고정 창)이 우선 (#292)
+    monkeypatch.setattr(svc, "_places_api_key", lambda: None)
+
+    captured = {}
+
+    def fake_solve(matrix, start=None, end=None, closed_tour=False,
+                   pinned_positions=None, time_windows=None, service_times=None):
+        captured["windows"] = time_windows
+        return [0, 1, 2, 3]
+
+    monkeypatch.setattr(svc, "solve_constrained", fake_solve)
+
+    stops = _stops()
+    stops[1] = stops[1].model_copy(update={
+        "reserved_time": "12:00", "open_time": "10:00", "close_time": "18:00",
+    })
+    await svc.optimize_order(OptimizeOrderRequest(stops=stops))
+    assert captured["windows"] == {1: (3 * 3600, 3 * 3600)}  # 12:00 예약 고정

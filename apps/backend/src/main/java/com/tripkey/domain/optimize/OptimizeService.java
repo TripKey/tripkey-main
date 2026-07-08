@@ -1,8 +1,11 @@
 package com.tripkey.domain.optimize;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tripkey.common.exception.TripNotFoundException;
 import com.tripkey.domain.place.PlaceCard;
 import com.tripkey.domain.place.PlaceCardRepository;
+import com.tripkey.domain.trip.Trip;
 import com.tripkey.domain.trip.TripRepository;
 import com.tripkey.dto.optimize.OptimizeResponse;
 import com.tripkey.infra.aiengine.AiEngineClient;
@@ -12,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -36,15 +40,17 @@ public class OptimizeService {
     // time_constraint 자유 텍스트(예: "14:30 예약")에서 예약 시각 추출 — #275 시간창 제약
     private static final Pattern RESERVED_TIME = Pattern.compile("([01]?\\d|2[0-3]):([0-5]\\d)");
 
+    // opening_hours jsonb 파싱용 — 읽기 전용이라 공유 안전 (#292)
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final TripRepository tripRepository;
     private final PlaceCardRepository placeCardRepository;
     private final AiEngineClient aiEngineClient;
 
     @Transactional(readOnly = true)
     public OptimizeResponse optimize(UUID tripId) {
-        if (!tripRepository.existsById(tripId)) {
-            throw new TripNotFoundException(tripId);
-        }
+        Trip trip = tripRepository.findById(tripId)
+                .orElseThrow(() -> new TripNotFoundException(tripId));
 
         Map<Integer, List<PlaceCard>> byDay = groupByDay(tripId);
         List<OptimizeResponse.DayOrder> days = new ArrayList<>();
@@ -55,15 +61,21 @@ public class OptimizeService {
                 continue; // 최적화할 게 없음 (0~1개)
             }
 
+            // Day N 의 요일(0=일~6=토, Google 규약). 여행 시작일이 없으면 null → 영업시간 제약 생략 (#292)
+            Integer weekday = weekdayOf(trip.getStartDate(), entry.getKey());
+
             List<AiOptimizeOrderRequest.Stop> stops = new ArrayList<>();
             for (PlaceCard card : cards) {
                 boolean pinned = card.getTimeConstraint() != null && !card.getTimeConstraint().isBlank();
+                String[] window = openingWindow(card.getOpeningHours(), weekday);
                 stops.add(new AiOptimizeOrderRequest.Stop(
                         card.getInstanceId().toString(),
                         new AiOptimizeOrderRequest.Coord(round(card.getLat()), round(card.getLng())),
                         pinned,
                         reservedTime(card.getTimeConstraint()),
-                        card.getEstimatedDurationMin() == null ? null : card.getEstimatedDurationMin().intValue()));
+                        card.getEstimatedDurationMin() == null ? null : card.getEstimatedDurationMin().intValue(),
+                        window == null ? null : window[0],
+                        window == null ? null : window[1]));
             }
 
             String start = startAnchor(cards);
@@ -127,6 +139,50 @@ public class OptimizeService {
             }
         }
         return null;
+    }
+
+    /** Day N(1-based)의 요일 — 0=일 ~ 6=토(Google 규약). 시작일이 없거나 유효하지 않으면 null. */
+    private static Integer weekdayOf(LocalDate startDate, Integer day) {
+        if (startDate == null || day == null || day < 1) {
+            return null;
+        }
+        // DayOfWeek: MON=1..SUN=7 → %7 로 SUN=0..SAT=6 변환
+        return startDate.plusDays(day - 1L).getDayOfWeek().getValue() % 7;
+    }
+
+    /**
+     * opening_hours jsonb 에서 해당 요일의 영업시간 전체 스팬 [open, close] 추출 (#292).
+     * 구간이 여럿(브레이크 타임)이면 가장 이른 open ~ 가장 늦은 close 를 쓴다(보수적 완화).
+     * 데이터 없음/휴무/파싱 실패 시 null(제약 없음).
+     */
+    private static String[] openingWindow(String openingHoursJson, Integer weekday) {
+        if (openingHoursJson == null || weekday == null) {
+            return null;
+        }
+        try {
+            JsonNode intervals = OBJECT_MAPPER.readTree(openingHoursJson).path(String.valueOf(weekday));
+            if (!intervals.isArray() || intervals.isEmpty()) {
+                return null; // 해당 요일 데이터 없음 = 휴무 또는 미수집 → 제약 생략
+            }
+            String open = null;
+            String close = null;
+            for (JsonNode interval : intervals) {
+                if (!interval.isArray() || interval.size() < 2) {
+                    continue;
+                }
+                String o = interval.get(0).asText(null);
+                String c = interval.get(1).asText(null);
+                if (o == null || c == null) {
+                    continue;
+                }
+                // "HH:MM" 제로패딩 형식이라 문자열 비교 = 시각 비교
+                open = (open == null || o.compareTo(open) < 0) ? o : open;
+                close = (close == null || c.compareTo(close) > 0) ? c : close;
+            }
+            return (open == null || close == null) ? null : new String[]{open, close};
+        } catch (Exception e) {
+            return null; // 방어: 영업시간 파싱 실패가 최적화를 깨면 안 됨
+        }
     }
 
     /** time_constraint 자유 텍스트에서 첫 "HH:MM" 을 추출해 정규화. 없거나 파싱 불가면 null. */
