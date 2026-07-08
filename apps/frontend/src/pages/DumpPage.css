@@ -28,27 +28,6 @@
   height: fit-content;
 }
 
-/* 페이지 제목 영역 */
-.dump-header {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.dump-header h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  color: #1a1a1a;
-}
-
-.dump-header p {
-  margin: 0;
-  font-size: 14px;
-  color: #888888;
-  line-height: 1.6;
-}
-
 .dump-page--progress {
   display: flex;
   align-items: center;

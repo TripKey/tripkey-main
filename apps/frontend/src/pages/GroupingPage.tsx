@@ -679,7 +679,7 @@ const GroupingPage = () => {
               onClick={() => setAddCardOpen(true)}
               disabled={busy || !tripId}
             >
-              <Plus className="h-4 w-4" aria-hidden="true" />
+              <Plus aria-hidden="true" />
               카드 추가하기
             </Button>
           </>
