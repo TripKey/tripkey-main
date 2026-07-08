@@ -213,19 +213,39 @@ async def _build_matrix(
     else:
         missing = list(pair_keys.keys())
 
+    # 적중률/과금 모니터링(#274): billed_elements 는 Google 과금 단위
+    # (per-leg = 호출 pair 수, Route Matrix = n×n 요소 수)
+    total_pairs, hits = len(pair_keys), len(pair_keys) - len(missing)
+
     # 2) 전부 캐시 히트 → Google 호출 없음
     if not missing:
+        logger.info(
+            "route_matrix stats | pairs=%d cache_hits=%d misses=0 fill=none billed_elements=0",
+            total_pairs, hits,
+        )
         return matrix, "google"
 
     # 3) 키 없음 → 남은 pair 는 추정 유지
     if not api_key:
+        logger.info(
+            "route_matrix stats | pairs=%d cache_hits=%d misses=%d fill=skip(no-key) billed_elements=0",
+            total_pairs, hits, len(missing),
+        )
         return matrix, "google" if used_google else "estimated"
 
     # 4) 하이브리드: 빠진 pair 가 적으면 per-leg, 많으면 Route Matrix 1회
     if len(missing) > PER_LEG_MAX_PAIRS:
         filled = await _fill_via_route_matrix(stops, api_key, matrix, pair_keys)
+        logger.info(
+            "route_matrix stats | pairs=%d cache_hits=%d misses=%d fill=matrix billed_elements=%d",
+            total_pairs, hits, len(missing), n * n if filled else 0,
+        )
     else:
         filled = await _fill_via_per_leg(stops, api_key, matrix, pair_keys, missing)
+        logger.info(
+            "route_matrix stats | pairs=%d cache_hits=%d misses=%d fill=per-leg billed_elements=%d",
+            total_pairs, hits, len(missing), len(missing),
+        )
 
     return matrix, "google" if (used_google or filled) else "estimated"
 
