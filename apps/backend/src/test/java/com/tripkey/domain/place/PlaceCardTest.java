@@ -454,6 +454,23 @@ class PlaceCardTest {
         assertThat(card.getActionType()).isEqualTo("review_only");
     }
 
+    @Test
+    void duplicateForPlacementCreatesSeparateCardWithoutDayPlacement() {
+        PlaceCard original = sampleCard();
+        original.onCreate();
+        original.applyDayPlacement(2, 1, (short) 90);
+
+        PlaceCard duplicate = original.duplicateForPlacement();
+        duplicate.onCreate();
+
+        assertThat(duplicate.getInstanceId()).isNotEqualTo(original.getInstanceId());
+        assertThat(duplicate.getTripId()).isEqualTo(original.getTripId());
+        assertThat(duplicate.getName()).isEqualTo(original.getName());
+        assertThat(duplicate.getDay()).isNull();
+        assertThat(duplicate.getDayOrder()).isNull();
+        assertThat(duplicate.getIsExcluded()).isFalse();
+    }
+
     private static PlaceCard sampleCard() {
         AiPlaceCardDto dto = new AiPlaceCardDto(
                 "p1", "도톤보리", "place", "confirmed", "ready_partial",

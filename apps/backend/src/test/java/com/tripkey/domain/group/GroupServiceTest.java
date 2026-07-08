@@ -162,16 +162,16 @@ class GroupServiceTest {
     }
 
     @Test
-    void getGroups04ClassifiesUnavailableByBlockedNeedsInputOrFailed() {
+    void getGroups04ClassifiesUnavailableByBlockedNeedsInputOrMissingLocation() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
 
         PlaceCard blocked = stockCard(tripId, "blocked", "completed", null, "신주쿠", at(10, 0));
         PlaceCard needsInput = stockCard(tripId, "needs_input", "completed", null, "신주쿠", at(10, 1));
-        PlaceCard failed = stockCard(tripId, "ready", "failed", null, "신주쿠", at(10, 2));
+        PlaceCard noGeom = stockCard(tripId, "ready", "completed", null, "신주쿠", at(10, 2));
 
         when(placeCardRepository.findAllByTripId(tripId))
-                .thenReturn(List.of(blocked, needsInput, failed));
+                .thenReturn(List.of(blocked, needsInput, noGeom));
 
         Groups04Response response = groupService.getGroups04(tripId);
 
@@ -180,13 +180,13 @@ class GroupServiceTest {
                 .containsExactlyInAnyOrder(
                         blocked.getInstanceId(),
                         needsInput.getInstanceId(),
-                        failed.getInstanceId());
+                        noGeom.getInstanceId());
         assertThat(response.available()).isEmpty();
         assertThat(response.pendingReorder()).isEmpty();
     }
 
     @Test
-    void getGroups04ClassifiesPendingReorderByProcessingOrPendingFlag() {
+    void getGroups04SeparatesProcessingFromPendingReorderFlag() {
         UUID tripId = UUID.randomUUID();
         when(tripRepository.existsById(tripId)).thenReturn(true);
 
@@ -203,9 +203,39 @@ class GroupServiceTest {
 
         assertThat(response.pendingReorder())
                 .extracting(CardDto::instanceId)
-                .containsExactlyInAnyOrder(stillProcessing.getInstanceId(), pendingFlag.getInstanceId());
+                .containsExactly(pendingFlag.getInstanceId());
         assertThat(response.available()).isEmpty();
-        assertThat(response.unavailable()).isEmpty();
+        assertThat(response.unavailable())
+                .extracting(CardDto::instanceId)
+                .containsExactly(stillProcessing.getInstanceId());
+    }
+
+    @Test
+    void getGroups04KeepsDecisionOrLocationRequiredCardsOutOfPendingReorder() {
+        UUID tripId = UUID.randomUUID();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+
+        PlaceCard undecidedPending = stockCard(tripId, "ready_partial", "completed",
+                point(139.7, 35.69), "신주쿠", at(10, 0));
+        setField(undecidedPending, "classification", "undecided");
+        setField(undecidedPending, "pendingReorder", true);
+
+        PlaceCard noGeomPending = stockCard(tripId, "ready_partial", "completed",
+                null, "신주쿠", at(10, 1));
+        setField(noGeomPending, "pendingReorder", true);
+
+        when(placeCardRepository.findAllByTripId(tripId))
+                .thenReturn(List.of(undecidedPending, noGeomPending));
+
+        Groups04Response response = groupService.getGroups04(tripId);
+
+        assertThat(response.unavailable())
+                .extracting(CardDto::instanceId)
+                .containsExactly(
+                        undecidedPending.getInstanceId(),
+                        noGeomPending.getInstanceId());
+        assertThat(response.pendingReorder()).isEmpty();
+        assertThat(response.available()).isEmpty();
     }
 
     @Test

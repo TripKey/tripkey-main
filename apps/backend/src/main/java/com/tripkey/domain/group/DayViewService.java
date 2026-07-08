@@ -41,6 +41,7 @@ public class DayViewService {
         }
 
         List<PlaceCard> cardsForDay = placeCardRepository.findAllByTripIdAndDay(tripId, dayNumber).stream()
+                .filter(card -> !Boolean.TRUE.equals(card.getIsExcluded()))
                 .sorted(Comparator.comparing(PlaceCard::getCreatedAt))
                 .toList();
 

@@ -23,8 +23,9 @@
   width: 380px;
   padding: 40px 24px;
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: 136px;
+  align-self: start;
+  height: fit-content;
 }
 
 .dump-page--progress {

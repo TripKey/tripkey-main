@@ -1,7 +1,4 @@
-import type {
-  AddCardCategory,
-  AddCardDraft,
-} from '@/components/grouping/AddCardModal';
+import type { AddCardDraft } from '@/components/grouping/AddCardModal';
 import type {
   ActionGroup,
   GroupingViewModel,
@@ -96,6 +93,7 @@ const toReviewCard = (card: Card): PlaceCardViewModel => ({
     classification:
       CLASSIFICATION_LABEL[card.classification] ?? card.classification,
     placementStatus: card.placement_status,
+    estimatedDurationMin: card.estimated_duration_min,
     userIntent: card.user_context ?? undefined,
     aiHint: card.tips ?? undefined,
     memo: card.memo ?? '',
@@ -116,6 +114,7 @@ const toSelectCard = (card: Card): PlaceCardViewModel => ({
     classification:
       CLASSIFICATION_LABEL[card.classification] ?? card.classification,
     placementStatus: card.placement_status,
+    estimatedDurationMin: card.estimated_duration_min,
     userIntent: card.user_context ?? undefined,
     aiHint: card.tips ?? undefined,
     question: card.question_text ?? '추가 정보가 필요해요',
@@ -133,6 +132,21 @@ const canResolveByNotesCheck = (card: Card): boolean =>
       card.placement_status === 'ready_partial')) ||
   (card.processing_status === 'failed' &&
     card.classification !== 'open_question');
+
+const compactText = (value: string | null | undefined): string | undefined => {
+  const text = value?.trim().replace(/\s+/g, ' ');
+  return text || undefined;
+};
+
+const suggestedResolveAnswer = (card: Card): string => {
+  const location = compactText(card.location);
+  const name = compactText(card.name);
+  if (!location) return name ?? '';
+  if (!name) return location;
+  if (name.includes(location)) return name;
+  if (location.includes(name)) return location;
+  return `${location} ${name}`;
+};
 
 const toEditCard = (card: Card): PlaceCardViewModel => {
   const resolvable = canResolveByNotesCheck(card);
@@ -155,8 +169,8 @@ const toEditCard = (card: Card): PlaceCardViewModel => {
       aiHint: card.tips ?? undefined,
       reason: card.blocked_reason ?? '처리에 실패했어요',
       retryNotice: '아래에 올바른 정보를 입력해주시면 다시 처리를 시도합니다',
-      question: card.question_text ?? '정확한 정보를 입력해주세요',
-      answer: '',
+      question: card.question_text ?? '이 장소를 이렇게 다시 찾아볼까요?',
+      answer: resolvable ? suggestedResolveAnswer(card) : '',
       memo: card.memo ?? '',
       notes: card.notes ?? '',
       structuredFields: isStructuredCategory
@@ -196,6 +210,7 @@ const toUnassignedCard = (card: Card): PlaceCardViewModel => ({
     classification:
       CLASSIFICATION_LABEL[card.classification] ?? card.classification,
     placementStatus: card.placement_status,
+    estimatedDurationMin: card.estimated_duration_min,
     userIntent: card.user_context ?? undefined,
     aiHint: card.tips ?? undefined,
     memo: card.memo ?? '',
@@ -366,23 +381,44 @@ export const upsertCardIntoGroups = (
   return { ...filtered, [bucket]: [...filtered[bucket], card] };
 };
 
-const ADD_CATEGORY_MAP: Record<AddCardCategory, CardCategory> = {
-  place: 'place',
-  activity: 'activity',
-  flight: 'transport',
-  lodging: 'accommodation',
-  food: 'food',
-  etc: 'etc',
-};
-
 export const toCardAddRequest = (draft: AddCardDraft): CardAddRequest => ({
   name: draft.name.trim(),
-  category: ADD_CATEGORY_MAP[draft.category],
+  category: draft.category,
   location: draft.region.trim() || undefined,
   estimated_duration_min:
     Number.isFinite(draft.durationMin) && draft.durationMin > 0
       ? draft.durationMin
       : undefined,
   time_constraint: draft.timeMemo.trim() || undefined,
-  memo: draft.memo.trim() || undefined,
+  memo: draft.mode === 'manual' ? draft.memo.trim() || undefined : undefined,
+  flight_number:
+    draft.mode === 'manual' && draft.transportType === 'flight'
+      ? draft.flightNumber.trim() || undefined
+      : undefined,
+  flight_datetime:
+    draft.mode === 'manual' && draft.transportType === 'flight'
+      ? toOffsetDateTime(draft.flightDatetime)
+      : undefined,
+  flight_role:
+    draft.mode === 'manual' && draft.transportType === 'flight'
+      ? draft.flightRole
+      : undefined,
+  departure_airport:
+    draft.mode === 'manual' && draft.transportType === 'flight'
+      ? draft.departureAirport.trim() || undefined
+      : undefined,
+  arrival_airport:
+    draft.mode === 'manual' && draft.transportType === 'flight'
+      ? draft.arrivalAirport.trim() || undefined
+      : undefined,
+  parse_mode: draft.mode === 'ai' ? 'ai_request' : 'manual',
+  natural_language_input:
+    draft.mode === 'ai' ? draft.prompt.trim() || undefined : undefined,
 });
+
+const toOffsetDateTime = (value: string): string | undefined => {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (/[zZ]|[+-]\d{2}:\d{2}$/.test(trimmed)) return trimmed;
+  return `${trimmed}:00+09:00`;
+};
