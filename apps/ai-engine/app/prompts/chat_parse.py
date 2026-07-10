@@ -30,6 +30,9 @@ Rules:
 5. Put the recommendation rationale in user_context.
 6. reply must be 1-2 Korean sentences and must not state a numeric count of cards.
 7. Merge new preferences/constraints into context and always return the complete updated_context.
+   constraints may contain only these exact values: low_walking, rainy_day_option, relaxed_pace,
+   with_children, with_parents, wheelchair_accessible, indoor_focused, public_transit,
+   budget_friendly, late_hours. Never invent another constraint value.
 8. A clear declaration such as "친구집에 갈 거야" or "예약해둔 OO 갈 거임" is no_action and reply must
    guide the user to 카드 목록의 '직접 추가'. If there is any ambiguity, prefer generate_cards.
 

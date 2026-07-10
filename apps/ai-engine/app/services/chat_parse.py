@@ -35,6 +35,41 @@ FALLBACK_REPLIES = {
     "no_action": "알겠어요. 다른 장소가 필요하면 말씀해주세요.",
 }
 NO_MATCH_REPLY = "조건에 맞는 장소를 찾지 못했어요. 조금 다르게 말씀해주시겠어요?"
+CONSTRAINT_ALIASES = {
+    "low_walking": "low_walking",
+    "low walking": "low_walking",
+    "minimal walking": "low_walking",
+    "적게 걷기": "low_walking",
+    "rainy_day_option": "rainy_day_option",
+    "rainy day friendly": "rainy_day_option",
+    "rainy_day_friendly": "rainy_day_option",
+    "우천 대비": "rainy_day_option",
+    "relaxed_pace": "relaxed_pace",
+    "relaxed pace": "relaxed_pace",
+    "느긋한 일정": "relaxed_pace",
+    "with_children": "with_children",
+    "with children": "with_children",
+    "아이 동반": "with_children",
+    "with_parents": "with_parents",
+    "with parents": "with_parents",
+    "부모님 동반": "with_parents",
+    "wheelchair_accessible": "wheelchair_accessible",
+    "wheelchair accessible": "wheelchair_accessible",
+    "휠체어 접근": "wheelchair_accessible",
+    "indoor_focused": "indoor_focused",
+    "indoor focused": "indoor_focused",
+    "indoor_friendly": "indoor_focused",
+    "실내 중심": "indoor_focused",
+    "public_transit": "public_transit",
+    "public transit": "public_transit",
+    "대중교통 중심": "public_transit",
+    "budget_friendly": "budget_friendly",
+    "budget friendly": "budget_friendly",
+    "저예산": "budget_friendly",
+    "late_hours": "late_hours",
+    "late hours": "late_hours",
+    "늦은 시간 가능": "late_hours",
+}
 
 
 def _normalize_string_list(value: Any, fallback: list[str]) -> list[str]:
@@ -64,8 +99,24 @@ def _normalize_context(raw: Any, original: ChatContext) -> ChatContext:
         return original.model_copy(deep=True)
     return ChatContext(
         interests=_normalize_string_list(raw.get("interests"), original.interests),
-        constraints=_normalize_string_list(raw.get("constraints"), original.constraints),
+        constraints=_normalize_constraints(raw.get("constraints"), original.constraints),
     )
+
+
+def _normalize_constraints(value: Any, fallback: list[str]) -> list[str]:
+    source = value if isinstance(value, list) else fallback
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in source:
+        if not isinstance(item, str):
+            continue
+        canonical = CONSTRAINT_ALIASES.get(item.strip().lower())
+        if canonical and canonical not in seen:
+            seen.add(canonical)
+            normalized.append(canonical)
+            if len(normalized) == 20:
+                break
+    return normalized
 
 
 def _normalize_duplicates(raw: Any) -> list[DuplicateItem]:

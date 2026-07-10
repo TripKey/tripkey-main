@@ -133,6 +133,7 @@ async def test_context_and_duplicates_are_normalized(monkeypatch: pytest.MonkeyP
             "intent": "update_context",
             "updated_context": {
                 "interests": [" food ", "FOOD", "x" * 101, "shopping"],
+                "constraints": ["minimal walking", "indoor_friendly", "unknown"],
             },
             "duplicates": [
                 {"name": " 쿠로몬 시장 ", "reason": "already_exists"},
@@ -145,5 +146,5 @@ async def test_context_and_duplicates_are_normalized(monkeypatch: pytest.MonkeyP
     response = await chat_parse.parse_chat(_request())
 
     assert response.updated_context.interests == ["food", "shopping"]
-    assert response.updated_context.constraints == ["low_walking"]
+    assert response.updated_context.constraints == ["low_walking", "indoor_focused"]
     assert [item.name for item in response.duplicates] == ["쿠로몬 시장"]
