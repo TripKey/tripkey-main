@@ -12,6 +12,24 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(ChatParseBadRequestException.class)
+    public ResponseEntity<ErrorResponse> handleChatParseBadRequest(ChatParseBadRequestException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("CHAT_PARSE_BAD_REQUEST", e.getMessage()));
+    }
+
+    @ExceptionHandler(AiEngineUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleAiEngineUnavailable() {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new ErrorResponse("AI_ENGINE_UNAVAILABLE", "AI 추천 서비스가 잠시 혼잡해요. 잠시 후 다시 시도해주세요"));
+    }
+
+    @ExceptionHandler(AiEngineCallException.class)
+    public ResponseEntity<ErrorResponse> handleAiEngineCall() {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(new ErrorResponse("AI_ENGINE_ERROR", "AI 추천 서비스 호출에 실패했어요"));
+    }
+
     @ExceptionHandler(TripNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleTripNotFound(TripNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
