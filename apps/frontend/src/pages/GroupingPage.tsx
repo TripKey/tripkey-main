@@ -1,6 +1,6 @@
 // GroupingPage (SCR-03 그룹화 '정보 정리하기' 페이지)
 
-import { Plus } from 'lucide-react';
+import { Plus, Sparkles } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
+import ChatAssistantDialog from '@/components/chat/ChatAssistantDialog';
 import ProgressStat from '@/components/common/ProgressStat';
 import ActionGroupSection from '@/components/grouping/ActionGroupSection';
 import AddCardModal from '@/components/grouping/AddCardModal';
@@ -218,6 +219,7 @@ const GroupingPage = () => {
   const [editCard, setEditCard] = useState<PlaceCardViewModel | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [addCardOpen, setAddCardOpen] = useState(false);
+  const [chatAssistantOpen, setChatAssistantOpen] = useState(false);
 
   // EditCardDetailPanel 구조화 편집/선택처리 전용 상태
   const [editResolving, setEditResolving] = useState(false);
@@ -585,11 +587,10 @@ const GroupingPage = () => {
     if (!card || !tripId) return Promise.resolve(false);
     // 선택값을 단순 문장으로 던지지 않고 "선택 후보"와 여행 맥락을 분리해
     // card-level parse/Places lookup 이 장소명을 우선 검색하도록 돕는다.
-    const selectedText =
-      [...payload.choices, payload.answer]
-        .map((value) => value.trim())
-        .filter(Boolean)
-        .join(', ');
+    const selectedText = [...payload.choices, payload.answer]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .join(', ');
     const notes = buildSelectionNotes({
       cardName: card.name,
       selectedText,
@@ -673,6 +674,15 @@ const GroupingPage = () => {
               disabled={busy || loading || !tripId}
             >
               새로고침
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setChatAssistantOpen(true)}
+              disabled={busy || !tripId}
+            >
+              <Sparkles aria-hidden="true" />
+              AI로 카드 더 찾기
             </Button>
             <Button
               size="sm"
@@ -849,6 +859,14 @@ const GroupingPage = () => {
             '카드 추가에 실패했습니다.'
           );
         }}
+      />
+
+      <ChatAssistantDialog
+        open={chatAssistantOpen}
+        onOpenChange={setChatAssistantOpen}
+        tripId={tripId}
+        destination={summary.destinations[0]}
+        onCardsCreated={() => refresh()}
       />
     </div>
   );
