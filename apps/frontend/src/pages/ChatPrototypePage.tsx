@@ -819,7 +819,9 @@ const SavedCardPreview = ({
         {cards.map((card) => (
           <PlaceCard
             key={card.id}
-            {...toPlaceCardViewModel(card, [card.id])}
+            id={card.id}
+            name={card.name}
+            accent="green"
             onClick={() => onOpen(card)}
           />
         ))}
