@@ -52,6 +52,9 @@ import { useOnboardingStore } from '../utils/onboarding-store';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 30000;
 
+// 정리 진행률: 요약 카드로 통합되어 현재 숨김 (재노출 시 true)
+const SHOW_PROGRESS_STAT = false;
+
 const buildSelectionNotes = ({
   cardName,
   selectedText,
@@ -710,7 +713,7 @@ const GroupingPage = () => {
                 )}
 
                 {/* 정리 진행률 — 요약으로 통합, 숨김 처리(코드 유지) */}
-                {false && (
+                {SHOW_PROGRESS_STAT && (
                   <ProgressStat
                     label="정리 진행률"
                     value={progress.percent}
