@@ -6,6 +6,7 @@ import {
   Coffee,
   Copy,
   MapPin,
+  Plus,
   RefreshCw,
   ShoppingBag,
   Sparkles,
@@ -14,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 
 import Header from '@/components/header/Header';
 import { Badge } from '@/components/ui/badge';
@@ -102,6 +104,10 @@ const ChatPrototypePage = () => {
       ),
     [messages]
   );
+  const savedCards = useMemo(
+    () => MOCK_CARDS.filter((card) => savedCardIds.includes(card.id)),
+    [savedCardIds]
+  );
 
   const resetPrototype = () => {
     setMessages(INITIAL_MESSAGES);
@@ -186,6 +192,24 @@ const ChatPrototypePage = () => {
         ? current.filter((id) => id !== cardId)
         : [...current, cardId]
     );
+  };
+
+  const addContextItem = (
+    value: string,
+    items: string[],
+    setItems: Dispatch<SetStateAction<string[]>>
+  ) => {
+    const normalized = value.trim();
+    if (
+      !normalized ||
+      normalized.length > 100 ||
+      items.length >= 20 ||
+      items.some((item) => item.toLowerCase() === normalized.toLowerCase())
+    ) {
+      return false;
+    }
+    setItems((current) => [...current, normalized]);
+    return true;
   };
 
   return (
@@ -346,6 +370,7 @@ const ChatPrototypePage = () => {
               title="관심사"
               items={interests}
               emptyLabel="아직 등록된 관심사가 없어요"
+              onAdd={(item) => addContextItem(item, interests, setInterests)}
               onRemove={(item) =>
                 setInterests((current) =>
                   current.filter((value) => value !== item)
@@ -356,11 +381,19 @@ const ChatPrototypePage = () => {
               title="여행 조건"
               items={constraints}
               emptyLabel="아직 등록된 조건이 없어요"
+              onAdd={(item) =>
+                addContextItem(item, constraints, setConstraints)
+              }
               onRemove={(item) =>
                 setConstraints((current) =>
                   current.filter((value) => value !== item)
                 )
               }
+            />
+
+            <SavedCardPreview
+              cards={savedCards}
+              onRemove={(cardId) => toggleSavedCard(cardId)}
             />
 
             <div className="mx-5 mt-2 rounded-xl border border-dashed bg-muted/35 p-4">
@@ -512,43 +545,168 @@ const ContextSection = ({
   title,
   items,
   emptyLabel,
+  onAdd,
   onRemove,
 }: {
   title: string;
   items: string[];
   emptyLabel: string;
+  onAdd: (item: string) => boolean;
   onRemove: (item: string) => void;
+}) => {
+  const [adding, setAdding] = useState(false);
+  const [value, setValue] = useState('');
+
+  const submit = () => {
+    if (onAdd(value)) {
+      setValue('');
+      setAdding(false);
+    }
+  };
+
+  return (
+    <section className="border-b px-5 py-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </h2>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground">
+            {items.length}/20
+          </span>
+          <button
+            type="button"
+            onClick={() => setAdding((current) => !current)}
+            disabled={items.length >= 20}
+            className={cn(
+              'flex size-6 items-center justify-center rounded-md border transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40',
+              adding && 'border-primary/30 bg-primary/8 text-primary'
+            )}
+            aria-label={`${title} 직접 추가`}
+          >
+            {adding ? (
+              <X className="size-3.5" aria-hidden="true" />
+            ) : (
+              <Plus className="size-3.5" aria-hidden="true" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {adding && (
+        <div className="mb-3 flex gap-2">
+          <input
+            autoFocus
+            value={value}
+            maxLength={100}
+            onChange={(event) => setValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') submit();
+              if (event.key === 'Escape') {
+                setValue('');
+                setAdding(false);
+              }
+            }}
+            placeholder={`${title} 직접 입력`}
+            className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2.5 text-xs outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+          />
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 px-3 text-xs"
+            disabled={!value.trim()}
+            onClick={submit}
+          >
+            추가
+          </Button>
+        </div>
+      )}
+
+      {items.length ? (
+        <div className="flex flex-wrap gap-2">
+          {items.map((item) => (
+            <span
+              key={item}
+              className="inline-flex items-center gap-1 rounded-full bg-primary/8 py-1.5 pl-3 pr-1.5 text-xs font-medium text-primary"
+            >
+              {item}
+              <button
+                type="button"
+                onClick={() => onRemove(item)}
+                className="rounded-full p-0.5 hover:bg-primary/10"
+                aria-label={`${item} 삭제`}
+              >
+                <X className="size-3" aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">{emptyLabel}</p>
+      )}
+    </section>
+  );
+};
+
+const SavedCardPreview = ({
+  cards,
+  onRemove,
+}: {
+  cards: MockCard[];
+  onRemove: (cardId: string) => void;
 }) => (
   <section className="border-b px-5 py-5">
     <div className="mb-3 flex items-center justify-between">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-      </h2>
-      <span className="text-[11px] text-muted-foreground">
-        {items.length}/20
-      </span>
+      <div>
+        <h2 className="text-sm font-semibold">담은 카드 미리보기</h2>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          정리 화면으로 넘어가기 전 목록이에요.
+        </p>
+      </div>
+      <Badge variant="secondary" className="min-w-6 justify-center">
+        {cards.length}
+      </Badge>
     </div>
-    {items.length ? (
-      <div className="flex flex-wrap gap-2">
-        {items.map((item) => (
-          <span
-            key={item}
-            className="inline-flex items-center gap-1 rounded-full bg-primary/8 py-1.5 pl-3 pr-1.5 text-xs font-medium text-primary"
-          >
-            {item}
-            <button
-              type="button"
-              onClick={() => onRemove(item)}
-              className="rounded-full p-0.5 hover:bg-primary/10"
-              aria-label={`${item} 삭제`}
+
+    {cards.length ? (
+      <div className="space-y-2">
+        {cards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <div
+              key={card.id}
+              className="flex items-center gap-3 rounded-lg border bg-muted/25 p-2.5"
             >
-              <X className="size-3" aria-hidden="true" />
-            </button>
-          </span>
-        ))}
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon className="size-3.5" aria-hidden="true" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-semibold">{card.name}</p>
+                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                  {card.category} · {card.area}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onRemove(card.id)}
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label={`${card.name} 담은 카드에서 제거`}
+              >
+                <X className="size-3.5" aria-hidden="true" />
+              </button>
+            </div>
+          );
+        })}
       </div>
     ) : (
-      <p className="text-xs text-muted-foreground">{emptyLabel}</p>
+      <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-5 text-center">
+        <p className="text-xs font-medium text-muted-foreground">
+          아직 담은 카드가 없어요
+        </p>
+        <p className="mt-1 text-[11px] text-muted-foreground/80">
+          추천 카드의 ‘카드에 담기’를 눌러보세요.
+        </p>
+      </div>
     )}
   </section>
 );
