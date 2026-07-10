@@ -26,12 +26,9 @@ const AppContent = () => {
     setShowSplash(false);
   };
 
-  // CTA로 온보딩 진입 시: 먼저 라우트를 바꿔 스플래시 뒤에서 온보딩을 로드하고,
-  // 스플래시가 덮은 채 페이드아웃되면 온보딩 화면이 드러난다(메인이 비치지 않음).
-  const [transitioning, setTransitioning] = useState(false);
+  // CTA로 온보딩 진입 — 스플래시 없이 바로 이동하고, 온보딩 카드가 스스로 떠오른다.
   const startPlanning = () => {
     navigate('/onboarding');
-    setTransitioning(true);
   };
 
   return (
@@ -76,9 +73,6 @@ const AppContent = () => {
         />
       </Routes>
       {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
-      {transitioning && (
-        <SplashScreen onFinish={() => setTransitioning(false)} />
-      )}
     </>
   );
 };
