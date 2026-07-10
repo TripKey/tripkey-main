@@ -10,6 +10,7 @@ export const API_PATH = {
   CARDS: (tripId: string) => `/trips/${tripId}/cards`,
   CARD: (tripId: string, instanceId: string) =>
     `/trips/${tripId}/cards/${instanceId}`,
+  CHAT_PARSE: (tripId: string) => `/trips/${tripId}/chat/parse`,
   DUPLICATE_CARD: (tripId: string, instanceId: string) =>
     `/trips/${tripId}/cards/${instanceId}/duplicate`,
   GROUPS: (tripId: string) => `/trips/${tripId}/groups`,

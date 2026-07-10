@@ -14,34 +14,32 @@ import {
   Utensils,
   X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import GroupingCardDetailPanel from '@/components/grouping/CardDetailPanel';
 import PlaceCard from '@/components/grouping/PlaceCard';
 import Header from '@/components/header/Header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useTripDetailQuery } from '@/hooks/useTripDetail';
 import { cn } from '@/lib/utils';
+import type { ChatIntent } from '@/types/chat-api';
 import type { PlaceCardViewModel, PlaceCategory } from '@/types/grouping';
-
-type MockCard = {
-  id: string;
-  name: string;
-  category: PlaceCategory;
-  area: string;
-  reason: string;
-  duration: string;
-  estimatedDurationMin: number;
-  icon: typeof Coffee;
-};
+import type { Card, CardCategory } from '@/types/grouping-api';
+import { chatErrorMessage, parseChat } from '@/utils/chat-api';
+import { fetchCards, patchCard } from '@/utils/grouping-api';
+import { useOnboardingStore } from '@/utils/onboarding-store';
+import { tripDateRangeLabel } from '@/utils/trip-meta';
 
 type ChatMessage = {
   id: string;
   role: 'assistant' | 'user';
   text: string;
-  cards?: MockCard[];
-  duplicate?: string;
+  cards?: Card[];
+  duplicates?: string[];
+  intent?: ChatIntent;
 };
 
 const INITIAL_MESSAGES: ChatMessage[] = [
@@ -89,84 +87,75 @@ const CONSTRAINT_OPTIONS: ContextOption[] = [
   { value: 'late_hours', label: '늦은 시간 가능' },
 ];
 
-const MOCK_CARDS: MockCard[] = [
-  {
-    id: 'osaka-museum',
-    name: '오사카 역사박물관',
-    category: 'place',
-    area: '주오구 · 다니마치욘초메',
-    reason: '비 오는 날에도 오사카의 역사를 여유롭게 둘러볼 수 있어요.',
-    duration: '약 90분',
-    estimatedDurationMin: 90,
-    icon: Sparkles,
-  },
-  {
-    id: 'nakanoshima-museum',
-    name: '나카노시마 미술관',
-    category: 'place',
-    area: '기타구 · 나카노시마',
-    reason: '실내 전시와 세련된 건축을 함께 즐기기 좋은 선택이에요.',
-    duration: '약 120분',
-    estimatedDurationMin: 120,
-    icon: Sparkles,
-  },
-  {
-    id: 'grand-front',
-    name: '그랜드 프론트 오사카',
-    category: 'shopping',
-    area: '기타구 · 우메다',
-    reason: '쇼핑과 식사를 한 공간에서 해결해 이동을 줄일 수 있어요.',
-    duration: '약 120분',
-    estimatedDurationMin: 120,
-    icon: ShoppingBag,
-  },
-];
-
 const INITIAL_INTERESTS = ['food', 'shopping'];
 const INITIAL_CONSTRAINTS = ['low_walking'];
 
-const CATEGORY_LABELS: Record<PlaceCategory, string> = {
+const CATEGORY_MAP: Record<CardCategory, PlaceCategory> = {
+  place: 'place',
+  activity: 'activity',
+  transport: 'transport',
+  accommodation: 'lodging',
+  food: 'food',
+  etc: 'place',
+};
+
+const CATEGORY_LABELS: Record<CardCategory, string> = {
   place: '장소',
-  lodging: '숙소',
-  food: '맛집',
   activity: '활동',
-  shopping: '쇼핑',
   transport: '교통',
+  accommodation: '숙소',
+  food: '맛집',
+  etc: '기타',
 };
 
 const contextLabel = (value: string, options: ContextOption[]) =>
   options.find((option) => option.value === value)?.label ?? value;
 
-const toPlaceCardViewModel = (
-  card: MockCard,
-  savedCardIds: string[]
-): PlaceCardViewModel => ({
-  id: card.id,
+const formatDuration = (minutes: number | null): string | undefined => {
+  if (minutes == null || minutes < 0) return undefined;
+  if (minutes < 60) return `${minutes}분`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours}시간 ${rest}분` : `${hours}시간`;
+};
+
+const toPlaceCardViewModel = (card: Card): PlaceCardViewModel => ({
+  id: card.instance_id,
   name: card.name,
-  region: card.area,
-  durationLabel: card.duration,
+  region: card.location ?? undefined,
+  durationLabel: formatDuration(card.estimated_duration_min),
   accent: 'green',
-  badges: [{ kind: 'category', category: card.category }, { kind: 'ai' }],
+  badges: [
+    { kind: 'category', category: CATEGORY_MAP[card.category] },
+    ...(card.is_ai_generated ? ([{ kind: 'ai' }] as const) : []),
+  ],
   detail: {
-    classification: '추천 후보',
-    placementStatus: '배치 가능',
-    estimatedDurationMin: card.estimatedDurationMin,
-    userIntent: card.reason,
-    aiHint:
-      '추천 후보를 카드에 담으면 정리 화면의 확인이 필요한 카드로 이동해요.',
-    memo: '',
-    includedInItinerary: savedCardIds.includes(card.id),
+    classification: '질문있음',
+    placementStatus: card.placement_status,
+    estimatedDurationMin: card.estimated_duration_min,
+    userIntent: card.user_context ?? undefined,
+    aiHint: card.tips ?? undefined,
+    memo: card.memo ?? '',
+    includedInItinerary: !card.is_excluded,
   },
 });
 
 const ChatPrototypePage = () => {
+  const storeTripId = useOnboardingStore((state) => state.tripId);
+  const setStoreTripId = useOnboardingStore((state) => state.actions.setTripId);
+  const [searchParams] = useSearchParams();
+  const urlTripId = searchParams.get('tripId');
+  const tripId = urlTripId ?? storeTripId;
+  const tripDetailQuery = useTripDetailQuery(tripId);
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const [interests, setInterests] = useState(INITIAL_INTERESTS);
   const [constraints, setConstraints] = useState(INITIAL_CONSTRAINTS);
-  const [savedCardIds, setSavedCardIds] = useState<string[]>([]);
-  const [detailCard, setDetailCard] = useState<MockCard | null>(null);
+  const [savedCards, setSavedCards] = useState<Card[]>([]);
+  const [detailCard, setDetailCard] = useState<Card | null>(null);
   const [isReplying, setIsReplying] = useState(false);
+  const [loadingCards, setLoadingCards] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const recommendedCount = useMemo(
     () =>
@@ -176,28 +165,54 @@ const ChatPrototypePage = () => {
       ),
     [messages]
   );
-  const savedCards = useMemo(
-    () => MOCK_CARDS.filter((card) => savedCardIds.includes(card.id)),
-    [savedCardIds]
-  );
   const detailViewModel = useMemo(
-    () => (detailCard ? toPlaceCardViewModel(detailCard, savedCardIds) : null),
-    [detailCard, savedCardIds]
+    () => (detailCard ? toPlaceCardViewModel(detailCard) : null),
+    [detailCard]
   );
+
+  useEffect(() => {
+    if (urlTripId && urlTripId !== storeTripId) {
+      setStoreTripId(urlTripId);
+    }
+  }, [setStoreTripId, storeTripId, urlTripId]);
+
+  useEffect(() => {
+    if (!tripId) return;
+    let cancelled = false;
+    setLoadingCards(true);
+    fetchCards(tripId)
+      .then((response) => {
+        if (cancelled) return;
+        setSavedCards(
+          response.cards.filter(
+            (card) => card.source === 'ai_recommend' && !card.is_excluded
+          )
+        );
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setErrorMessage(chatErrorMessage(error));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCards(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId]);
 
   const resetPrototype = () => {
     setMessages(INITIAL_MESSAGES);
     setInput('');
     setInterests(INITIAL_INTERESTS);
     setConstraints(INITIAL_CONSTRAINTS);
-    setSavedCardIds([]);
     setDetailCard(null);
     setIsReplying(false);
+    setErrorMessage(null);
   };
 
-  const submitMessage = (rawMessage?: string) => {
+  const submitMessage = async (rawMessage?: string) => {
     const message = (rawMessage ?? input).trim();
-    if (!message || isReplying) return;
+    if (!message || isReplying || !tripId) return;
 
     setMessages((current) => [
       ...current,
@@ -205,70 +220,39 @@ const ChatPrototypePage = () => {
     ]);
     setInput('');
     setIsReplying(true);
+    setErrorMessage(null);
 
-    window.setTimeout(() => {
-      const lower = message.toLowerCase();
-      let assistantMessage: ChatMessage;
-
-      if (
-        lower.includes('걷') ||
-        lower.includes('여유') ||
-        lower.includes('조건')
-      ) {
-        setConstraints((current) =>
-          current.includes('relaxed_pace')
-            ? current
-            : [...current, 'relaxed_pace']
+    try {
+      const response = await parseChat(tripId, {
+        message,
+        context: { interests, constraints },
+        max_cards: 3,
+      });
+      setInterests(response.updated_context.interests);
+      setConstraints(response.updated_context.constraints);
+      setSavedCards((current) => {
+        const byId = new Map(current.map((card) => [card.instance_id, card]));
+        response.created_cards.forEach((card) =>
+          byId.set(card.instance_id, card)
         );
-        assistantMessage = {
+        return [...byId.values()];
+      });
+      setMessages((current) => [
+        ...current,
+        {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
-          text: '좋아요. 많이 걷지 않고 여유롭게 이동하는 일정으로 기억해둘게요. 다음 추천부터 이 조건을 함께 반영할게요.',
-        };
-      } else if (lower.includes('쿠로몬') || lower.includes('중복')) {
-        assistantMessage = {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          text: '쿠로몬 시장은 이미 카드 목록에 있어서 새로 추가하지 않았어요. 비슷한 분위기의 다른 장소를 원하시면 찾아드릴게요.',
-          duplicate: '쿠로몬 시장',
-        };
-      } else if (lower.includes('친구집') || lower.includes('예약')) {
-        assistantMessage = {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          text: "직접 가실 곳이군요! 그런 장소는 카드 목록의 '직접 추가'로 넣어주시면 돼요.",
-        };
-      } else {
-        if (lower.includes('카페') && !interests.includes('cafe')) {
-          setInterests((current) => [...current, 'cafe']);
-        }
-        if (
-          (lower.includes('비') || lower.includes('실내')) &&
-          !constraints.includes('rainy_day_option')
-        ) {
-          setConstraints((current) => [...current, 'rainy_day_option']);
-        }
-        assistantMessage = {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          text: '말씀해주신 취향과 동선을 고려해서 들러볼 만한 장소를 찾아봤어요.',
-          cards: lower.includes('쇼핑')
-            ? MOCK_CARDS.slice(2)
-            : MOCK_CARDS.slice(0, 3),
-        };
-      }
-
-      setMessages((current) => [...current, assistantMessage]);
+          text: response.reply,
+          cards: response.created_cards,
+          duplicates: response.duplicates.map((item) => item.name),
+          intent: response.intent,
+        },
+      ]);
+    } catch (error) {
+      setErrorMessage(chatErrorMessage(error));
+    } finally {
       setIsReplying(false);
-    }, 650);
-  };
-
-  const toggleSavedCard = (cardId: string) => {
-    setSavedCardIds((current) =>
-      current.includes(cardId)
-        ? current.filter((id) => id !== cardId)
-        : [...current, cardId]
-    );
+    }
   };
 
   const addContextItem = ({
@@ -305,14 +289,20 @@ const ChatPrototypePage = () => {
     <div className="min-h-screen bg-muted/60">
       <Header
         currentStepId="organize"
-        destination="오사카"
-        extraDestinations={1}
-        travelers={2}
-        dateRange="7월 18일 ~ 7월 22일"
+        destination={tripDetailQuery.data?.destinations[0] ?? '여행'}
+        extraDestinations={Math.max(
+          (tripDetailQuery.data?.destinations.length ?? 1) - 1,
+          0
+        )}
+        travelers={tripDetailQuery.data?.companion_count ?? 1}
+        dateRange={tripDateRangeLabel(
+          tripDetailQuery.data?.start_date,
+          tripDetailQuery.data?.travel_days ?? 0
+        )}
         actions={
           <Button variant="outline" size="sm" onClick={resetPrototype}>
             <RefreshCw aria-hidden="true" />
-            초기화
+            대화 초기화
           </Button>
         }
       />
@@ -323,10 +313,10 @@ const ChatPrototypePage = () => {
             <div className="mb-2 flex items-center gap-2">
               <Badge variant="secondary" className="gap-1.5 px-2 py-1 text-xs">
                 <Sparkles className="size-3" aria-hidden="true" />
-                MOCK PROTOTYPE
+                LIVE API
               </Badge>
               <span className="text-xs text-muted-foreground">
-                API 연결 전 화면 검증용
+                Chat Parser 연동 테스트
               </span>
             </div>
             <h1 className="text-2xl font-bold tracking-tight">
@@ -344,7 +334,7 @@ const ChatPrototypePage = () => {
             <div className="h-4 w-px bg-border" />
             <div>
               <span className="text-muted-foreground">카드에 담음</span>{' '}
-              <strong className="text-primary">{savedCardIds.length}</strong>
+              <strong className="text-primary">{savedCards.length}</strong>
             </div>
           </div>
         </div>
@@ -360,7 +350,7 @@ const ChatPrototypePage = () => {
                   <p className="text-sm font-semibold">TripKey 큐레이터</p>
                   <p className="flex items-center gap-1 text-xs text-muted-foreground">
                     <span className="size-1.5 rounded-full bg-emerald-500" />
-                    {'목 응답 준비됨'}
+                    {tripId ? 'API 연결됨' : '여행 정보 필요'}
                   </p>
                 </div>
               </div>
@@ -374,12 +364,7 @@ const ChatPrototypePage = () => {
 
             <div className="flex-1 space-y-6 overflow-y-auto bg-muted/25 px-6 py-6">
               {messages.map((message) => (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  savedCardIds={savedCardIds}
-                  onToggleCard={toggleSavedCard}
-                />
+                <MessageBubble key={message.id} message={message} />
               ))}
               {isReplying && (
                 <div className="flex items-start gap-3">
@@ -397,6 +382,21 @@ const ChatPrototypePage = () => {
               )}
             </div>
 
+            {errorMessage && (
+              <div className="mx-4 mb-3 rounded-lg border border-destructive/25 bg-destructive/8 px-4 py-3 text-xs text-destructive">
+                {errorMessage}
+              </div>
+            )}
+            {!tripId && (
+              <div className="mx-4 mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+                여행 정보가 없어요. 온보딩에서 여행을 만들거나 URL에
+                <code className="mx-1 rounded bg-amber-100 px-1">
+                  ?tripId=…
+                </code>
+                를 추가해주세요.
+              </div>
+            )}
+
             <div className="border-t bg-background p-4">
               <div className="mb-3 flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
                 {SUGGESTIONS.map(({ label, icon: Icon }) => (
@@ -404,7 +404,7 @@ const ChatPrototypePage = () => {
                     key={label}
                     type="button"
                     onClick={() => submitMessage(label)}
-                    disabled={isReplying}
+                    disabled={isReplying || !tripId}
                     className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:border-primary/40 hover:bg-primary/5 disabled:opacity-50"
                   >
                     <Icon
@@ -434,7 +434,7 @@ const ChatPrototypePage = () => {
                 <Button
                   size="icon"
                   className="size-10 shrink-0 rounded-lg"
-                  disabled={!input.trim() || isReplying}
+                  disabled={!input.trim() || isReplying || !tripId}
                   onClick={() => submitMessage()}
                   aria-label="메시지 보내기"
                 >
@@ -442,8 +442,8 @@ const ChatPrototypePage = () => {
                 </Button>
               </div>
               <p className="mt-2 text-center text-[11px] text-muted-foreground">
-                현재는 목데이터로 동작하며 입력 내용에 따라 준비된 시나리오를
-                보여줍니다.
+                추천 결과는 자동 저장되며, 원하지 않는 카드는 상세 패널에서
+                제외할 수 있어요.
               </p>
             </div>
           </section>
@@ -495,7 +495,11 @@ const ChatPrototypePage = () => {
               }
             />
 
-            <SavedCardPreview cards={savedCards} onOpen={setDetailCard} />
+            <SavedCardPreview
+              cards={savedCards}
+              onOpen={setDetailCard}
+              loading={loadingCards}
+            />
 
             <div className="mx-5 mt-2 rounded-xl border border-dashed bg-muted/35 p-4">
               <div className="flex items-center gap-2 text-sm font-medium">
@@ -527,11 +531,21 @@ const ChatPrototypePage = () => {
           if (!open) setDetailCard(null);
         }}
         card={detailViewModel}
-        onExclude={() => {
-          if (detailCard && savedCardIds.includes(detailCard.id)) {
-            toggleSavedCard(detailCard.id);
+        onExclude={async () => {
+          if (!detailCard || !tripId) return;
+          try {
+            await patchCard(tripId, detailCard.instance_id, {
+              is_excluded: true,
+            });
+            setSavedCards((current) =>
+              current.filter(
+                (card) => card.instance_id !== detailCard.instance_id
+              )
+            );
+            setDetailCard(null);
+          } catch (error) {
+            setErrorMessage(chatErrorMessage(error));
           }
-          setDetailCard(null);
         }}
       />
     </div>
@@ -544,15 +558,7 @@ const BotAvatar = () => (
   </div>
 );
 
-const MessageBubble = ({
-  message,
-  savedCardIds,
-  onToggleCard,
-}: {
-  message: ChatMessage;
-  savedCardIds: string[];
-  onToggleCard: (cardId: string) => void;
-}) => {
+const MessageBubble = ({ message }: { message: ChatMessage }) => {
   const isUser = message.role === 'user';
   return (
     <div className={cn('flex items-start gap-3', isUser && 'justify-end')}>
@@ -573,25 +579,23 @@ const MessageBubble = ({
         >
           {message.text}
         </div>
-        {message.duplicate && (
-          <div className="flex w-full items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        {message.duplicates?.map((name) => (
+          <div
+            key={name}
+            className="flex w-full items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          >
             <Copy
               className="size-4 shrink-0 text-amber-600"
               aria-hidden="true"
             />
-            <span className="flex-1">{message.duplicate}</span>
+            <span className="flex-1">{name}</span>
             <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
               이미 있음
             </Badge>
           </div>
-        )}
+        ))}
         {message.cards?.map((card) => (
-          <RecommendationCard
-            key={card.id}
-            card={card}
-            saved={savedCardIds.includes(card.id)}
-            onToggle={() => onToggleCard(card.id)}
-          />
+          <RecommendationCard key={card.instance_id} card={card} />
         ))}
       </div>
       {isUser && (
@@ -603,16 +607,16 @@ const MessageBubble = ({
   );
 };
 
-const RecommendationCard = ({
-  card,
-  saved,
-  onToggle,
-}: {
-  card: MockCard;
-  saved: boolean;
-  onToggle: () => void;
-}) => {
-  const Icon = card.icon;
+const RecommendationCard = ({ card }: { card: Card }) => {
+  const Icon =
+    card.category === 'food'
+      ? Utensils
+      : card.category === 'activity'
+        ? Sparkles
+        : card.category === 'etc'
+          ? ShoppingBag
+          : MapPin;
+  const duration = formatDuration(card.estimated_duration_min);
   return (
     <article className="w-full overflow-hidden rounded-xl border bg-background shadow-xs">
       <div className="flex gap-4 p-4">
@@ -630,25 +634,17 @@ const RecommendationCard = ({
               </div>
               <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                 <MapPin className="size-3" aria-hidden="true" />
-                {card.area} · {card.duration}
+                {card.location ?? card.address ?? '위치 정보 확인됨'}
+                {duration ? ` · ${duration}` : ''}
               </p>
             </div>
-            <Button
-              size="sm"
-              variant={saved ? 'secondary' : 'default'}
-              onClick={onToggle}
-              className="shrink-0"
-            >
-              {saved ? (
-                <Check aria-hidden="true" />
-              ) : (
-                <ArrowUp className="rotate-45" aria-hidden="true" />
-              )}
-              {saved ? '담았어요' : '카드에 담기'}
+            <Button size="sm" variant="secondary" disabled className="shrink-0">
+              <Check aria-hidden="true" />
+              저장됨
             </Button>
           </div>
           <p className="mt-3 text-xs leading-5 text-muted-foreground">
-            {card.reason}
+            {card.user_context ?? '대화에서 요청한 조건을 반영한 추천이에요.'}
           </p>
         </div>
       </div>
@@ -797,9 +793,11 @@ const ContextSection = ({
 const SavedCardPreview = ({
   cards,
   onOpen,
+  loading,
 }: {
-  cards: MockCard[];
-  onOpen: (card: MockCard) => void;
+  cards: Card[];
+  onOpen: (card: Card) => void;
+  loading: boolean;
 }) => (
   <section className="border-b px-5 py-5">
     <div className="mb-3 flex items-center justify-between">
@@ -814,15 +812,22 @@ const SavedCardPreview = ({
       </Badge>
     </div>
 
-    {cards.length ? (
+    {loading ? (
+      <div className="space-y-2">
+        <PlaceCard id="loading-1" name="불러오는 중" loading />
+        <PlaceCard id="loading-2" name="불러오는 중" loading />
+      </div>
+    ) : cards.length ? (
       <div className="space-y-2">
         {cards.map((card) => (
           <PlaceCard
-            key={card.id}
-            id={card.id}
+            key={card.instance_id}
+            id={card.instance_id}
             name={card.name}
             accent="green"
-            badges={[{ kind: 'category', category: card.category }]}
+            badges={[
+              { kind: 'category', category: CATEGORY_MAP[card.category] },
+            ]}
             onClick={() => onOpen(card)}
           />
         ))}
@@ -836,7 +841,7 @@ const SavedCardPreview = ({
           아직 담은 카드가 없어요
         </p>
         <p className="mt-1 text-[11px] text-muted-foreground/80">
-          추천 카드의 ‘카드에 담기’를 눌러보세요.
+          대화로 장소를 추천받으면 자동으로 저장돼요.
         </p>
       </div>
     )}
