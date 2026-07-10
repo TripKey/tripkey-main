@@ -633,7 +633,15 @@ const RecommendationCard = ({ card }: { card: Card }) => {
               </div>
               <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                 <MapPin className="size-3" aria-hidden="true" />
-                {card.location ?? card.address ?? '위치 정보 확인됨'}
+                <span
+                  className="min-w-0 truncate"
+                  title={[card.location, card.address]
+                    .filter(Boolean)
+                    .join(' · ')}
+                >
+                  {[card.location, card.address].filter(Boolean).join(' · ') ||
+                    '위치 정보 확인됨'}
+                </span>
               </p>
             </div>
             <Button size="sm" variant="secondary" disabled className="shrink-0">
