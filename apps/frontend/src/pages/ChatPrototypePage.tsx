@@ -616,7 +616,6 @@ const RecommendationCard = ({ card }: { card: Card }) => {
         : card.category === 'etc'
           ? ShoppingBag
           : MapPin;
-  const duration = formatDuration(card.estimated_duration_min);
   return (
     <article className="w-full overflow-hidden rounded-xl border bg-background shadow-xs">
       <div className="flex gap-4 p-4">
@@ -635,7 +634,6 @@ const RecommendationCard = ({ card }: { card: Card }) => {
               <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                 <MapPin className="size-3" aria-hidden="true" />
                 {card.location ?? card.address ?? '위치 정보 확인됨'}
-                {duration ? ` · ${duration}` : ''}
               </p>
             </div>
             <Button size="sm" variant="secondary" disabled className="shrink-0">
