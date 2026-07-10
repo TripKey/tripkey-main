@@ -7,7 +7,7 @@ import {
   Users,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -58,10 +58,8 @@ const Header = ({
   showTripMeta = true,
   fluid = false,
 }: HeaderProps) => {
-  const location = useLocation();
   const currentIndex = STEPS.findIndex((step) => step.id === currentStepId);
   const widthClass = fluid ? 'w-full' : 'mx-auto w-full max-w-6xl';
-  const isChatPrototype = location.pathname === '/prototype/chat';
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background">
@@ -131,18 +129,15 @@ const Header = ({
           )}
 
           <div className="flex items-center gap-2">
-            <Link
-              to="/prototype/chat"
-              className={cn(
-                'inline-flex h-8 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors',
-                isChatPrototype
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border bg-background text-foreground hover:bg-accent'
-              )}
-            >
-              <MessageCircle className="size-3.5" aria-hidden="true" />챗
-              프로토타입
-            </Link>
+            {currentStepId === 'dump' && (
+              <Link
+                to="/prototype/chat"
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                <MessageCircle className="size-3.5" aria-hidden="true" />챗
+                프로토타입
+              </Link>
+            )}
             {actions}
           </div>
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
