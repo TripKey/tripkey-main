@@ -657,7 +657,7 @@ const GroupingPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-muted">
+    <div className="min-h-screen bg-linear-to-b from-muted/50 to-background">
       <Header
         currentStepId="organize"
         destination={summary.destinations[0] ?? '여행'}
@@ -686,78 +686,87 @@ const GroupingPage = () => {
         }
       />
 
-      <main className="mx-auto w-full max-w-[1180px] px-6 py-8">
-        <div className="grid grid-cols-[minmax(0,1fr)_360px] items-start gap-6">
-          <div className="flex flex-col gap-5">
-            <header>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                {heading.title}
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {heading.subtitle}
-              </p>
-            </header>
+      <main className="mx-auto w-full max-w-[1180px] px-4 pt-10 pb-16 sm:px-6 sm:pt-14">
+        <header className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            {heading.title}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {heading.subtitle}
+          </p>
+        </header>
 
-            {inlineError && (
-              <div
-                role="alert"
-                className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-              >
-                {inlineError}
-              </div>
-            )}
-
-            <ProgressStat
-              label="정리 진행률"
-              value={progress.percent}
-              caption={`활성 카드 ${progress.activeCount}개 중 ${progress.doneCount}개 확인 완료`}
-              boxed
-            />
-
-            {loading && !viewModel ? (
-              <p className="py-12 text-center text-sm text-muted-foreground">
-                불러오는 중…
-              </p>
-            ) : (
-              groups.map((group) => (
-                <ActionGroupSection
-                  key={group.variant}
-                  variant={group.variant}
-                  title={group.title}
-                  countLabel={group.countLabel}
-                  defaultOpen={group.defaultOpen}
+        <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
+          <div className="grid min-h-150 lg:grid-cols-[minmax(0,1fr)_340px]">
+            {/* 좌측: 그룹 카드 (카드 늘면 세로로 함께 성장) */}
+            <div className="flex flex-col gap-5 p-6 sm:p-8">
+              {inlineError && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
                 >
-                  {group.cards.map((card) => (
-                    <PlaceCard
-                      key={card.id}
-                      {...card}
-                      onClick={
-                        card.detail
-                          ? () => openReviewDetail(card)
-                          : card.editDetail
-                            ? () => openEditDetail(card)
-                            : card.selectDetail
-                              ? () => openSelectDetail(card)
-                              : logStub(`open-card:${card.id}`)
-                      }
-                      onAction={logStub(`card-action:${card.id}`)}
-                    />
-                  ))}
-                </ActionGroupSection>
-              ))
-            )}
-          </div>
+                  {inlineError}
+                </div>
+              )}
 
-          <aside className="sticky top-34">
-            <TripSummaryCard
-              {...summary}
-              nextDisabled={nextDisabled}
-              onNext={() =>
-                navigate(tripId ? `/arrange?tripId=${tripId}` : '/arrange')
-              }
-              onPrev={handlePrev}
-            />
-          </aside>
+              {/* 정리 진행률 — 요약으로 통합, 숨김 처리(코드 유지) */}
+              {false && (
+                <ProgressStat
+                  label="정리 진행률"
+                  value={progress.percent}
+                  caption={`활성 카드 ${progress.activeCount}개 중 ${progress.doneCount}개 확인 완료`}
+                  boxed
+                />
+              )}
+
+              {loading && !viewModel ? (
+                <p className="py-12 text-center text-sm text-muted-foreground">
+                  불러오는 중…
+                </p>
+              ) : (
+                groups.map((group) => (
+                  <ActionGroupSection
+                    key={group.variant}
+                    variant={group.variant}
+                    title={group.title}
+                    countLabel={group.countLabel}
+                    defaultOpen={group.defaultOpen}
+                  >
+                    {group.cards.map((card) => (
+                      <PlaceCard
+                        key={card.id}
+                        {...card}
+                        onClick={
+                          card.detail
+                            ? () => openReviewDetail(card)
+                            : card.editDetail
+                              ? () => openEditDetail(card)
+                              : card.selectDetail
+                                ? () => openSelectDetail(card)
+                                : logStub(`open-card:${card.id}`)
+                        }
+                        onAction={logStub(`card-action:${card.id}`)}
+                      />
+                    ))}
+                  </ActionGroupSection>
+                ))
+              )}
+            </div>
+
+            {/* 우측: 요약 */}
+            <aside className="flex flex-col border-t border-border bg-muted/20 p-6 sm:p-8 lg:border-l lg:border-t-0">
+              <TripSummaryCard
+                {...summary}
+                bare
+                hideProgress
+                nextDisabled={nextDisabled}
+                onNext={() =>
+                  navigate(tripId ? `/arrange?tripId=${tripId}` : '/arrange')
+                }
+                onPrev={handlePrev}
+              />
+            </aside>
+          </div>
         </div>
       </main>
 
