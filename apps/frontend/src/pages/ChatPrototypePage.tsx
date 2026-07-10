@@ -822,6 +822,7 @@ const SavedCardPreview = ({
             id={card.id}
             name={card.name}
             accent="green"
+            badges={[{ kind: 'category', category: card.category }]}
             onClick={() => onOpen(card)}
           />
         ))}
