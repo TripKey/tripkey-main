@@ -17,6 +17,7 @@ import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import com.tripkey.infra.aiengine.dto.AiRouteRequest;
 import com.tripkey.infra.aiengine.dto.AiRouteResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -25,6 +26,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class AiEngineClient {
 
     private final WebClient aiEngineWebClient;
@@ -43,6 +45,8 @@ public class AiEngineClient {
             }
             return response;
         } catch (WebClientResponseException e) {
+            log.warn("ai-engine chat request failed. status={} body={}",
+                    e.getStatusCode(), e.getResponseBodyAsString());
             if (e.getStatusCode().value() == HttpStatus.SERVICE_UNAVAILABLE.value()) {
                 throw new AiEngineUnavailableException("AI recommendation service is temporarily unavailable", e);
             }
