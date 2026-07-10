@@ -9,13 +9,14 @@
 //    (백엔드에 카드별 day 저장 API 가 없어 스냅샷 일괄 전송만 가능)
 
 import { format } from 'date-fns';
-import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import CardListPanel from '@/components/arrange/CardListPanel';
 import DayColumn from '@/components/arrange/DayColumn';
 import CardDetailPanel from '@/components/card-detail/CardDetailPanel';
+import ChatAssistantDialog from '@/components/chat/ChatAssistantDialog';
 import AddCardModal from '@/components/grouping/AddCardModal';
 import Header from '@/components/header/Header';
 import { Button } from '@/components/ui/button';
@@ -203,13 +204,16 @@ const ArrangePage = () => {
   }, [cardsQuery.data, meta, daysQuery.isLoaded, daysQuery.dayViewModels]);
 
   // 배치 저장 요청 시 카드별 예상 소요 시간 조회용.
+  const [chatCardDurations, setChatCardDurations] = useState<
+    Record<string, number | null>
+  >({});
   const durationByInstance = useMemo(() => {
     const map: Record<string, number | null> = {};
     for (const card of cardsQuery.data?.cards ?? []) {
       map[card.instance_id] = card.estimated_duration_min;
     }
-    return map;
-  }, [cardsQuery.data]);
+    return { ...map, ...chatCardDurations };
+  }, [cardsQuery.data, chatCardDurations]);
 
   // 드래그앤드롭에 따라 좌/우가 함께 바뀌므로 ViewModel 을 로컬 상태로 보관한다.
   // (mutation 후 query 를 invalidate 하지 않으므로 미저장 배치가 덮어써지지 않는다.)
@@ -231,6 +235,7 @@ const ArrangePage = () => {
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [addCardOpen, setAddCardOpen] = useState(false);
+  const [chatAssistantOpen, setChatAssistantOpen] = useState(false);
   const [routeWarnings, setRouteWarnings] = useState<RouteWarning[] | null>(
     null
   );
@@ -897,14 +902,25 @@ const ArrangePage = () => {
         travelers={summary.travelers}
         dateRange={summary.dateRange}
         actions={
-          <Button
-            size="sm"
-            onClick={() => setAddCardOpen(true)}
-            disabled={!tripId || busy}
-          >
-            <Plus aria-hidden="true" />
-            카드 추가하기
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setChatAssistantOpen(true)}
+              disabled={!tripId || busy}
+            >
+              <Sparkles aria-hidden="true" />
+              AI로 카드 더 찾기
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setAddCardOpen(true)}
+              disabled={!tripId || busy}
+            >
+              <Plus aria-hidden="true" />
+              카드 추가하기
+            </Button>
+          </>
         }
       />
 
@@ -1063,6 +1079,26 @@ const ArrangePage = () => {
         tripStartDate={detail?.start_date}
         travelDays={detail?.travel_days}
         onSubmit={handleAddCard}
+      />
+
+      <ChatAssistantDialog
+        open={chatAssistantOpen}
+        onOpenChange={setChatAssistantOpen}
+        tripId={tripId}
+        destination={summary.destination}
+        onCardsCreated={async (cards) => {
+          setChatCardDurations((current) => ({
+            ...current,
+            ...Object.fromEntries(
+              cards.map((card) => [
+                card.instance_id,
+                card.estimated_duration_min,
+              ])
+            ),
+          }));
+          await refreshLeftGroupsPreservingBoard();
+          setConfirmed(false);
+        }}
       />
     </div>
   );

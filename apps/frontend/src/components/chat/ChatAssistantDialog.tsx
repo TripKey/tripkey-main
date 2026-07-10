@@ -40,7 +40,7 @@ type ChatAssistantDialogProps = {
   onOpenChange: (open: boolean) => void;
   tripId: string | null;
   destination?: string;
-  onCardsCreated: () => Promise<void> | void;
+  onCardsCreated: (cards: Card[]) => Promise<void> | void;
 };
 
 const SUGGESTIONS = [
@@ -123,7 +123,9 @@ const ChatAssistantDialog = ({
           intent: response.intent,
         },
       ]);
-      if (response.created_cards.length > 0) await onCardsCreated();
+      if (response.created_cards.length > 0) {
+        await onCardsCreated(response.created_cards);
+      }
     } catch (error) {
       setErrorMessage(chatErrorMessage(error));
     } finally {
