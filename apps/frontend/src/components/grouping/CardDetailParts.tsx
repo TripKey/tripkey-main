@@ -292,11 +292,11 @@ export const ItineraryInclusionBox = ({
 
 // 질문 박스
 export const QuestionBox = ({ question }: { question: string }) => (
-  <div className="mt-3 rounded-xl bg-indigo-50/70 px-4 py-3.5 dark:bg-indigo-950/30">
-    <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-300">
+  <div className="mt-3 rounded-xl bg-primary/10 px-4 py-3.5 dark:bg-primary/15">
+    <p className="text-xs font-semibold text-primary dark:text-primary">
       질문
     </p>
-    <p className="mt-1.5 text-sm leading-relaxed font-medium text-indigo-900 dark:text-indigo-100">
+    <p className="mt-1.5 text-sm leading-relaxed font-medium text-primary dark:text-primary">
       {question}
     </p>
   </div>

@@ -59,7 +59,7 @@ const PlaceCardBadge = (props: PlaceCardBadgeSpec) => {
 
   if (props.kind === 'ai') {
     return (
-      <Badge className="border-transparent bg-indigo-50 px-1.5 font-semibold text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300">
+      <Badge className="border-transparent bg-primary/10 px-1.5 font-semibold text-primary dark:bg-primary/20 dark:text-primary">
         AI
       </Badge>
     );

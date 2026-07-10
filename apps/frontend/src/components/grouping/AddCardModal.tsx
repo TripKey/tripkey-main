@@ -289,7 +289,7 @@ const AddCardForm = ({
                   className={cn(
                     'rounded-xl border px-3 py-3 text-sm font-medium transition-colors',
                     active
-                      ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200'
+                      ? 'border-primary/40 bg-primary/10 text-primary dark:border-primary/40 dark:bg-primary/20 dark:text-primary'
                       : 'border-input bg-background text-foreground hover:border-muted-foreground/30 hover:bg-muted/50'
                   )}
                 >
@@ -317,7 +317,7 @@ const AddCardForm = ({
                     className={cn(
                       'rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors',
                       active
-                        ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200'
+                        ? 'border-primary/40 bg-primary/10 text-primary dark:border-primary/40 dark:bg-primary/20 dark:text-primary'
                         : 'border-input bg-background text-foreground hover:border-muted-foreground/30 hover:bg-muted/50'
                     )}
                   >
@@ -356,7 +356,7 @@ const AddCardForm = ({
                       className={cn(
                         'rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors',
                         active
-                          ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200'
+                          ? 'border-primary/40 bg-primary/10 text-primary dark:border-primary/40 dark:bg-primary/20 dark:text-primary'
                           : 'border-input bg-background text-foreground hover:border-muted-foreground/30 hover:bg-muted/50'
                       )}
                     >
