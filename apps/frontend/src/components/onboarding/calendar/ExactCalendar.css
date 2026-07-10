@@ -1,7 +1,7 @@
 .rdp-root {
   width: 100%;
   font-size: 14px;
-  color: #111827;
+  color: var(--foreground);
 
   position: relative;
 }
@@ -38,7 +38,7 @@
   text-align: center;
   font-size: 12px;
   font-weight: 500;
-  color: #9ca3af;
+  color: var(--muted-foreground);
   padding: 6px 0;
 }
 
@@ -81,7 +81,7 @@
   border-radius: 50%;
   cursor: pointer;
   font-size: 13px;
-  color: #111827;
+  color: var(--foreground);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -89,7 +89,7 @@
 }
 
 .rdp-day_button:hover {
-  background: #f3f4f6;
+  background: var(--muted);
 }
 
 /* 일요일 */
@@ -104,15 +104,23 @@
 
 /* 범위 중간 배경 (셀 전체) */
 .rdp-range_middle {
-  background: #eef2ff;
+  background: color-mix(in oklch, var(--calendar-accent) 12%, transparent);
 }
 
 .rdp-range_start {
-  background: linear-gradient(to right, transparent 50%, #eef2ff 50%);
+  background: linear-gradient(
+    to right,
+    transparent 50%,
+    color-mix(in oklch, var(--calendar-accent) 12%, transparent) 50%
+  );
 }
 
 .rdp-range_end {
-  background: linear-gradient(to left, transparent 50%, #eef2ff 50%);
+  background: linear-gradient(
+    to left,
+    transparent 50%,
+    color-mix(in oklch, var(--calendar-accent) 12%, transparent) 50%
+  );
 }
 
 .rdp-range_start.rdp-range_end {
@@ -123,25 +131,25 @@
 .rdp-range_start .rdp-day_button,
 .rdp-range_end .rdp-day_button,
 .rdp-selected .rdp-day_button {
-  background: #6366f1;
-  color: #fff !important;
+  background: var(--calendar-accent);
+  color: var(--primary-foreground) !important;
   font-weight: 600;
   border-radius: 50%;
 }
 
 .rdp-range_middle .rdp-day_button {
   background: none;
-  color: #4338ca;
+  color: var(--calendar-accent);
   border-radius: 50%;
 }
 
 /* 비활성화 / 외부 날짜 */
 .rdp-outside .rdp-day_button {
-  color: #d1d5db;
+  color: var(--muted-foreground);
 }
 
 .rdp-disabled .rdp-day_button {
-  color: #d1d5db;
+  color: var(--muted-foreground);
   cursor: default;
 }
 
@@ -153,12 +161,12 @@
 .exact-calendar__footer {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 13px;
-  color: #6b7280;
+  color: var(--muted-foreground);
 }
 
 .exact-calendar__footer-dates {
@@ -174,12 +182,12 @@
 
 .exact-calendar__footer-dates p {
   font-size: 11px;
-  color: #9ca3af;
+  color: var(--muted-foreground);
   margin: 0;
 }
 
 .exact-calendar__footer-nights {
   font-size: 13px;
   font-weight: 600;
-  color: #6366f1;
+  color: var(--calendar-accent);
 }
