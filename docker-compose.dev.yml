@@ -10,7 +10,6 @@ services:
     environment:
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
-      VITE_DEV_PROXY_TARGET: http://tripkey-backend:8080
     volumes:
       - ./apps/frontend:/app
       - /app/node_modules
