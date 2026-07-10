@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from app.schemas.chat_parse import ChatContext, ChatParseRequest
+from app.schemas.chat_parse import ChatContext, ChatParseRequest, ExistingCardSummary
 from app.schemas.parse import Coordinates
 from app.services import chat_parse
 
@@ -62,6 +62,40 @@ async def test_unknown_intent_falls_back_to_clarification(monkeypatch: pytest.Mo
     assert response.intent == "need_clarification"
     assert response.cards == []
     assert response.reply == chat_parse.FALLBACK_REPLIES["need_clarification"]
+
+
+@pytest.mark.asyncio
+async def test_explicit_existing_place_uses_arrangement_duplicate_guidance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_gemini(
+        monkeypatch,
+        {
+            "intent": "no_action",
+            "reply": "직접 추가해주세요.",
+            "cards": [],
+            "duplicates": [],
+        },
+    )
+    req = _request()
+    req = req.model_copy(
+        update={
+            "message": "쿠로몬 시장도 다시 넣어줘",
+            "existing_cards": [
+                ExistingCardSummary(
+                    name="쿠로몬 시장",
+                    category="food",
+                    location="난바",
+                    place_id="place-1",
+                )
+            ],
+        }
+    )
+
+    response = await chat_parse.parse_chat(req)
+
+    assert [item.name for item in response.duplicates] == ["쿠로몬 시장"]
+    assert response.reply == chat_parse.DUPLICATE_ONLY_REPLY
 
 
 @pytest.mark.asyncio

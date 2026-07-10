@@ -27,6 +27,8 @@ Rules:
 3. Do not invent place_id or coordinates; enrichment supplies them.
 4. Do not recommend a place that is identical or effectively identical to existing_cards. Report it in
    duplicates as {{"name": "the candidate name", "reason": "already_exists"}}.
+   If the message explicitly asks for an existing place again, always include it in duplicates. Explain that
+   the place is already saved and can be duplicated later from the arrangement screen when multiple visits are wanted.
 5. Put the recommendation rationale in user_context.
 6. reply must be 1-2 Korean sentences and must not state a numeric count of cards.
 7. Merge new preferences/constraints into context and always return the complete updated_context.

@@ -32,6 +32,8 @@ public class ChatParseService {
     private static final int DEFAULT_MAX_CARDS = 3;
     private static final int MAX_CONTEXT_ITEMS = 20;
     private static final int MAX_CONTEXT_ITEM_LENGTH = 100;
+    private static final String DUPLICATE_ONLY_REPLY =
+            "이미 저장된 장소예요. 같은 장소를 일정에 여러 번 넣고 싶다면 배치 화면에서 카드를 복제할 수 있어요.";
 
     private final TripRepository tripRepository;
     private final TripDestinationRepository tripDestinationRepository;
@@ -71,15 +73,19 @@ public class ChatParseService {
         ChatContextDto updatedContext = normalizeAiContext(aiResponse.updatedContext(), normalized.context());
         List<ChatDuplicateDto> aiDuplicates = normalizeAiDuplicates(aiResponse.duplicates());
         if (!"generate_cards".equals(aiResponse.intent()) || aiResponse.cards() == null || aiResponse.cards().isEmpty()) {
+            String reply = aiDuplicates.isEmpty() ? aiResponse.reply() : DUPLICATE_ONLY_REPLY;
             return new ChatParseResponse(
-                    aiResponse.intent(), aiResponse.reply(), updatedContext, List.of(), aiDuplicates);
+                    aiResponse.intent(), reply, updatedContext, List.of(), aiDuplicates);
         }
 
         ChatCardWriteResult writeResult = cardWriter.saveRecommendedCards(tripId, aiResponse.cards());
         List<CardDto> createdCards = writeResult.savedCards().stream().map(CardDto::from).toList();
         List<ChatDuplicateDto> duplicates = mergeDuplicates(aiDuplicates, writeResult.duplicates());
+        String reply = createdCards.isEmpty() && !duplicates.isEmpty()
+                ? DUPLICATE_ONLY_REPLY
+                : aiResponse.reply();
         return new ChatParseResponse(
-                aiResponse.intent(), aiResponse.reply(), updatedContext, createdCards, duplicates);
+                aiResponse.intent(), reply, updatedContext, createdCards, duplicates);
     }
 
     private static NormalizedRequest normalize(ChatParseRequest request) {

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import re
 from typing import Any
 
 from app.prompts.chat_parse import build_chat_parse_prompt
@@ -35,6 +36,7 @@ FALLBACK_REPLIES = {
     "no_action": "알겠어요. 다른 장소가 필요하면 말씀해주세요.",
 }
 NO_MATCH_REPLY = "조건에 맞는 장소를 찾지 못했어요. 조금 다르게 말씀해주시겠어요?"
+DUPLICATE_ONLY_REPLY = "이미 저장된 장소예요. 같은 장소를 일정에 여러 번 넣고 싶다면 배치 화면에서 카드를 복제할 수 있어요."
 CONSTRAINT_ALIASES = {
     "low_walking": "low_walking",
     "low walking": "low_walking",
@@ -144,6 +146,31 @@ def _normalize_duplicates(raw: Any) -> list[DuplicateItem]:
     return result
 
 
+def _explicit_existing_duplicates(req: ChatParseRequest) -> list[DuplicateItem]:
+    normalized_message = re.sub(r"\s+", "", req.message).lower()
+    duplicates: list[DuplicateItem] = []
+    seen: set[str] = set()
+    for card in req.existing_cards:
+        name = card.name.strip()
+        key = re.sub(r"\s+", "", name).lower()
+        if key and key in normalized_message and key not in seen:
+            seen.add(key)
+            duplicates.append(DuplicateItem(name=name))
+    return duplicates
+
+
+def _merge_duplicate_items(*groups: list[DuplicateItem]) -> list[DuplicateItem]:
+    merged: list[DuplicateItem] = []
+    seen: set[str] = set()
+    for group in groups:
+        for item in group:
+            key = item.name.strip().lower()
+            if key and key not in seen:
+                seen.add(key)
+                merged.append(item)
+    return merged
+
+
 def _parse_candidate_cards(raw: Any, max_cards: int) -> list[ParsedCard]:
     if not isinstance(raw, list):
         return []
@@ -203,8 +230,13 @@ async def parse_chat(req: ChatParseRequest) -> ChatParseResponse:
         reply = reply.strip()
 
     updated_context = _normalize_context(parsed.get("updated_context"), req.context)
-    duplicates = _normalize_duplicates(parsed.get("duplicates"))
+    duplicates = _merge_duplicate_items(
+        _normalize_duplicates(parsed.get("duplicates")),
+        _explicit_existing_duplicates(req),
+    )
     if intent != "generate_cards":
+        if duplicates:
+            reply = DUPLICATE_ONLY_REPLY
         return ChatParseResponse(
             intent=intent,
             reply=reply,
@@ -230,7 +262,7 @@ async def parse_chat(req: ChatParseRequest) -> ChatParseResponse:
         if _has_valid_place(card)
     ]
     if not kept:
-        reply = NO_MATCH_REPLY
+        reply = DUPLICATE_ONLY_REPLY if duplicates else NO_MATCH_REPLY
 
     return ChatParseResponse(
         intent=intent,

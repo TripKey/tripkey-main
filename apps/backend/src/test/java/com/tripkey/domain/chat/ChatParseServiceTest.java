@@ -113,5 +113,7 @@ class ChatParseServiceTest {
 
         assertThat(response.duplicates()).extracting(ChatDuplicateDto::name)
                 .containsExactly("기존 장소", "다른 장소");
+        assertThat(response.reply())
+                .isEqualTo("이미 저장된 장소예요. 같은 장소를 일정에 여러 번 넣고 싶다면 배치 화면에서 카드를 복제할 수 있어요.");
     }
 }
