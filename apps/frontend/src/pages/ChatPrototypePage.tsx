@@ -5,6 +5,7 @@ import {
   CloudRain,
   Coffee,
   Copy,
+  MapPin,
   Plus,
   RefreshCw,
   ShoppingBag,
@@ -378,7 +379,6 @@ const ChatPrototypePage = () => {
                   message={message}
                   savedCardIds={savedCardIds}
                   onToggleCard={toggleSavedCard}
-                  onOpenDetail={setDetailCard}
                 />
               ))}
               {isReplying && (
@@ -495,10 +495,7 @@ const ChatPrototypePage = () => {
               }
             />
 
-            <SavedCardPreview
-              cards={savedCards}
-              onRemove={(cardId) => toggleSavedCard(cardId)}
-            />
+            <SavedCardPreview cards={savedCards} onOpen={setDetailCard} />
 
             <div className="mx-5 mt-2 rounded-xl border border-dashed bg-muted/35 p-4">
               <div className="flex items-center gap-2 text-sm font-medium">
@@ -530,15 +527,11 @@ const ChatPrototypePage = () => {
           if (!open) setDetailCard(null);
         }}
         card={detailViewModel}
-        onInclude={() => {
-          if (detailCard && !savedCardIds.includes(detailCard.id)) {
-            toggleSavedCard(detailCard.id);
-          }
-        }}
         onExclude={() => {
           if (detailCard && savedCardIds.includes(detailCard.id)) {
             toggleSavedCard(detailCard.id);
           }
+          setDetailCard(null);
         }}
       />
     </div>
@@ -555,12 +548,10 @@ const MessageBubble = ({
   message,
   savedCardIds,
   onToggleCard,
-  onOpenDetail,
 }: {
   message: ChatMessage;
   savedCardIds: string[];
   onToggleCard: (cardId: string) => void;
-  onOpenDetail: (card: MockCard) => void;
 }) => {
   const isUser = message.role === 'user';
   return (
@@ -600,7 +591,6 @@ const MessageBubble = ({
             card={card}
             saved={savedCardIds.includes(card.id)}
             onToggle={() => onToggleCard(card.id)}
-            onOpenDetail={() => onOpenDetail(card)}
           />
         ))}
       </div>
@@ -617,38 +607,52 @@ const RecommendationCard = ({
   card,
   saved,
   onToggle,
-  onOpenDetail,
 }: {
   card: MockCard;
   saved: boolean;
   onToggle: () => void;
-  onOpenDetail: () => void;
 }) => {
+  const Icon = card.icon;
   return (
-    <div className="w-full space-y-2">
-      <PlaceCard
-        {...toPlaceCardViewModel(card, saved ? [card.id] : [])}
-        onClick={onOpenDetail}
-      />
-      <div className="flex items-center justify-between px-1">
-        <p className="text-[11px] text-muted-foreground">
-          카드를 눌러 추천 근거를 확인하세요
-        </p>
-        <Button
-          size="sm"
-          variant={saved ? 'secondary' : 'default'}
-          onClick={onToggle}
-          className="h-8 shrink-0"
-        >
-          {saved ? (
-            <Check aria-hidden="true" />
-          ) : (
-            <ArrowUp className="rotate-45" aria-hidden="true" />
-          )}
-          {saved ? '담았어요' : '카드에 담기'}
-        </Button>
+    <article className="w-full overflow-hidden rounded-xl border bg-background shadow-xs">
+      <div className="flex gap-4 p-4">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Icon className="size-5" aria-hidden="true" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-semibold">{card.name}</h3>
+                <Badge variant="secondary" className="text-[10px] font-medium">
+                  {CATEGORY_LABELS[card.category]}
+                </Badge>
+              </div>
+              <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                <MapPin className="size-3" aria-hidden="true" />
+                {card.area} · {card.duration}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant={saved ? 'secondary' : 'default'}
+              onClick={onToggle}
+              className="shrink-0"
+            >
+              {saved ? (
+                <Check aria-hidden="true" />
+              ) : (
+                <ArrowUp className="rotate-45" aria-hidden="true" />
+              )}
+              {saved ? '담았어요' : '카드에 담기'}
+            </Button>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-muted-foreground">
+            {card.reason}
+          </p>
+        </div>
       </div>
-    </div>
+    </article>
   );
 };
 
@@ -792,10 +796,10 @@ const ContextSection = ({
 
 const SavedCardPreview = ({
   cards,
-  onRemove,
+  onOpen,
 }: {
   cards: MockCard[];
-  onRemove: (cardId: string) => void;
+  onOpen: (card: MockCard) => void;
 }) => (
   <section className="border-b px-5 py-5">
     <div className="mb-3 flex items-center justify-between">
@@ -812,33 +816,16 @@ const SavedCardPreview = ({
 
     {cards.length ? (
       <div className="space-y-2">
-        {cards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <div
-              key={card.id}
-              className="flex items-center gap-3 rounded-lg border bg-muted/25 p-2.5"
-            >
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Icon className="size-3.5" aria-hidden="true" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-semibold">{card.name}</p>
-                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                  {CATEGORY_LABELS[card.category]} · {card.area}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onRemove(card.id)}
-                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label={`${card.name} 담은 카드에서 제거`}
-              >
-                <X className="size-3.5" aria-hidden="true" />
-              </button>
-            </div>
-          );
-        })}
+        {cards.map((card) => (
+          <PlaceCard
+            key={card.id}
+            {...toPlaceCardViewModel(card, [card.id])}
+            onClick={() => onOpen(card)}
+          />
+        ))}
+        <p className="px-1 pt-1 text-[11px] text-muted-foreground">
+          카드를 누르면 상세 정보와 제외 기능을 확인할 수 있어요.
+        </p>
       </div>
     ) : (
       <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-5 text-center">
