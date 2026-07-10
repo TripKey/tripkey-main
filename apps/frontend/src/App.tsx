@@ -6,6 +6,7 @@ import RequireTrip from './components/common/RequireTrip';
 import SplashScreen from './components/common/SplashScreen';
 import { queryClient } from './lib/query-client';
 import ArrangePage from './pages/ArrangePage';
+import ChatPrototypePage from './pages/ChatPrototypePage';
 import ConfirmPage from './pages/ConfirmPage';
 import DumpPage from './pages/DumpPage';
 import GroupingPage from './pages/GroupingPage';
@@ -42,6 +43,7 @@ const AppContent = () => {
           element={<MainPage onStartPlanning={startPlanning} />}
         />
         <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/prototype/chat" element={<ChatPrototypePage />} />
         <Route
           path="/dump"
           element={
