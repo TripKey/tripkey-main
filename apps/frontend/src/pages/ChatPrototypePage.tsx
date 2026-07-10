@@ -5,7 +5,6 @@ import {
   CloudRain,
   Coffee,
   Copy,
-  MapPin,
   Plus,
   RefreshCw,
   ShoppingBag,
@@ -17,18 +16,22 @@ import {
 import { useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 
+import GroupingCardDetailPanel from '@/components/grouping/CardDetailPanel';
+import PlaceCard from '@/components/grouping/PlaceCard';
 import Header from '@/components/header/Header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import type { PlaceCardViewModel, PlaceCategory } from '@/types/grouping';
 
 type MockCard = {
   id: string;
   name: string;
-  category: string;
+  category: PlaceCategory;
   area: string;
   reason: string;
   duration: string;
+  estimatedDurationMin: number;
   icon: typeof Coffee;
 };
 
@@ -55,38 +58,105 @@ const SUGGESTIONS = [
   { label: '쇼핑할 곳 더 찾아줘', icon: ShoppingBag },
 ];
 
+type ContextOption = { value: string; label: string };
+
+const INTEREST_OPTIONS: ContextOption[] = [
+  { value: 'food', label: '맛집' },
+  { value: 'cafe', label: '카페' },
+  { value: 'shopping', label: '쇼핑' },
+  { value: 'landmark', label: '관광지' },
+  { value: 'culture_art', label: '문화·예술' },
+  { value: 'history', label: '역사' },
+  { value: 'nature', label: '자연' },
+  { value: 'activity', label: '액티비티' },
+  { value: 'night_view', label: '야경' },
+  { value: 'local_experience', label: '로컬 체험' },
+  { value: 'photography', label: '사진' },
+  { value: 'relaxation', label: '휴식' },
+];
+
+const CONSTRAINT_OPTIONS: ContextOption[] = [
+  { value: 'low_walking', label: '적게 걷기' },
+  { value: 'rainy_day_option', label: '우천 대비' },
+  { value: 'relaxed_pace', label: '느긋한 일정' },
+  { value: 'with_children', label: '아이 동반' },
+  { value: 'with_parents', label: '부모님 동반' },
+  { value: 'wheelchair_accessible', label: '휠체어 접근' },
+  { value: 'indoor_focused', label: '실내 중심' },
+  { value: 'public_transit', label: '대중교통 중심' },
+  { value: 'budget_friendly', label: '저예산' },
+  { value: 'late_hours', label: '늦은 시간 가능' },
+];
+
 const MOCK_CARDS: MockCard[] = [
   {
     id: 'osaka-museum',
     name: '오사카 역사박물관',
-    category: '볼거리',
+    category: 'place',
     area: '주오구 · 다니마치욘초메',
     reason: '비 오는 날에도 오사카의 역사를 여유롭게 둘러볼 수 있어요.',
     duration: '약 90분',
+    estimatedDurationMin: 90,
     icon: Sparkles,
   },
   {
     id: 'nakanoshima-museum',
     name: '나카노시마 미술관',
-    category: '문화',
+    category: 'place',
     area: '기타구 · 나카노시마',
     reason: '실내 전시와 세련된 건축을 함께 즐기기 좋은 선택이에요.',
     duration: '약 120분',
+    estimatedDurationMin: 120,
     icon: Sparkles,
   },
   {
     id: 'grand-front',
     name: '그랜드 프론트 오사카',
-    category: '쇼핑',
+    category: 'shopping',
     area: '기타구 · 우메다',
     reason: '쇼핑과 식사를 한 공간에서 해결해 이동을 줄일 수 있어요.',
     duration: '약 120분',
+    estimatedDurationMin: 120,
     icon: ShoppingBag,
   },
 ];
 
-const INITIAL_INTERESTS = ['맛집', '쇼핑'];
-const INITIAL_CONSTRAINTS = ['적게 걷기'];
+const INITIAL_INTERESTS = ['food', 'shopping'];
+const INITIAL_CONSTRAINTS = ['low_walking'];
+
+const CATEGORY_LABELS: Record<PlaceCategory, string> = {
+  place: '장소',
+  lodging: '숙소',
+  food: '맛집',
+  activity: '활동',
+  shopping: '쇼핑',
+  transport: '교통',
+};
+
+const contextLabel = (value: string, options: ContextOption[]) =>
+  options.find((option) => option.value === value)?.label ?? value;
+
+const toPlaceCardViewModel = (
+  card: MockCard,
+  savedCardIds: string[]
+): PlaceCardViewModel => ({
+  id: card.id,
+  name: card.name,
+  region: card.area,
+  durationLabel: card.duration,
+  accent: 'green',
+  badges: [{ kind: 'category', category: card.category }, { kind: 'ai' }],
+  detail: {
+    classification: '추천 후보',
+    placementStatus: '배치 가능',
+    estimatedDurationMin: card.estimatedDurationMin,
+    userIntent: card.reason,
+    aiHint:
+      '추천 후보를 카드에 담으면 정리 화면의 확인이 필요한 카드로 이동해요.',
+    memo: '',
+    includedInItinerary: savedCardIds.includes(card.id),
+  },
+});
 
 const ChatPrototypePage = () => {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
@@ -94,6 +164,7 @@ const ChatPrototypePage = () => {
   const [interests, setInterests] = useState(INITIAL_INTERESTS);
   const [constraints, setConstraints] = useState(INITIAL_CONSTRAINTS);
   const [savedCardIds, setSavedCardIds] = useState<string[]>([]);
+  const [detailCard, setDetailCard] = useState<MockCard | null>(null);
   const [isReplying, setIsReplying] = useState(false);
 
   const recommendedCount = useMemo(
@@ -108,6 +179,10 @@ const ChatPrototypePage = () => {
     () => MOCK_CARDS.filter((card) => savedCardIds.includes(card.id)),
     [savedCardIds]
   );
+  const detailViewModel = useMemo(
+    () => (detailCard ? toPlaceCardViewModel(detailCard, savedCardIds) : null),
+    [detailCard, savedCardIds]
+  );
 
   const resetPrototype = () => {
     setMessages(INITIAL_MESSAGES);
@@ -115,6 +190,7 @@ const ChatPrototypePage = () => {
     setInterests(INITIAL_INTERESTS);
     setConstraints(INITIAL_CONSTRAINTS);
     setSavedCardIds([]);
+    setDetailCard(null);
     setIsReplying(false);
   };
 
@@ -139,9 +215,9 @@ const ChatPrototypePage = () => {
         lower.includes('조건')
       ) {
         setConstraints((current) =>
-          current.includes('느긋한 일정')
+          current.includes('relaxed_pace')
             ? current
-            : [...current, '느긋한 일정']
+            : [...current, 'relaxed_pace']
         );
         assistantMessage = {
           id: `assistant-${Date.now()}`,
@@ -162,14 +238,14 @@ const ChatPrototypePage = () => {
           text: "직접 가실 곳이군요! 그런 장소는 카드 목록의 '직접 추가'로 넣어주시면 돼요.",
         };
       } else {
-        if (lower.includes('카페') && !interests.includes('카페')) {
-          setInterests((current) => [...current, '카페']);
+        if (lower.includes('카페') && !interests.includes('cafe')) {
+          setInterests((current) => [...current, 'cafe']);
         }
         if (
           (lower.includes('비') || lower.includes('실내')) &&
-          !constraints.includes('우천 대비')
+          !constraints.includes('rainy_day_option')
         ) {
-          setConstraints((current) => [...current, '우천 대비']);
+          setConstraints((current) => [...current, 'rainy_day_option']);
         }
         assistantMessage = {
           id: `assistant-${Date.now()}`,
@@ -194,12 +270,24 @@ const ChatPrototypePage = () => {
     );
   };
 
-  const addContextItem = (
-    value: string,
-    items: string[],
-    setItems: Dispatch<SetStateAction<string[]>>
-  ) => {
-    const normalized = value.trim();
+  const addContextItem = ({
+    value,
+    items,
+    options,
+    setItems,
+  }: {
+    value: string;
+    items: string[];
+    options: ContextOption[];
+    setItems: Dispatch<SetStateAction<string[]>>;
+  }) => {
+    const inputValue = value.trim();
+    const matchedOption = options.find(
+      (option) =>
+        option.value.toLowerCase() === inputValue.toLowerCase() ||
+        option.label.toLowerCase() === inputValue.toLowerCase()
+    );
+    const normalized = matchedOption?.value ?? inputValue;
     if (
       !normalized ||
       normalized.length > 100 ||
@@ -270,8 +358,8 @@ const ChatPrototypePage = () => {
                 <div>
                   <p className="text-sm font-semibold">TripKey 큐레이터</p>
                   <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <span className="size-1.5 rounded-full bg-emerald-500" />목
-                    응답 준비됨
+                    <span className="size-1.5 rounded-full bg-emerald-500" />
+                    {'목 응답 준비됨'}
                   </p>
                 </div>
               </div>
@@ -290,6 +378,7 @@ const ChatPrototypePage = () => {
                   message={message}
                   savedCardIds={savedCardIds}
                   onToggleCard={toggleSavedCard}
+                  onOpenDetail={setDetailCard}
                 />
               ))}
               {isReplying && (
@@ -369,8 +458,17 @@ const ChatPrototypePage = () => {
             <ContextSection
               title="관심사"
               items={interests}
+              options={INTEREST_OPTIONS}
+              allowCustom
               emptyLabel="아직 등록된 관심사가 없어요"
-              onAdd={(item) => addContextItem(item, interests, setInterests)}
+              onAdd={(item) =>
+                addContextItem({
+                  value: item,
+                  items: interests,
+                  options: INTEREST_OPTIONS,
+                  setItems: setInterests,
+                })
+              }
               onRemove={(item) =>
                 setInterests((current) =>
                   current.filter((value) => value !== item)
@@ -380,9 +478,15 @@ const ChatPrototypePage = () => {
             <ContextSection
               title="여행 조건"
               items={constraints}
+              options={CONSTRAINT_OPTIONS}
               emptyLabel="아직 등록된 조건이 없어요"
               onAdd={(item) =>
-                addContextItem(item, constraints, setConstraints)
+                addContextItem({
+                  value: item,
+                  items: constraints,
+                  options: CONSTRAINT_OPTIONS,
+                  setItems: setConstraints,
+                })
               }
               onRemove={(item) =>
                 setConstraints((current) =>
@@ -419,6 +523,24 @@ const ChatPrototypePage = () => {
           </aside>
         </div>
       </main>
+
+      <GroupingCardDetailPanel
+        open={detailCard != null}
+        onOpenChange={(open) => {
+          if (!open) setDetailCard(null);
+        }}
+        card={detailViewModel}
+        onInclude={() => {
+          if (detailCard && !savedCardIds.includes(detailCard.id)) {
+            toggleSavedCard(detailCard.id);
+          }
+        }}
+        onExclude={() => {
+          if (detailCard && savedCardIds.includes(detailCard.id)) {
+            toggleSavedCard(detailCard.id);
+          }
+        }}
+      />
     </div>
   );
 };
@@ -433,10 +555,12 @@ const MessageBubble = ({
   message,
   savedCardIds,
   onToggleCard,
+  onOpenDetail,
 }: {
   message: ChatMessage;
   savedCardIds: string[];
   onToggleCard: (cardId: string) => void;
+  onOpenDetail: (card: MockCard) => void;
 }) => {
   const isUser = message.role === 'user';
   return (
@@ -476,6 +600,7 @@ const MessageBubble = ({
             card={card}
             saved={savedCardIds.includes(card.id)}
             onToggle={() => onToggleCard(card.id)}
+            onOpenDetail={() => onOpenDetail(card)}
           />
         ))}
       </div>
@@ -492,64 +617,54 @@ const RecommendationCard = ({
   card,
   saved,
   onToggle,
+  onOpenDetail,
 }: {
   card: MockCard;
   saved: boolean;
   onToggle: () => void;
+  onOpenDetail: () => void;
 }) => {
-  const Icon = card.icon;
   return (
-    <article className="w-full overflow-hidden rounded-xl border bg-background shadow-xs">
-      <div className="flex gap-4 p-4">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Icon className="size-5" aria-hidden="true" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-semibold">{card.name}</h3>
-                <Badge variant="secondary" className="text-[10px] font-medium">
-                  {card.category}
-                </Badge>
-              </div>
-              <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                <MapPin className="size-3" aria-hidden="true" />
-                {card.area} · {card.duration}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant={saved ? 'secondary' : 'default'}
-              onClick={onToggle}
-              className="shrink-0"
-            >
-              {saved ? (
-                <Check aria-hidden="true" />
-              ) : (
-                <ArrowUp className="rotate-45" aria-hidden="true" />
-              )}
-              {saved ? '담았어요' : '카드에 담기'}
-            </Button>
-          </div>
-          <p className="mt-3 text-xs leading-5 text-muted-foreground">
-            {card.reason}
-          </p>
-        </div>
+    <div className="w-full space-y-2">
+      <PlaceCard
+        {...toPlaceCardViewModel(card, saved ? [card.id] : [])}
+        onClick={onOpenDetail}
+      />
+      <div className="flex items-center justify-between px-1">
+        <p className="text-[11px] text-muted-foreground">
+          카드를 눌러 추천 근거를 확인하세요
+        </p>
+        <Button
+          size="sm"
+          variant={saved ? 'secondary' : 'default'}
+          onClick={onToggle}
+          className="h-8 shrink-0"
+        >
+          {saved ? (
+            <Check aria-hidden="true" />
+          ) : (
+            <ArrowUp className="rotate-45" aria-hidden="true" />
+          )}
+          {saved ? '담았어요' : '카드에 담기'}
+        </Button>
       </div>
-    </article>
+    </div>
   );
 };
 
 const ContextSection = ({
   title,
   items,
+  options,
+  allowCustom = false,
   emptyLabel,
   onAdd,
   onRemove,
 }: {
   title: string;
   items: string[];
+  options: ContextOption[];
+  allowCustom?: boolean;
   emptyLabel: string;
   onAdd: (item: string) => boolean;
   onRemove: (item: string) => void;
@@ -582,7 +697,7 @@ const ContextSection = ({
               'flex size-6 items-center justify-center rounded-md border transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40',
               adding && 'border-primary/30 bg-primary/8 text-primary'
             )}
-            aria-label={`${title} 직접 추가`}
+            aria-label={`${title} 추가`}
           >
             {adding ? (
               <X className="size-3.5" aria-hidden="true" />
@@ -594,31 +709,58 @@ const ContextSection = ({
       </div>
 
       {adding && (
-        <div className="mb-3 flex gap-2">
-          <input
-            autoFocus
-            value={value}
-            maxLength={100}
-            onChange={(event) => setValue(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') submit();
-              if (event.key === 'Escape') {
-                setValue('');
-                setAdding(false);
-              }
-            }}
-            placeholder={`${title} 직접 입력`}
-            className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2.5 text-xs outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
-          />
-          <Button
-            type="button"
-            size="sm"
-            className="h-8 px-3 text-xs"
-            disabled={!value.trim()}
-            onClick={submit}
-          >
-            추가
-          </Button>
+        <div className="mb-3 rounded-lg border bg-muted/20 p-3">
+          <p className="mb-2 text-[11px] font-medium text-muted-foreground">
+            {allowCustom ? '선택하거나 직접 입력하세요' : '조건을 선택하세요'}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {options.map((option) => {
+              const selected = items.includes(option.value);
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  disabled={selected || items.length >= 20}
+                  onClick={() => onAdd(option.value)}
+                  className={cn(
+                    'rounded-full border bg-background px-2.5 py-1 text-[11px] font-medium transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-default',
+                    selected &&
+                      'border-primary/20 bg-primary/8 text-primary opacity-60'
+                  )}
+                >
+                  {selected && <Check className="mr-1 inline size-3" />}
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          {allowCustom && (
+            <div className="mt-3 flex gap-2 border-t pt-3">
+              <input
+                value={value}
+                maxLength={100}
+                onChange={(event) => setValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') submit();
+                  if (event.key === 'Escape') {
+                    setValue('');
+                    setAdding(false);
+                  }
+                }}
+                placeholder="목록에 없는 관심사 직접 입력"
+                className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2.5 text-xs outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+              />
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 px-3 text-xs"
+                disabled={!value.trim()}
+                onClick={submit}
+              >
+                추가
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -629,12 +771,12 @@ const ContextSection = ({
               key={item}
               className="inline-flex items-center gap-1 rounded-full bg-primary/8 py-1.5 pl-3 pr-1.5 text-xs font-medium text-primary"
             >
-              {item}
+              {contextLabel(item, options)}
               <button
                 type="button"
                 onClick={() => onRemove(item)}
                 className="rounded-full p-0.5 hover:bg-primary/10"
-                aria-label={`${item} 삭제`}
+                aria-label={`${contextLabel(item, options)} 삭제`}
               >
                 <X className="size-3" aria-hidden="true" />
               </button>
@@ -683,7 +825,7 @@ const SavedCardPreview = ({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold">{card.name}</p>
                 <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                  {card.category} · {card.area}
+                  {CATEGORY_LABELS[card.category]} · {card.area}
                 </p>
               </div>
               <button
