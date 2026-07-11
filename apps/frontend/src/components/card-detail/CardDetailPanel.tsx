@@ -538,7 +538,7 @@ const QuestionInputSection = ({
               className={cn(
                 'rounded-lg border px-3 py-2 text-sm transition-colors disabled:opacity-50',
                 active
-                  ? 'border-indigo-300 bg-indigo-50 font-medium text-indigo-700 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200'
+                  ? 'border-primary/40 bg-primary/10 font-medium text-primary dark:border-primary/40 dark:bg-primary/20 dark:text-primary'
                   : 'border-input bg-background text-foreground hover:border-muted-foreground/30 hover:bg-muted/50'
               )}
             >
