@@ -4,6 +4,8 @@
  */
 import type { LucideIcon } from 'lucide-react';
 
+import type { Coordinates } from './grouping-api';
+
 export type PlaceCardAccent = 'blue' | 'green' | 'amber' | 'red' | 'muted';
 
 export type PlaceCategory =
@@ -117,6 +119,8 @@ export type CardDetailViewModel = {
    * (리스트의 reminder 배너 = 짧은 넛지 / 패널의 이 행 = 좀 더 자세한 AI 노트 — 라는 구분)
    */
   aiHint?: string;
+  /** 장소 좌표(있으면 상세 패널에 지도 표시). 미해결/미도착 카드는 없음 */
+  coordinates?: Coordinates;
   /** "사용자 메모" textarea 초기값. 보통 ''(저장된 메모가 있으면 그 값). 입력값이 이 값과 달라지면 "메모 저장"이 활성화된다 */
   memo?: string;
   /**

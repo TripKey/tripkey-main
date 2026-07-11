@@ -96,6 +96,7 @@ const toReviewCard = (card: Card): PlaceCardViewModel => ({
     estimatedDurationMin: card.estimated_duration_min,
     userIntent: card.user_context ?? undefined,
     aiHint: card.tips ?? undefined,
+    coordinates: card.coordinates ?? undefined,
     memo: card.memo ?? '',
     includedInItinerary: !card.is_excluded,
   },

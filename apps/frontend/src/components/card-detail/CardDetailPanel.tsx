@@ -3,6 +3,7 @@ import { Dialog } from 'radix-ui';
 import { useState } from 'react';
 
 import PanelActions from '@/components/common/PanelActions';
+import PlaceLocationMap from '@/components/common/PlaceLocationMap';
 import SidePanel from '@/components/common/SidePanel';
 import {
   AnswerField,
@@ -16,10 +17,7 @@ import PlaceCardBadge from '@/components/grouping/PlaceCardBadge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import type {
-  PlaceCardAccent,
-  PlaceCardBadgeSpec,
-} from '@/types/grouping';
+import type { PlaceCardAccent, PlaceCardBadgeSpec } from '@/types/grouping';
 import type { CardPatchRequest } from '@/types/grouping-api';
 
 export type CommonCardDetailViewModel = {
@@ -31,6 +29,7 @@ export type CommonCardDetailViewModel = {
   estimatedDurationMin?: number | null;
   userIntent?: string;
   aiHint?: string;
+  coordinates?: { lat: number; lng: number };
   includedInItinerary?: boolean;
   memo?: string;
   question?: string;
@@ -383,6 +382,15 @@ const CardDetailBody = ({
               />
             )}
           </ul>
+          {detail.coordinates && (
+            <div className="mt-3.5">
+              <PlaceLocationMap
+                lat={detail.coordinates.lat}
+                lng={detail.coordinates.lng}
+                name={card.name}
+              />
+            </div>
+          )}
         </section>
 
         <Separator />
