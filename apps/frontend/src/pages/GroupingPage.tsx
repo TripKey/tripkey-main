@@ -52,6 +52,9 @@ import { useOnboardingStore } from '../utils/onboarding-store';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 30000;
 
+// 정리 진행률: 요약 카드로 통합되어 현재 숨김 (재노출 시 true)
+const SHOW_PROGRESS_STAT = false;
+
 const buildSelectionNotes = ({
   cardName,
   selectedText,
@@ -585,11 +588,10 @@ const GroupingPage = () => {
     if (!card || !tripId) return Promise.resolve(false);
     // 선택값을 단순 문장으로 던지지 않고 "선택 후보"와 여행 맥락을 분리해
     // card-level parse/Places lookup 이 장소명을 우선 검색하도록 돕는다.
-    const selectedText =
-      [...payload.choices, payload.answer]
-        .map((value) => value.trim())
-        .filter(Boolean)
-        .join(', ');
+    const selectedText = [...payload.choices, payload.answer]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .join(', ');
     const notes = buildSelectionNotes({
       cardName: card.name,
       selectedText,
@@ -657,7 +659,7 @@ const GroupingPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-muted">
+    <>
       <Header
         currentStepId="organize"
         destination={summary.destinations[0] ?? '여행'}
@@ -686,78 +688,89 @@ const GroupingPage = () => {
         }
       />
 
-      <main className="mx-auto w-full max-w-[1180px] px-6 py-8">
-        <div className="grid grid-cols-[minmax(0,1fr)_360px] items-start gap-6">
-          <div className="flex flex-col gap-5">
-            <header>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                {heading.title}
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {heading.subtitle}
-              </p>
-            </header>
+      <main className="flex min-h-[calc(100vh-8rem)] items-start justify-center bg-linear-to-b from-muted/50 to-background px-4 pt-10 pb-16 sm:pt-14">
+        <div className="w-full max-w-6xl">
+          <header className="mb-6">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              {heading.title}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {heading.subtitle}
+            </p>
+          </header>
 
-            {inlineError && (
-              <div
-                role="alert"
-                className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-              >
-                {inlineError}
+          <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
+            <div className="grid min-h-200 lg:grid-cols-[minmax(0,1fr)_340px]">
+              {/* 좌측: 그룹 카드 (카드 늘면 세로로 함께 성장) */}
+              <div className="flex flex-col gap-5 p-6 sm:p-8">
+                {inlineError && (
+                  <div
+                    role="alert"
+                    className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                  >
+                    {inlineError}
+                  </div>
+                )}
+
+                {/* 정리 진행률 — 요약으로 통합, 숨김 처리(코드 유지) */}
+                {SHOW_PROGRESS_STAT && (
+                  <ProgressStat
+                    label="정리 진행률"
+                    value={progress.percent}
+                    caption={`활성 카드 ${progress.activeCount}개 중 ${progress.doneCount}개 확인 완료`}
+                    boxed
+                  />
+                )}
+
+                {loading && !viewModel ? (
+                  <p className="py-12 text-center text-sm text-muted-foreground">
+                    불러오는 중…
+                  </p>
+                ) : (
+                  groups.map((group) => (
+                    <ActionGroupSection
+                      key={group.variant}
+                      variant={group.variant}
+                      title={group.title}
+                      countLabel={group.countLabel}
+                      defaultOpen={group.defaultOpen}
+                    >
+                      {group.cards.map((card) => (
+                        <PlaceCard
+                          key={card.id}
+                          {...card}
+                          onClick={
+                            card.detail
+                              ? () => openReviewDetail(card)
+                              : card.editDetail
+                                ? () => openEditDetail(card)
+                                : card.selectDetail
+                                  ? () => openSelectDetail(card)
+                                  : logStub(`open-card:${card.id}`)
+                          }
+                          onAction={logStub(`card-action:${card.id}`)}
+                        />
+                      ))}
+                    </ActionGroupSection>
+                  ))
+                )}
               </div>
-            )}
 
-            <ProgressStat
-              label="정리 진행률"
-              value={progress.percent}
-              caption={`활성 카드 ${progress.activeCount}개 중 ${progress.doneCount}개 확인 완료`}
-              boxed
-            />
-
-            {loading && !viewModel ? (
-              <p className="py-12 text-center text-sm text-muted-foreground">
-                불러오는 중…
-              </p>
-            ) : (
-              groups.map((group) => (
-                <ActionGroupSection
-                  key={group.variant}
-                  variant={group.variant}
-                  title={group.title}
-                  countLabel={group.countLabel}
-                  defaultOpen={group.defaultOpen}
-                >
-                  {group.cards.map((card) => (
-                    <PlaceCard
-                      key={card.id}
-                      {...card}
-                      onClick={
-                        card.detail
-                          ? () => openReviewDetail(card)
-                          : card.editDetail
-                            ? () => openEditDetail(card)
-                            : card.selectDetail
-                              ? () => openSelectDetail(card)
-                              : logStub(`open-card:${card.id}`)
-                      }
-                      onAction={logStub(`card-action:${card.id}`)}
-                    />
-                  ))}
-                </ActionGroupSection>
-              ))
-            )}
+              {/* 우측: 요약 */}
+              <aside className="flex flex-col border-t border-border bg-muted/20 p-6 sm:p-8 lg:border-l lg:border-t-0">
+                <TripSummaryCard
+                  {...summary}
+                  bare
+                  hideProgress
+                  nextDisabled={nextDisabled}
+                  onNext={() =>
+                    navigate(tripId ? `/arrange?tripId=${tripId}` : '/arrange')
+                  }
+                  onPrev={handlePrev}
+                />
+              </aside>
+            </div>
           </div>
-
-          <aside className="sticky top-34">
-            <TripSummaryCard
-              {...summary}
-              nextDisabled={nextDisabled}
-              onNext={() =>
-                navigate(tripId ? `/arrange?tripId=${tripId}` : '/arrange')
-              }
-              onPrev={handlePrev}
-            />
-          </aside>
         </div>
       </main>
 
@@ -850,7 +863,7 @@ const GroupingPage = () => {
           );
         }}
       />
-    </div>
+    </>
   );
 };
 
