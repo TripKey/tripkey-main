@@ -1,5 +1,5 @@
 import './TripCalendar.css';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { useCalendarStore } from '@/utils/calendar-store';
 
@@ -9,10 +9,6 @@ import FlexCalendar from './FlexCalendar';
 const TripCalendar = () => {
   const storedTab = useCalendarStore((s) => s.type);
   const [tab, setTab] = useState<'exact' | 'flexible'>(storedTab ?? 'flexible');
-
-  useEffect(() => {
-    if (storedTab === null) setTab('flexible');
-  }, [storedTab]);
 
   return (
     <div>
