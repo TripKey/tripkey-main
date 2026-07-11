@@ -252,9 +252,6 @@ const ArrangePage = () => {
     (total, group) => total + group.cards.length,
     0
   );
-  const unplacedCount = groups
-    .flatMap((group) => group.cards)
-    .filter((card) => card.draggable !== false).length;
   const placedCardIds = useMemo(
     () => new Set(days.flatMap((day) => day.cards.map((card) => card.id))),
     [days]
@@ -888,7 +885,7 @@ const ArrangePage = () => {
   );
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-muted">
+    <div className="flex h-screen flex-col overflow-hidden bg-linear-to-b from-muted/50 to-background">
       <Header
         fluid
         currentStepId="arrange"
@@ -915,7 +912,7 @@ const ArrangePage = () => {
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               {heading.title}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm text-muted-foreground">
               {heading.subtitle}
             </p>
           </div>
@@ -1025,11 +1022,6 @@ const ArrangePage = () => {
         </Button>
 
         <div className="flex items-center gap-4">
-          {unplacedCount > 0 && (
-            <span className="text-sm text-muted-foreground">
-              {unplacedCount}개 카드가 아직 배치되지 않았습니다
-            </span>
-          )}
           <Button
             onClick={handleConfirm}
             disabled={!tripId || busy || confirmed}
