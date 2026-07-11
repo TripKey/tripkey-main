@@ -218,6 +218,8 @@ const GroupingPage = () => {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [selectCard, setSelectCard] = useState<PlaceCardViewModel | null>(null);
   const [selectOpen, setSelectOpen] = useState(false);
+  // 답변 후 재파싱 결과에 후속 질문이 있으면 패널을 이어서 유지하기 위한 대기 카드 id
+  const [awaitingSelectId, setAwaitingSelectId] = useState<string | null>(null);
   const [editCard, setEditCard] = useState<PlaceCardViewModel | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [addCardOpen, setAddCardOpen] = useState(false);
@@ -647,7 +649,23 @@ const GroupingPage = () => {
     activeCount: 0,
     doneCount: 0,
   };
-  const groups = viewModel?.groups ?? [];
+  const groups = useMemo(() => viewModel?.groups ?? [], [viewModel]);
+
+  // 답변 후: 재파싱이 끝나면(폴링으로 groups 갱신) 후속 질문이 있으면 그 질문으로 패널을 갱신(유지),
+  // 없으면(해결) 닫는다. — 패널이 닫혀서 후속 질문을 놓치던 문제 해결.
+  useEffect(() => {
+    if (!awaitingSelectId) return;
+    const updated = groups
+      .flatMap((group) => group.cards)
+      .find((card) => card.id === awaitingSelectId);
+    if (!updated || updated.processing) return; // 아직 처리 중이면 다음 폴링까지 대기
+    if (updated.selectDetail?.question) {
+      setSelectCard(updated); // 후속 질문으로 재바인딩 — 패널 유지
+    } else {
+      setSelectOpen(false); // 해결됨 — 닫기
+    }
+    setAwaitingSelectId(null);
+  }, [groups, awaitingSelectId]);
   const nights = exactDate?.nights ?? flexDate?.nights ?? 0;
   const summary: TripSummaryViewModel = {
     ...(viewModel?.summary ?? FALLBACK_SUMMARY),
@@ -796,16 +814,23 @@ const GroupingPage = () => {
 
       <SelectCardDetailPanel
         open={selectOpen}
-        onOpenChange={setSelectOpen}
+        onOpenChange={(open) => {
+          setSelectOpen(open);
+          if (!open) setAwaitingSelectId(null);
+        }}
         card={selectCard}
-        pending={busy}
+        pending={busy || awaitingSelectId != null}
         error={state.phase === 'ready' ? state.errorMessage : null}
         onConfirm={async (payload) => {
           const cardId = selectCard?.id;
           if (await handleConfirmSelect(selectCard, payload)) {
-            setSelectOpen(false);
-            // 재파싱이 끝나면 결과가 자동 반영되도록 폴링 새로고침 시작
-            if (cardId) pollUntilCardSettled(cardId);
+            // 닫지 않고, 재파싱 후 후속 질문이 있으면 이어서 보여준다(위 effect).
+            if (cardId) {
+              setAwaitingSelectId(cardId);
+              pollUntilCardSettled(cardId);
+            } else {
+              setSelectOpen(false);
+            }
           }
         }}
         onExclude={async () => {

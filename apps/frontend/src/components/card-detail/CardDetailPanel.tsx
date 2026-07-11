@@ -95,7 +95,7 @@ const CardDetailPanel = ({
     <SidePanel open={open} onOpenChange={onOpenChange}>
       {card?.detail ? (
         <CardDetailBody
-          key={card.id}
+          key={`${card.id}:${card.detail?.question ?? ''}`}
           card={card}
           onClose={() => onOpenChange(false)}
           onSaveMemo={onSaveMemo}
