@@ -54,6 +54,19 @@ const Header = ({
   const currentIndex = STEPS.findIndex((step) => step.id === currentStepId);
   const widthClass = fluid ? 'w-full' : 'mx-auto w-full max-w-6xl';
 
+  // 로고 클릭 = 세션 초기화 후 메인으로. (확정 화면 '여행 세션 초기화'와 동일 방식)
+  const handleLogoReset = () => {
+    if (
+      !window.confirm(
+        '지금까지 계획한 여행이 모두 초기화돼요. 처음부터 다시 시작할까요?'
+      )
+    ) {
+      return;
+    }
+    sessionStorage.clear();
+    window.location.href = '/';
+  };
+
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background">
       <div
@@ -62,9 +75,14 @@ const Header = ({
           widthClass
         )}
       >
-        <Link to="/" className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleLogoReset}
+          className="flex items-center gap-2"
+          aria-label="TripKey 홈 — 세션 초기화"
+        >
           <span className="text-xl font-bold tracking-tight">TripKey</span>
-        </Link>
+        </button>
         <Tooltip>
           <TooltipTrigger asChild>
             <button
