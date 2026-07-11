@@ -29,6 +29,7 @@ const toCommonCard = (
         estimatedDurationMin: detail.estimatedDurationMin,
         userIntent: detail.userIntent,
         aiHint: detail.aiHint ?? card.reminder,
+        coordinates: detail.coordinates,
         memo: detail.memo,
         includedInItinerary: detail.includedInItinerary,
       }
@@ -60,10 +61,7 @@ const toCommonCard = (
   };
 };
 
-const GroupingCardDetailPanel = ({
-  card,
-  ...props
-}: CardDetailPanelProps) => {
+const GroupingCardDetailPanel = ({ card, ...props }: CardDetailPanelProps) => {
   return <CardDetailPanel {...props} card={toCommonCard(card)} />;
 };
 

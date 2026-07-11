@@ -6,6 +6,7 @@
  * 1차는 정적 UI(드래그앤드롭 동작 = depth, 이후 작업)만 다룬다.
  */
 import type { PlaceCardAccent, PlaceCardBadgeSpec } from './grouping';
+import type { Coordinates } from './grouping-api';
 
 /**
  * 좌측 "카드 목록"의 카드 한 장.
@@ -48,6 +49,8 @@ export type ArrangeCardDetailViewModel = {
   fixedTimeLabel?: string;
   /** "상세 정보" — 위치(📍). 없으면 행 생략 */
   region?: string;
+  /** 장소 좌표(있으면 상세 패널에 지도 표시). 미해결/미도착 카드는 없음 */
+  coordinates?: Coordinates;
   /** "상세 정보" — 예상 소요 시간/체크인 정보(⏱). 없으면 행 생략 */
   durationLabel?: string;
   /** 이름/소요시간 표시 수정용 원본 예상 소요 시간(분). 없으면 빈 입력으로 표시 */
