@@ -130,3 +130,41 @@ def test_end_anchor_only_with_window() -> None:
     order = solve_constrained(m, end=0, time_windows={2: 40})
     assert order is not None
     assert order[-1] == 0 and sorted(order) == [0, 1, 2, 3]
+
+
+def test_window_range_allows_span_and_blocks_outside() -> None:
+    # 영업시간 구간 창(#292): 방문 시작이 [open, close] 안이면 허용, 밖이면 불능
+    # S(0)→A(1)=100, A→B(2)=100. B 영업 [150, 300] → S,A,B(도착 200) 허용
+    m = [
+        [0, 100, 250],
+        [100, 0, 100],
+        [250, 100, 0],
+    ]
+    order = solve_constrained(m, start=0, time_windows={2: (150, 300)})
+    assert order == [0, 1, 2]
+
+    # B 영업 [0, 150] → S,A,B 는 도착 200 > 150 불능, S→B 직행(250)도 불능 → 해 없음
+    assert solve_constrained(m, start=0, time_windows={2: (0, 150)}) is None
+
+
+def test_window_range_forces_early_visit() -> None:
+    # 일찍 닫는 가게는 뒤로 미룰 수 없다: B(2) 창 [0, 120] → S→B 먼저(100) 방문 강제
+    m = [
+        [0, 100, 100],
+        [100, 0, 100],
+        [100, 100, 0],
+    ]
+    order = solve_constrained(m, start=0, time_windows={2: (0, 120)})
+    assert order is not None and order[1] == 2  # B 를 첫 방문지로
+
+
+def test_int_window_still_means_fixed_time() -> None:
+    # 하위호환: int 는 여전히 [t, t] 예약 고정으로 동작
+    m = [
+        [0, 60, 5, 50],
+        [60, 0, 10, 50],
+        [60, 60, 0, 5],
+        [60, 60, 50, 0],
+    ]
+    assert solve_constrained(m, start=0, time_windows={1: 60}) == [0, 1, 2, 3]
+    assert solve_constrained(m, start=0, time_windows={1: (60, 60)}) == [0, 1, 2, 3]

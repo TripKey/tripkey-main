@@ -6,6 +6,8 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.locationtech.jts.geom.Point;
 
 import java.time.OffsetDateTime;
@@ -100,6 +102,11 @@ public class PlaceCard {
 
     @Column(name = "time_constraint", columnDefinition = "text")
     private String timeConstraint;
+
+    // 영업시간 {요일(0=일~6=토): [["HH:MM","HH:MM"],...]} — Places regularOpeningHours 정규화 (#292)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "opening_hours", columnDefinition = "jsonb")
+    private String openingHours;
 
     @Column(name = "user_context", columnDefinition = "text")
     private String userContext;
@@ -450,6 +457,7 @@ public class PlaceCard {
             this.lng = null;
         }
         this.address = trimToNull(dto.address());
+        this.openingHours = toJsonText(dto.openingHours()); // 장소 매칭 결과 기준으로 갱신 (#292)
 
         this.name = defaultString(dto.name(), this.name);
         this.category = normalizeCategory(dto.category() != null ? dto.category() : this.category);
@@ -491,6 +499,7 @@ public class PlaceCard {
         this.lat = null;
         this.lng = null;
         this.address = null;
+        this.openingHours = null; // 장소 미확정 → 영업시간도 초기화 (#292)
 
         this.name = defaultString(dto.name(), this.name);
         this.category = normalizeCategory(dto.category() != null ? dto.category() : this.category);
@@ -615,6 +624,7 @@ public class PlaceCard {
         }
         card.location = trimToNull(dto.location());
         card.address = trimToNull(dto.address());
+        card.openingHours = toJsonText(dto.openingHours()); // #292
         card.timeConstraint = trimToNull(dto.timeConstraint());
         card.userContext = trimToNull(dto.userContext());
         card.tips = trimToNull(dto.tips());
@@ -631,6 +641,11 @@ public class PlaceCard {
 
         card.demoteWhenCoordinatesMissing();
         return card;
+    }
+
+    /** AI 응답의 opening_hours JSON 노드 → jsonb 저장용 문자열 (#292). */
+    private static String toJsonText(com.fasterxml.jackson.databind.JsonNode node) {
+        return node == null || node.isNull() ? null : node.toString();
     }
 
     @PrePersist

@@ -5,8 +5,9 @@
 
 - closed_tour: start 에서 출발해 모든 정점을 돌고 start 로 복귀(숙소 귀가).
 - pinned_positions: {노드: 원래 위치} — 해당 노드를 방문 순서상 그 위치에 고정.
-- time_windows: {노드: 예약시각(일정 시작 기준 초)} — 해당 시각에 정확히 방문 시작
-  (일찍 도착하면 대기(slack), 늦으면 불능). service_times 가 체류 시간으로 누적된다.
+- time_windows: {노드: 방문 시작 시각 제약(일정 시작 기준 초)} — int 는 예약시각 고정 [t, t],
+  (earliest, latest) 튜플은 영업시간 구간 창(#292). 일찍 도착하면 대기(slack), 창 밖이면 불능.
+  service_times 가 체류 시간으로 누적된다.
 - 자유 시작/종료는 0 비용 dummy 노드로 모델링한다(개방 경로 표준 기법).
 
 해가 없으면(제약 충돌) None 을 반환한다 — 호출 측이 무제약 폴백을 수행한다.
@@ -29,15 +30,22 @@ def solve_constrained(
     end: int | None = None,
     closed_tour: bool = False,
     pinned_positions: dict[int, int] | None = None,
-    time_windows: dict[int, int] | None = None,
+    time_windows: dict[int, int | tuple[int, int]] | None = None,
     service_times: list[int] | None = None,
 ) -> list[int] | None:
-    """제약을 만족하는 최소 이동시간 방문 순서(인덱스). 해가 없으면 None."""
+    """제약을 만족하는 최소 이동시간 방문 순서(인덱스). 해가 없으면 None.
+
+    time_windows 값은 방문 시작 시각 제약 — int 면 그 시각 고정(예약 [t, t]),
+    (earliest, latest) 튜플이면 구간 창(영업시간 #292).
+    """
     n = len(matrix)
     if n <= 1:
         return list(range(n))
     pinned_positions = pinned_positions or {}
-    time_windows = time_windows or {}
+    time_windows = {
+        node: (w, w) if isinstance(w, int) else (int(w[0]), int(w[1]))
+        for node, w in (time_windows or {}).items()
+    }
     service_times = service_times or [0] * n
 
     if closed_tour and start is None:
@@ -100,8 +108,8 @@ def solve_constrained(
             time_cb, DAY_HORIZON_SECONDS, DAY_HORIZON_SECONDS, True, "Time"
         )
         time_dim = routing.GetDimensionOrDie("Time")
-        for node, at in time_windows.items():
-            time_dim.CumulVar(manager.NodeToIndex(node)).SetRange(at, at)
+        for node, (earliest, latest) in time_windows.items():
+            time_dim.CumulVar(manager.NodeToIndex(node)).SetRange(earliest, latest)
 
     params = pywrapcp.DefaultRoutingSearchParameters()
     params.first_solution_strategy = (
