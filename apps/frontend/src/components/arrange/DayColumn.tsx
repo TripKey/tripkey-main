@@ -108,7 +108,7 @@ const DayColumn = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        'flex h-full w-[280px] shrink-0 flex-col rounded-2xl border border-border bg-background/60 p-3 transition-colors',
+        'flex h-full w-[280px] shrink-0 flex-col rounded-2xl border border-border bg-muted/40 p-3 transition-colors',
         dragActive && 'border-dashed border-primary/40',
         isOver &&
           'border-solid border-primary bg-primary/5 ring-2 ring-primary/30'
