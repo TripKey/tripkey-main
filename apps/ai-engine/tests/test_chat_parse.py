@@ -157,6 +157,7 @@ async def test_unmatched_and_invalid_coordinates_use_zero_card_fallback(monkeypa
 
     assert response.cards == []
     assert response.reply == chat_parse.NO_MATCH_REPLY
+    assert "지역이나 시간대" in response.reply
 
 
 @pytest.mark.asyncio

@@ -25,6 +25,10 @@ Rules:
 1. Only generate cards for generate_cards. Generate at most max_cards concrete, real venues.
 2. Do not create generic category/region cards. Do not create accommodation or transport cards.
 3. Do not invent place_id or coordinates; enrichment supplies them.
+   Use the official venue name or another unique name that Google Places can resolve. Never use a broad phrase
+   such as "난바 야경", "오사카 체험", or "저녁 활동" as a card name. When the user's request includes a
+   neighborhood or time condition, recommend real venues that satisfy it. If a Korean display name may be hard
+   to search, put the canonical English or local-language venue name in search_alias.
 4. Do not recommend a place that is identical or effectively identical to existing_cards. Report it in
    duplicates as {{"name": "the candidate name", "reason": "already_exists"}}.
    If the message explicitly asks for an existing place again, always include it in duplicates. Explain that

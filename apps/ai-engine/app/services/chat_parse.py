@@ -35,7 +35,11 @@ FALLBACK_REPLIES = {
     "need_clarification": "원하시는 장소를 조금 더 구체적으로 말씀해주시겠어요?",
     "no_action": "알겠어요. 다른 장소가 필요하면 말씀해주세요.",
 }
-NO_MATCH_REPLY = "조건에 맞는 장소를 찾지 못했어요. 조금 다르게 말씀해주시겠어요?"
+NO_MATCH_REPLY = (
+    "실제 장소로 확인할 수 있는 추천 후보를 찾지 못했어요. "
+    "지역이나 시간대, 원하는 활동을 조금 더 구체적으로 알려주세요. "
+    "예: ‘난바 근처에서 저녁에 볼 공연을 추천해줘’"
+)
 DUPLICATE_ONLY_REPLY = "이미 저장된 장소예요. 같은 장소를 일정에 여러 번 넣고 싶다면 배치 화면에서 카드를 복제할 수 있어요."
 CONSTRAINT_ALIASES = {
     "low_walking": "low_walking",
