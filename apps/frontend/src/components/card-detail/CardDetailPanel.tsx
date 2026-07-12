@@ -1,14 +1,14 @@
-import { Clock, Info, MapPin, Plane, User, X } from 'lucide-react';
+import { Bot, Clock, Info, MapPin, Plane, User, X } from 'lucide-react';
 import { Dialog } from 'radix-ui';
 import { useState } from 'react';
 
 import PanelActions from '@/components/common/PanelActions';
+import PlaceLocationMap from '@/components/common/PlaceLocationMap';
 import SidePanel from '@/components/common/SidePanel';
 import {
   AnswerField,
   DetailRow,
   ItineraryInclusionBox,
-  QuestionBox,
   StructuredEditSection,
   UserMemoField,
 } from '@/components/grouping/CardDetailParts';
@@ -16,10 +16,7 @@ import PlaceCardBadge from '@/components/grouping/PlaceCardBadge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import type {
-  PlaceCardAccent,
-  PlaceCardBadgeSpec,
-} from '@/types/grouping';
+import type { PlaceCardAccent, PlaceCardBadgeSpec } from '@/types/grouping';
 import type { CardPatchRequest } from '@/types/grouping-api';
 
 export type CommonCardDetailViewModel = {
@@ -31,6 +28,7 @@ export type CommonCardDetailViewModel = {
   estimatedDurationMin?: number | null;
   userIntent?: string;
   aiHint?: string;
+  coordinates?: { lat: number; lng: number };
   includedInItinerary?: boolean;
   memo?: string;
   question?: string;
@@ -97,7 +95,7 @@ const CardDetailPanel = ({
     <SidePanel open={open} onOpenChange={onOpenChange}>
       {card?.detail ? (
         <CardDetailBody
-          key={card.id}
+          key={`${card.id}:${card.detail?.question ?? ''}`}
           card={card}
           onClose={() => onOpenChange(false)}
           onSaveMemo={onSaveMemo}
@@ -383,6 +381,15 @@ const CardDetailBody = ({
               />
             )}
           </ul>
+          {detail.coordinates && (
+            <div className="mt-3.5">
+              <PlaceLocationMap
+                lat={detail.coordinates.lat}
+                lng={detail.coordinates.lng}
+                name={card.name}
+              />
+            </div>
+          )}
         </section>
 
         <Separator />
@@ -514,10 +521,20 @@ const QuestionInputSection = ({
 }) => (
   <section>
     <h3 className="text-sm font-semibold text-foreground">질문 / 입력</h3>
-    <QuestionBox question={question} />
 
+    {/* AI 질문 — 말풍선 */}
+    <div className="mt-3 flex gap-2.5">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <Bot className="size-4" aria-hidden="true" />
+      </div>
+      <div className="min-w-0 rounded-2xl rounded-tl-md bg-muted/60 px-4 py-3 text-sm leading-relaxed text-foreground">
+        {question}
+      </div>
+    </div>
+
+    {/* 선택지 — 퀵리플라이 */}
     {choices.length > 0 && (
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap gap-2 pl-10.5">
         {choices.map((choice) => {
           const active = selectedChoices.includes(choice);
           return (
@@ -528,9 +545,9 @@ const QuestionInputSection = ({
               disabled={disabled}
               onClick={() => onToggleChoice(choice)}
               className={cn(
-                'rounded-lg border px-3 py-2 text-sm transition-colors disabled:opacity-50',
+                'rounded-full border px-3.5 py-1.5 text-sm transition-colors disabled:opacity-50',
                 active
-                  ? 'border-indigo-300 bg-indigo-50 font-medium text-indigo-700 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200'
+                  ? 'border-primary/40 bg-primary/10 font-medium text-primary dark:border-primary/40 dark:bg-primary/20 dark:text-primary'
                   : 'border-input bg-background text-foreground hover:border-muted-foreground/30 hover:bg-muted/50'
               )}
             >
@@ -541,11 +558,14 @@ const QuestionInputSection = ({
       </div>
     )}
 
-    <AnswerField
-      value={answer}
-      onChange={onAnswerChange}
-      placeholder="선택한 내용 외에 더 남기고 싶은 내용을 적어주세요..."
-      disabled={disabled}
-    />
+    {/* 답변 입력 */}
+    <div className="mt-3 pl-10.5">
+      <AnswerField
+        value={answer}
+        onChange={onAnswerChange}
+        placeholder="선택하거나, 직접 답변을 입력하세요..."
+        disabled={disabled}
+      />
+    </div>
   </section>
 );

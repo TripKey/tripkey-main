@@ -250,20 +250,42 @@ async def _build_matrix(
     return matrix, "google" if (used_google or filled) else "estimated"
 
 
+def _opening_window(stop: OptimizeStop) -> tuple[int, int] | None:
+    """영업시간 [open, close] → 일정 시작 기준 초 구간(#292). 유효하지 않으면 None(제약 없음).
+
+    close 가 일정 시작(09:00) 이전이거나 open 이상이 아니면 하루 관점에서 의미 없는 창 → 제약 생략.
+    """
+    if stop.open_time is None or stop.close_time is None:
+        return None
+    open_sec = _reserved_seconds(stop.open_time)
+    close_sec = _reserved_seconds(stop.close_time)
+    if open_sec is None or close_sec is None or close_sec <= 0 or close_sec <= open_sec:
+        return None
+    return open_sec, close_sec
+
+
 def _collect_constraints(
     request: OptimizeOrderRequest, start_index: int | None, end_index: int | None
-) -> tuple[dict[int, int], dict[int, int], list[int]]:
-    """stops 에서 고정 위치/예약시각/체류시간 제약을 추출한다(앵커는 이미 고정이라 제외)."""
+) -> tuple[dict[int, int], dict[int, tuple[int, int]], list[int]]:
+    """stops 에서 고정 위치/시간창(예약·영업시간)/체류시간 제약을 추출한다(앵커는 이미 고정이라 제외).
+
+    time_windows 값은 방문 시작 시각의 (earliest, latest) 구간 — 예약은 [t, t] 고정,
+    영업시간은 [open, close] 구간(#292). 예약이 있으면 예약이 우선한다.
+    """
     pinned_positions: dict[int, int] = {}
-    time_windows: dict[int, int] = {}
+    time_windows: dict[int, tuple[int, int]] = {}
     service_times = [(s.duration_min or 0) * 60 for s in request.stops]
     for i, stop in enumerate(request.stops):
         if i == start_index or i == end_index:
             continue
         reserved = _reserved_seconds(stop.reserved_time)
         if reserved is not None:
-            time_windows[i] = reserved
-        elif stop.pinned:
+            time_windows[i] = (reserved, reserved)
+            continue
+        window = _opening_window(stop)
+        if window is not None:
+            time_windows[i] = window
+        if stop.pinned:
             pinned_positions[i] = i  # BE 가 day_order 순으로 보내므로 입력 인덱스 = 원래 위치
     return pinned_positions, time_windows, service_times
 

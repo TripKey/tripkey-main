@@ -78,7 +78,7 @@ const CardListPanel = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        'flex w-[380px] shrink-0 flex-col overflow-hidden rounded-2xl bg-muted/40 ring-1 ring-foreground/10 transition-colors',
+        'flex w-[380px] shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-muted/40 transition-colors',
         dragActive && 'ring-primary/30',
         isOver && 'bg-primary/5 ring-2 ring-primary/40'
       )}

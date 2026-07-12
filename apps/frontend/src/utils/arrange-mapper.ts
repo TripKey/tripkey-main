@@ -253,6 +253,7 @@ const cardToDetail = (card: Card): ArrangeCardDetailViewModel => {
     placementStatus: placementLabel(card),
     fixedTimeLabel: flightLabel(card),
     region: card.location ?? undefined,
+    coordinates: card.coordinates ?? undefined,
     durationLabel: detailDuration(card),
     estimatedDurationMin: card.estimated_duration_min,
     userIntent: card.user_context ?? undefined,

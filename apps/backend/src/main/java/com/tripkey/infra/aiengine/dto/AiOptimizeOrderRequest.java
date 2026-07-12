@@ -17,6 +17,9 @@ public record AiOptimizeOrderRequest(
             Coord coordinates,
             boolean pinned,
             @JsonProperty("reserved_time") String reservedTime,
-            @JsonProperty("duration_min") Integer durationMin
+            @JsonProperty("duration_min") Integer durationMin,
+            // 해당 Day 요일의 영업시간 [open, close] "HH:MM" — 없으면 null(제약 없음) (#292)
+            @JsonProperty("open_time") String openTime,
+            @JsonProperty("close_time") String closeTime
     ) {}
 }

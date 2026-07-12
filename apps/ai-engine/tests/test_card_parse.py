@@ -246,3 +246,46 @@ async def test_card_parse_endpoint_can_return_non_confirmed_card(monkeypatch: py
     assert body["classification"] == "undecided"
     assert body["placement_status"] == "needs_input"
     assert body["question_text"]
+
+
+# ── #292 영업시간 정규화 ─────────────────────────────────────
+
+
+def test_normalize_opening_hours_basic() -> None:
+    from app.services.core_parse import _normalize_opening_hours
+
+    raw = {
+        "periods": [
+            {"open": {"day": 1, "hour": 10, "minute": 0}, "close": {"day": 1, "hour": 18, "minute": 30}},
+            {"open": {"day": 1, "hour": 19, "minute": 0}, "close": {"day": 1, "hour": 22, "minute": 0}},
+            {"open": {"day": 2, "hour": 9, "minute": 0}, "close": {"day": 2, "hour": 17, "minute": 0}},
+        ]
+    }
+    got = _normalize_opening_hours(raw)
+    assert got == {
+        "1": [["10:00", "18:30"], ["19:00", "22:00"]],
+        "2": [["09:00", "17:00"]],
+    }
+
+
+def test_normalize_opening_hours_overnight_truncated() -> None:
+    from app.services.core_parse import _normalize_opening_hours
+
+    # 금요일 18:00 ~ 토요일 02:00 → open 요일(5)의 23:59 로 절단
+    raw = {"periods": [{"open": {"day": 5, "hour": 18, "minute": 0}, "close": {"day": 6, "hour": 2, "minute": 0}}]}
+    assert _normalize_opening_hours(raw) == {"5": [["18:00", "23:59"]]}
+
+
+def test_normalize_opening_hours_24h_and_invalid() -> None:
+    from app.services.core_parse import _normalize_opening_hours
+
+    # close 없는 단일 period = 24시간 영업 → 전 요일 00:00~23:59
+    raw_24h = {"periods": [{"open": {"day": 0, "hour": 0, "minute": 0}}]}
+    got = _normalize_opening_hours(raw_24h)
+    assert got is not None and set(got) == {str(d) for d in range(7)}
+    assert got["3"] == [["00:00", "23:59"]]
+
+    assert _normalize_opening_hours(None) is None
+    assert _normalize_opening_hours({}) is None
+    assert _normalize_opening_hours({"periods": []}) is None
+    assert _normalize_opening_hours({"weekdayDescriptions": ["..."]}) is None

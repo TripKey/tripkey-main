@@ -44,6 +44,9 @@ PLACES_FIELD_MASK = ",".join(
         "places.formattedAddress",
         "places.location",
         "places.shortFormattedAddress",
+        # #292 영업시간(time window). Advanced SKU 필드 — 과금 등급 상승, 팀 합의됨.
+        # 필드 추가로 mask_version 이 바뀌어 기존 places_cache 는 1회 전체 미스(재적재)된다.
+        "places.regularOpeningHours",
     ]
 )
 PLACES_CACHE_SHAPE = f"{PLACES_FIELD_MASK}|ps5"
@@ -828,6 +831,36 @@ async def _search_place(query: str, api_key: str, region_code: str | None = None
         return response.json()
 
 
+def _normalize_opening_hours(raw: dict | None) -> dict[str, list[list[str]]] | None:
+    """Google regularOpeningHours → {요일(0=일~6=토): [["HH:MM","HH:MM"], ...]} 정규화(#292).
+
+    - close 없는 단일 period 는 24시간 영업(Google 규약) → 전 요일 00:00~23:59.
+    - 자정을 넘기는 구간(close.day != open.day)은 open 요일의 23:59 로 절단한다.
+    - periods 가 없거나 형식이 다르면 None(영업시간 제약 없음).
+    """
+    if not raw:
+        return None
+    periods = raw.get("periods")
+    if not isinstance(periods, list) or not periods:
+        return None
+    result: dict[str, list[list[str]]] = {}
+    for period in periods:
+        open_ = (period or {}).get("open") or {}
+        day = open_.get("day")
+        if day is None:
+            continue
+        close = period.get("close") or {}
+        if not close:
+            return {str(d): [["00:00", "23:59"]] for d in range(7)}
+        start = f"{int(open_.get('hour', 0)):02d}:{int(open_.get('minute', 0)):02d}"
+        if close.get("day") == day:
+            end = f"{int(close.get('hour', 0)):02d}:{int(close.get('minute', 0)):02d}"
+        else:
+            end = "23:59"
+        result.setdefault(str(int(day)), []).append([start, end])
+    return result or None
+
+
 def _apply_place_match(card: ParsedCard, place: dict) -> ParsedCard:
     location = place.get("location") or {}
     coordinates = None
@@ -842,6 +875,7 @@ def _apply_place_match(card: ParsedCard, place: dict) -> ParsedCard:
             "coordinates": coordinates,
             "address": place.get("formattedAddress"),
             "location": resolved_location,
+            "opening_hours": _normalize_opening_hours(place.get("regularOpeningHours")),
         }
     )
 

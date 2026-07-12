@@ -76,13 +76,13 @@ const ActionGroupSection = ({
   const hasContent = Boolean(children);
 
   return (
-    <section className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+    <section className="overflow-hidden rounded-xl bg-muted/60">
       {/* 헤더 전체가 토글 버튼. aria-expanded 로 펼침 상태를 보조기기에 알림 */}
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/40"
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted"
       >
         {/* 원형 배경 + 상태 아이콘 */}
         <span

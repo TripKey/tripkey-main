@@ -1,7 +1,6 @@
 import {
   Calendar,
   Check,
-  MessageCircle,
   MapPin,
   UserRound,
   Users,
@@ -46,6 +45,8 @@ export type HeaderProps = {
   showTripMeta?: boolean;
   /** true면 헤더 내용을 전체폭으로(워크스페이스형: 배치·확정). 기본은 가운데 정렬(문서형). */
   fluid?: boolean;
+  /** false면 단계 진행바를 숨긴다(공유 링크 읽기 전용 뷰 등). 기본 노출. */
+  showStepper?: boolean;
 };
 
 const Header = ({
@@ -57,9 +58,24 @@ const Header = ({
   actions,
   showTripMeta = true,
   fluid = false,
+  showStepper = true,
 }: HeaderProps) => {
   const currentIndex = STEPS.findIndex((step) => step.id === currentStepId);
   const widthClass = fluid ? 'w-full' : 'mx-auto w-full max-w-6xl';
+
+  // 로고 클릭 = 세션 초기화 후 메인으로. (확정 화면 '여행 세션 초기화'와 동일 방식)
+  const handleLogoReset = () => {
+    if (
+      !window.confirm(
+        '지금까지 계획한 여행이 모두 초기화돼요. 처음부터 다시 시작할까요?'
+      )
+    ) {
+      return;
+    }
+    sessionStorage.clear();
+    sessionStorage.setItem('tripkey:show-splash', '1'); // 리셋 후에만 스플래시 노출
+    window.location.href = '/';
+  };
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background">
@@ -69,9 +85,14 @@ const Header = ({
           widthClass
         )}
       >
-        <Link to="/" className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleLogoReset}
+          className="flex items-center gap-2"
+          aria-label="TripKey 홈 — 세션 초기화"
+        >
           <span className="text-xl font-bold tracking-tight">TripKey</span>
-        </Link>
+        </button>
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -128,21 +149,16 @@ const Header = ({
             <div />
           )}
 
-          <div className="flex items-center gap-2">
-            {currentStepId === 'dump' && (
-              <Link
-                to="/prototype/chat"
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-              >
-                <MessageCircle className="size-3.5" aria-hidden="true" />챗
-                프로토타입
-              </Link>
-            )}
-            {actions}
-          </div>
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <Stepper currentIndex={currentIndex} />
-          </div>
+          {actions ? (
+            <div className="flex items-center gap-2">{actions}</div>
+          ) : (
+            <div />
+          )}
+          {showStepper && (
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+              <Stepper currentIndex={currentIndex} />
+            </div>
+          )}
         </div>
       </div>
     </header>

@@ -53,6 +53,10 @@ class OptimizeStop(BaseModel):
     reserved_time: str | None = None
     # 체류 시간(분, estimated_duration_min). 예약시각 제약 계산의 service time 으로 사용.
     duration_min: int | None = None
+    # 해당 Day 요일의 영업시간 "HH:MM" (BE 가 opening_hours 에서 추출). 방문 시작이 이 구간 안이어야 한다(#292).
+    # 예약시각이 있으면 예약이 우선(사용자의 명시적 약속). 둘 다 None 이면 제약 없음.
+    open_time: str | None = None
+    close_time: str | None = None
 
 
 class OptimizeOrderRequest(BaseModel):

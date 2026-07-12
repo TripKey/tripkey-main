@@ -72,6 +72,7 @@ create table if not exists public.place_cards (
   location               text,                                     -- 지역명/주소 요약
   address                text,                                     -- 상세 주소 (Blocking Enrichment 보강)
   time_constraint        text,                                     -- 시간 제약 설명
+  opening_hours          jsonb,                                    -- 영업시간 {요일(0=일~6=토): [[open,close],...]} (#292)
 
   -- 사용자/AI 컨텍스트
   user_context           text,                                     -- 사용자 맥락 반영 문구

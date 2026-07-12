@@ -1,9 +1,12 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import PageTransition from '../components/common/PageTransition';
 import DumpForm from '../components/dump/DumpForm';
-import DumpGuideCard from '../components/dump/DumpGuideCard';
-import DumpInputGuide from '../components/dump/DumpInputGuide';
+import {
+  DumpAiInfoCard,
+  DumpTipsCard,
+} from '../components/dump/DumpInputGuide';
 import TripSummaryCard from '../components/grouping/TripSummaryCard';
 import Header from '../components/header/Header';
 import EmptyView from '../components/progress/EmptyView';
@@ -20,7 +23,6 @@ import { DUMP_TEXT } from '../utils/constants';
 import { useDumpStore } from '../utils/dump-store';
 import { useOnboardingStore } from '../utils/onboarding-store';
 
-import './DumpPage.css';
 import './ProgressPage.css';
 
 const DumpPage = () => {
@@ -89,8 +91,8 @@ const DumpPage = () => {
 
   if (isInProgress) {
     return (
-      <main className="dump-page dump-page--progress">
-        <div className="progress-content">
+      <main className="flex min-h-screen items-center justify-center bg-linear-to-b from-muted/50 to-background px-6">
+        <div className="flex flex-col items-center gap-4 text-center">
           {view.kind === 'loading' && <LoadingView step={view.step} />}
           {view.kind === 'parse-error' && (
             <ErrorView onRetry={() => clearJob()} />
@@ -109,7 +111,7 @@ const DumpPage = () => {
   }
 
   return (
-    <>
+    <PageTransition>
       <Header
         currentStepId="dump"
         destination={summary.destinations[0] ?? '여행'}
@@ -124,42 +126,49 @@ const DumpPage = () => {
           </>
         }
       />
-      <main className="dump-page">
-        <section className="dump-container">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
+      <main className="flex min-h-[calc(100vh-8rem)] items-start justify-center bg-linear-to-b from-muted/50 to-background px-4 pt-10 pb-16 sm:pt-14">
+        <div className="w-full max-w-5xl">
+          <header className="mb-6">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               여행 정보 입력
             </h1>
-            <p className="text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-2 text-sm text-muted-foreground">
               가고 싶은 곳, 하고 싶은 것, 떠오르는 생각을 자유롭게 적어주세요
             </p>
+          </header>
+
+          <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
+            <div className="grid lg:grid-cols-[1fr_340px]">
+              {/* 좌측: 입력 */}
+              <div className="flex flex-col gap-6 p-8 sm:p-10">
+                <DumpForm
+                  dumpText={dumpText}
+                  dumpTextCount={dumpTextCount}
+                  onTextChange={handleDumpTextChange}
+                />
+                <DumpAiInfoCard />
+                <DumpTipsCard />
+              </div>
+
+              {/* 우측: 요약 */}
+              <aside className="flex flex-col border-t border-border bg-muted/20 p-8 lg:border-l lg:border-t-0">
+                <TripSummaryCard
+                  {...summary}
+                  bare
+                  onNext={handleClickNext}
+                  onPrev={handleClickBack}
+                  nextDisabled={isNextDisabled}
+                  progressLabel="입력 완료도"
+                  progressValueLabel={progressValueLabel}
+                  guideText="여행 정보를 10자 이상 입력하면 다음 단계로 진행할 수 있어요."
+                  errorMessage={errorMessage}
+                />
+              </aside>
+            </div>
           </div>
-
-          <DumpGuideCard />
-
-          <DumpForm
-            dumpText={dumpText}
-            dumpTextCount={dumpTextCount}
-            onTextChange={handleDumpTextChange}
-          />
-
-          <DumpInputGuide />
-        </section>
-
-        <aside className="dump-sidebar">
-          <TripSummaryCard
-            {...summary}
-            onNext={handleClickNext}
-            onPrev={handleClickBack}
-            nextDisabled={isNextDisabled}
-            progressLabel="입력 완료도"
-            progressValueLabel={progressValueLabel}
-            guideText="여행 정보를 10자 이상 입력하면 다음 단계로 진행할 수 있어요."
-            errorMessage={errorMessage}
-          />
-        </aside>
+        </div>
       </main>
-    </>
+    </PageTransition>
   );
 };
 
