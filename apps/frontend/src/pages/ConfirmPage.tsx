@@ -35,6 +35,10 @@ const ConfirmPage = () => {
   const form = useOnboardingStore((s) => s.form);
   const tripId = urlTripId ?? storeTripId;
 
+  // 공유 링크(?shared=1)로 들어온 방문자: 확정 화면만 읽기 전용으로 보여주고
+  // 단계 진행바·다른 화면으로 넘어가는 액션(배치/세션 초기화)을 숨긴다.
+  const isShared = searchParams.get('shared') === '1';
+
   // dateRange 폴백용 — 서버 start_date·출국편으로 날짜를 못 구할 때만 사용.
   const calType = useCalendarStore((s) => s.type);
   const exactDate = useCalendarStore((s) => s.exactDate);
@@ -123,26 +127,29 @@ const ConfirmPage = () => {
       <Header
         fluid
         currentStepId="confirm"
+        showStepper={!isShared}
         destination={summary.destination}
         extraDestinations={summary.extraDestinations}
         travelers={summary.travelers}
         dateRange={summary.dateRange}
         actions={
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!tripId}
-              onClick={() =>
-                navigate(`/arrange${tripId ? `?tripId=${tripId}` : ''}`)
-              }
-            >
-              배치로 돌아가기
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleResetSession}>
-              여행 세션 초기화
-            </Button>
-          </div>
+          isShared ? undefined : (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!tripId}
+                onClick={() =>
+                  navigate(`/arrange${tripId ? `?tripId=${tripId}` : ''}`)
+                }
+              >
+                배치로 돌아가기
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleResetSession}>
+                여행 세션 초기화
+              </Button>
+            </div>
+          )
         }
       />
 
@@ -234,7 +241,7 @@ const ConfirmPage = () => {
                         <ContextCardList cards={activeDay.contextCards} />
                         <div className="flex flex-col gap-6">
                           <DayChecklist items={activeDay.dayChecklist} />
-                          <SaveShareCard />
+                          <SaveShareCard tripId={tripId} />
                         </div>
                       </div>
                     </>

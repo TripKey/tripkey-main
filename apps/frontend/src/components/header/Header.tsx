@@ -39,6 +39,8 @@ export type HeaderProps = {
   showTripMeta?: boolean;
   /** true면 헤더 내용을 전체폭으로(워크스페이스형: 배치·확정). 기본은 가운데 정렬(문서형). */
   fluid?: boolean;
+  /** false면 단계 진행바를 숨긴다(공유 링크 읽기 전용 뷰 등). 기본 노출. */
+  showStepper?: boolean;
 };
 
 const Header = ({
@@ -50,6 +52,7 @@ const Header = ({
   actions,
   showTripMeta = true,
   fluid = false,
+  showStepper = true,
 }: HeaderProps) => {
   const currentIndex = STEPS.findIndex((step) => step.id === currentStepId);
   const widthClass = fluid ? 'w-full' : 'mx-auto w-full max-w-6xl';
@@ -144,9 +147,11 @@ const Header = ({
           ) : (
             <div />
           )}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <Stepper currentIndex={currentIndex} />
-          </div>
+          {showStepper && (
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+              <Stepper currentIndex={currentIndex} />
+            </div>
+          )}
         </div>
       </div>
     </header>
