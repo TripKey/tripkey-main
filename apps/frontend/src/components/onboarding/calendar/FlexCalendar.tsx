@@ -19,11 +19,20 @@ const FlexCalendar = () => {
     flexDate?.nights ?? null
   );
 
+  const durationOptions = [1, 2, 3, 4];
+  const MIN_NIGHTS = 1;
+  const MAX_NIGHTS = 30;
+
+  const [showCustom, setShowCustom] = useState(
+    flexDate?.nights != null && !durationOptions.includes(flexDate.nights)
+  );
+
   useEffect(() => {
     if (flexDate === null) {
       setSelectedYear(new Date().getFullYear());
       setSelectedMonth(null);
       setDurationNights(null);
+      setShowCustom(false);
     }
   }, [flexDate]);
 
@@ -50,7 +59,23 @@ const FlexCalendar = () => {
     }
   };
 
-  const durationOptions = [2, 3, 4, 5, 6, 7];
+  const handlePresetClick = (nights: number) => {
+    setShowCustom(false);
+    handleDurationClick(nights);
+  };
+
+  const handleCustomToggle = () => {
+    setShowCustom(true);
+    if (durationNights === null || durationOptions.includes(durationNights)) {
+      handleDurationClick(8);
+    }
+  };
+
+  const handleCustomStep = (delta: number) => {
+    const base = durationNights ?? MIN_NIGHTS;
+    const next = Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, base + delta));
+    handleDurationClick(next);
+  };
 
   return (
     <div className="flex-calendar">
@@ -94,12 +119,45 @@ const FlexCalendar = () => {
           <button
             key={nights}
             type="button"
-            className={`flex-calendar__duration-btn${durationNights === nights ? ' flex-calendar__duration-btn--active' : ''}`}
-            onClick={() => handleDurationClick(nights)}
+            className={`flex-calendar__duration-btn${!showCustom && durationNights === nights ? ' flex-calendar__duration-btn--active' : ''}`}
+            onClick={() => handlePresetClick(nights)}
           >
             {nights}박 {nights + 1}일
           </button>
         ))}
+        {showCustom ? (
+          <div className="flex-calendar__duration-btn flex-calendar__duration-btn--active flex-calendar__custom">
+            <button
+              type="button"
+              className="flex-calendar__custom-step"
+              disabled={(durationNights ?? MIN_NIGHTS) <= MIN_NIGHTS}
+              onClick={() => handleCustomStep(-1)}
+              aria-label="박수 줄이기"
+            >
+              −
+            </button>
+            <span className="flex-calendar__custom-value">
+              {durationNights ?? MIN_NIGHTS}박 {(durationNights ?? MIN_NIGHTS) + 1}일
+            </span>
+            <button
+              type="button"
+              className="flex-calendar__custom-step"
+              disabled={(durationNights ?? MIN_NIGHTS) >= MAX_NIGHTS}
+              onClick={() => handleCustomStep(1)}
+              aria-label="박수 늘리기"
+            >
+              +
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="flex-calendar__duration-btn"
+            onClick={handleCustomToggle}
+          >
+            직접 입력
+          </button>
+        )}
       </div>
     </div>
   );

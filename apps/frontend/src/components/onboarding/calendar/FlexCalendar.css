@@ -79,3 +79,45 @@
   color: var(--calendar-accent);
   font-weight: 600;
 }
+
+/* 직접 입력 (인라인 스테퍼) */
+.flex-calendar__custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.flex-calendar__custom-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--calendar-accent-line);
+  border-radius: 50%;
+  background: var(--background);
+  font-size: 16px;
+  line-height: 1;
+  color: var(--calendar-accent);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.flex-calendar__custom-step:hover:not(:disabled) {
+  background: var(--calendar-accent);
+  color: var(--background);
+}
+
+.flex-calendar__custom-step:disabled {
+  color: var(--muted-foreground);
+  border-color: var(--border);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.flex-calendar__custom-value {
+  min-width: 60px;
+  text-align: center;
+  white-space: nowrap;
+}
