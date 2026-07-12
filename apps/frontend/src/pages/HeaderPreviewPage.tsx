@@ -31,7 +31,6 @@ const HeaderPreviewPage = () => {
           extraDestinations={0}
           travelers={3}
           dateRange="6월 1일 ~ 6월 5일"
-          userInitials="HE"
           actions={
             <Button size="sm">
               <Plus className="h-4 w-4" aria-hidden="true" />

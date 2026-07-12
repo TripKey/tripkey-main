@@ -1,8 +1,9 @@
-"""SCR-04 동선 최적화 — 이동시간 행렬 산출 + 순서 최적화 오케스트레이션 (#270, #274).
+"""SCR-04 동선 최적화 — 이동시간 행렬 산출 + 순서 최적화 오케스트레이션 (#270, #274, #275).
 
 L2 캐시(route_matrix_cache)의 pair 는 그대로 쓰고(부분 히트 포함), 빠진 pair 는 개수에 따라
 per-leg computeRoutes(소수) 또는 Route Matrix 1회(다수)로 채운다. 키 부재/호출 실패/구간 누락 시
-haversine 추정으로 보강한 뒤 route_order_optimizer 로 Day 내 방문 순서를 푼다. I/O 경계 모듈.
+haversine 추정으로 보강하고, 짧은 구간은 도보 추정과 min 블렌딩(#275 mode)한 뒤
+제약(귀가/고정/예약시각) 유무에 따라 OR-tools 또는 Held-Karp/2-opt 로 순서를 푼다. I/O 경계 모듈.
 """
 
 from __future__ import annotations
@@ -10,10 +11,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 
 import httpx
 
-from app.fallback.estimated_route import estimate_leg
+from app.fallback.estimated_route import _haversine_meters, estimate_leg
 from app.schemas.parse import Coordinates
 from app.schemas.route import (
     OptimizeOrderRequest,
@@ -27,6 +29,7 @@ from app.services.route_optimizer import (
     _parse_duration_seconds,
     _places_api_key,
 )
+from app.services.route_order_constrained import solve_constrained
 from app.services.route_order_optimizer import optimize_visit_order, path_duration
 
 logger = logging.getLogger(__name__)
@@ -39,12 +42,48 @@ COMPUTE_ROUTE_MATRIX_URL = (
 # 초과하면 Route Matrix 1회로 전체 재계산(cold 시 호출 수 폭증 방지). #274 Phase B.
 PER_LEG_MAX_PAIRS = int(os.getenv("ROUTE_MATRIX_PER_LEG_MAX_PAIRS", "8"))
 
+# 하루 일정 시작 시각 가정(예약시각 → 일정 시작 기준 초 변환). #275
+DAY_START_SECONDS = 9 * 3600
+# 도보 추정: 직선거리 × 우회계수 / 보행속도(4.5km/h). 짧은 구간은 DRIVE 보다 빠를 수 있어
+# min 블렌딩으로 순서 최적화 비용에 반영한다(#275 mode — 추가 API 호출 없음).
+WALK_DETOUR_FACTOR = 1.3
+WALK_SPEED_MPS = 4_500 / 3600
+
+_RESERVED_TIME_RE = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
+
 
 def _estimate_seconds(origin: Coordinates, destination: Coordinates) -> int:
     leg = RouteLeg(
         from_instance_id="o", to_instance_id="d", origin=origin, destination=destination
     )
     return estimate_leg(leg).duration_seconds
+
+
+def _walk_seconds(origin: Coordinates, destination: Coordinates) -> int:
+    meters = _haversine_meters(origin.lat, origin.lng, destination.lat, destination.lng)
+    return int(round(meters * WALK_DETOUR_FACTOR / WALK_SPEED_MPS))
+
+
+def _blend_walk_estimates(stops: list[OptimizeStop], matrix: list[list[int]]) -> None:
+    """구간별 비용을 min(DRIVE, 도보 추정) 으로 보정(#275 mode). 캐시 적재 후라 캐시는 DRIVE 원값 유지."""
+    n = len(stops)
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            walk = _walk_seconds(stops[i].coordinates, stops[j].coordinates)
+            if walk < matrix[i][j]:
+                matrix[i][j] = walk
+
+
+def _reserved_seconds(reserved_time: str | None) -> int | None:
+    """'HH:MM' 예약시각 → 일정 시작(DAY_START) 기준 초. 형식이 아니면 None."""
+    if not reserved_time:
+        return None
+    m = _RESERVED_TIME_RE.match(reserved_time.strip())
+    if not m:
+        return None
+    return max(0, int(m.group(1)) * 3600 + int(m.group(2)) * 60 - DAY_START_SECONDS)
 
 
 def _waypoint(coord: Coordinates) -> dict:
@@ -174,21 +213,81 @@ async def _build_matrix(
     else:
         missing = list(pair_keys.keys())
 
+    # 적중률/과금 모니터링(#274): billed_elements 는 Google 과금 단위
+    # (per-leg = 호출 pair 수, Route Matrix = n×n 요소 수)
+    total_pairs, hits = len(pair_keys), len(pair_keys) - len(missing)
+
     # 2) 전부 캐시 히트 → Google 호출 없음
     if not missing:
+        logger.info(
+            "route_matrix stats | pairs=%d cache_hits=%d misses=0 fill=none billed_elements=0",
+            total_pairs, hits,
+        )
         return matrix, "google"
 
     # 3) 키 없음 → 남은 pair 는 추정 유지
     if not api_key:
+        logger.info(
+            "route_matrix stats | pairs=%d cache_hits=%d misses=%d fill=skip(no-key) billed_elements=0",
+            total_pairs, hits, len(missing),
+        )
         return matrix, "google" if used_google else "estimated"
 
     # 4) 하이브리드: 빠진 pair 가 적으면 per-leg, 많으면 Route Matrix 1회
     if len(missing) > PER_LEG_MAX_PAIRS:
         filled = await _fill_via_route_matrix(stops, api_key, matrix, pair_keys)
+        logger.info(
+            "route_matrix stats | pairs=%d cache_hits=%d misses=%d fill=matrix billed_elements=%d",
+            total_pairs, hits, len(missing), n * n if filled else 0,
+        )
     else:
         filled = await _fill_via_per_leg(stops, api_key, matrix, pair_keys, missing)
+        logger.info(
+            "route_matrix stats | pairs=%d cache_hits=%d misses=%d fill=per-leg billed_elements=%d",
+            total_pairs, hits, len(missing), len(missing),
+        )
 
     return matrix, "google" if (used_google or filled) else "estimated"
+
+
+def _opening_window(stop: OptimizeStop) -> tuple[int, int] | None:
+    """영업시간 [open, close] → 일정 시작 기준 초 구간(#292). 유효하지 않으면 None(제약 없음).
+
+    close 가 일정 시작(09:00) 이전이거나 open 이상이 아니면 하루 관점에서 의미 없는 창 → 제약 생략.
+    """
+    if stop.open_time is None or stop.close_time is None:
+        return None
+    open_sec = _reserved_seconds(stop.open_time)
+    close_sec = _reserved_seconds(stop.close_time)
+    if open_sec is None or close_sec is None or close_sec <= 0 or close_sec <= open_sec:
+        return None
+    return open_sec, close_sec
+
+
+def _collect_constraints(
+    request: OptimizeOrderRequest, start_index: int | None, end_index: int | None
+) -> tuple[dict[int, int], dict[int, tuple[int, int]], list[int]]:
+    """stops 에서 고정 위치/시간창(예약·영업시간)/체류시간 제약을 추출한다(앵커는 이미 고정이라 제외).
+
+    time_windows 값은 방문 시작 시각의 (earliest, latest) 구간 — 예약은 [t, t] 고정,
+    영업시간은 [open, close] 구간(#292). 예약이 있으면 예약이 우선한다.
+    """
+    pinned_positions: dict[int, int] = {}
+    time_windows: dict[int, tuple[int, int]] = {}
+    service_times = [(s.duration_min or 0) * 60 for s in request.stops]
+    for i, stop in enumerate(request.stops):
+        if i == start_index or i == end_index:
+            continue
+        reserved = _reserved_seconds(stop.reserved_time)
+        if reserved is not None:
+            time_windows[i] = (reserved, reserved)
+            continue
+        window = _opening_window(stop)
+        if window is not None:
+            time_windows[i] = window
+        if stop.pinned:
+            pinned_positions[i] = i  # BE 가 day_order 순으로 보내므로 입력 인덱스 = 원래 위치
+    return pinned_positions, time_windows, service_times
 
 
 async def optimize_order(request: OptimizeOrderRequest) -> OptimizeOrderResponse:
@@ -199,14 +298,54 @@ async def optimize_order(request: OptimizeOrderRequest) -> OptimizeOrderResponse
         )
 
     matrix, source = await _build_matrix(request.stops, _places_api_key())
+    _blend_walk_estimates(request.stops, matrix)
 
     start_index = None
     if request.start_instance_id is not None and request.start_instance_id in ids:
         start_index = ids.index(request.start_instance_id)
 
-    ordered_ids = optimize_visit_order(ids, matrix, start_index)
-    order_idx = [ids.index(x) for x in ordered_ids]
+    end_index = None
+    if request.end_instance_id is not None and request.end_instance_id in ids:
+        end_index = ids.index(request.end_instance_id)
+
+    # 시작=종료 앵커(숙소) → 귀가 closed-tour(숙소 복귀 비용 포함 최적화)
+    closed_tour = end_index is not None and end_index == start_index
+    if closed_tour:
+        end_index = None
+
+    pinned_positions, time_windows, service_times = _collect_constraints(
+        request, start_index, end_index
+    )
+
+    order_idx: list[int] | None = None
+    solved_closed = False
+    if closed_tour or pinned_positions or time_windows:
+        order_idx = solve_constrained(
+            matrix,
+            start=start_index,
+            end=end_index,
+            closed_tour=closed_tour,
+            pinned_positions=pinned_positions,
+            time_windows=time_windows,
+            service_times=service_times,
+        )
+        if order_idx is None:
+            logger.warning(
+                "constrained solve infeasible | pins=%d windows=%d closed=%s — 무제약 폴백",
+                len(pinned_positions), len(time_windows), closed_tour,
+            )
+        else:
+            solved_closed = closed_tour
+
+    if order_idx is None:
+        ordered_ids = optimize_visit_order(ids, matrix, start_index, end_index)
+        order_idx = [ids.index(x) for x in ordered_ids]
+    else:
+        ordered_ids = [ids[i] for i in order_idx]
+
     total = path_duration(order_idx, matrix)
+    if solved_closed and len(order_idx) > 1:
+        total += matrix[order_idx[-1]][order_idx[0]]  # 귀가(복귀) 구간 포함
 
     return OptimizeOrderResponse(
         ordered_instance_ids=ordered_ids,

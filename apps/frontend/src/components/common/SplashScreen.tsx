@@ -38,16 +38,17 @@ const SplashScreen = ({
       }}
     >
       <div
-        className="flex items-center gap-3 transition-all duration-700 ease-out"
+        className="flex flex-col items-center gap-4 text-center transition-all duration-700 ease-out"
         style={{
           opacity: entered ? 1 : 0,
           transform: entered ? 'translateY(0)' : 'translateY(8px)',
         }}
       >
-        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-2xl font-bold text-primary-foreground">
-          T
-        </span>
-        <span className="text-3xl font-bold tracking-tight">TripKey</span>
+        <span className="text-5xl font-bold tracking-tight">TripKey</span>
+
+        <p className="text-sm text-muted-foreground">
+          떠오르는 대로 적어보세요, 정리는 트립키가
+        </p>
       </div>
     </div>
   );

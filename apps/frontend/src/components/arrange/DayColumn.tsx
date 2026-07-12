@@ -9,7 +9,7 @@ import { Fragment, useRef, useState, type DragEvent } from 'react';
 
 import ScheduleCard from '@/components/arrange/ScheduleCard';
 import { cn } from '@/lib/utils';
-import type { DayColumnViewModel } from '@/types/arrange';
+import type { DayColumnViewModel, ScheduledCardViewModel } from '@/types/arrange';
 import {
   readArrangeDragData,
   setArrangeDragData,
@@ -19,6 +19,10 @@ import {
 type DayColumnProps = DayColumnViewModel & {
   /** 카드를 이 Day에 드롭했을 때(드래그 payload + 삽입 인덱스) */
   onDropCard?: (payload: ArrangeDragPayload, targetIndex: number) => void;
+  /** 배치된 카드 클릭 — 공통 상세 패널 열기 */
+  onSelectCard?: (card: ScheduledCardViewModel) => void;
+  /** 배치된 카드 X 클릭 — Day에서 제거 */
+  onRemoveCard?: (cardId: string) => void;
   /** 배치된 카드 드래그 시작(하이라이트용) */
   onCardDragStart?: (cardId: string) => void;
   /** 배치된 카드 드래그 종료 */
@@ -40,6 +44,8 @@ const DayColumn = ({
   dateLabel,
   cards,
   onDropCard,
+  onSelectCard,
+  onRemoveCard,
   onCardDragStart,
   onCardDragEnd,
   draggingCardId,
@@ -102,7 +108,7 @@ const DayColumn = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        'flex h-full w-[280px] shrink-0 flex-col rounded-2xl border border-border bg-background/60 p-3 transition-colors',
+        'flex h-full w-[280px] shrink-0 flex-col rounded-2xl border border-border bg-muted/40 p-3 transition-colors',
         dragActive && 'border-dashed border-primary/40',
         isOver &&
           'border-solid border-primary bg-primary/5 ring-2 ring-primary/30'
@@ -149,7 +155,7 @@ const DayColumn = ({
         >
           {cards.map((card, index) => {
             // 고정 시작 시간 카드(항공권 등)는 이동 불가.
-            const cardDraggable = !card.fixedTime;
+            const cardDraggable = !card.fixedTime && !card.processing;
             return (
               <Fragment key={card.id}>
                 {isOver && dropIndex === index && <DropIndicator />}
@@ -163,7 +169,13 @@ const DayColumn = ({
                     draggingCardId === card.id && 'opacity-40'
                   )}
                 >
-                  <ScheduleCard {...card} />
+                  <ScheduleCard
+                    {...card}
+                    onClick={() => onSelectCard?.(card)}
+                    onRemove={
+                      cardDraggable ? () => onRemoveCard?.(card.id) : undefined
+                    }
+                  />
                 </div>
               </Fragment>
             );

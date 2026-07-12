@@ -61,6 +61,7 @@ create table place_cards (
   location               text,
   address                text,
   time_constraint        text,
+  opening_hours          jsonb,
   user_context           text,
   tips                   text,
   question_text          text,

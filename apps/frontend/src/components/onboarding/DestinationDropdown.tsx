@@ -35,8 +35,7 @@ const DestinationDropdown = ({ placeholder }: { placeholder?: string }) => {
   }, [query]);
 
   const handleSelect = (destination: Destination) => {
-    if (destinations.includes(destination.name)) return;
-    setForm({ destinations: [...destinations, destination.name] });
+    setForm({ destinations: [destination.name] });
     setQuery('');
     setShowHint(false);
   };

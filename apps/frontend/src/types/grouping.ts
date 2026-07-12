@@ -4,6 +4,8 @@
  */
 import type { LucideIcon } from 'lucide-react';
 
+import type { Coordinates } from './grouping-api';
+
 export type PlaceCardAccent = 'blue' | 'green' | 'amber' | 'red' | 'muted';
 
 export type PlaceCategory =
@@ -109,12 +111,16 @@ export type CardDetailViewModel = {
   placementStatus: string;
   /** "상세 정보" — "원하셨던 내용"(사용자가 처음 적은 의도 한 줄). 없으면 그 행 생략 */
   userIntent?: string;
+  /** 이름/소요시간 표시 수정용 원본 예상 소요 시간(분). 없으면 빈 입력으로 표시 */
+  estimatedDurationMin?: number | null;
   /**
    * "상세 정보" — "알아두면 좋아요"(amber 강조 행). 없으면 카드의 reminder 를 대신 쓰고,
    * 그것도 없으면 행 자체를 생략한다.
    * (리스트의 reminder 배너 = 짧은 넛지 / 패널의 이 행 = 좀 더 자세한 AI 노트 — 라는 구분)
    */
   aiHint?: string;
+  /** 장소 좌표(있으면 상세 패널에 지도 표시). 미해결/미도착 카드는 없음 */
+  coordinates?: Coordinates;
   /** "사용자 메모" textarea 초기값. 보통 ''(저장된 메모가 있으면 그 값). 입력값이 이 값과 달라지면 "메모 저장"이 활성화된다 */
   memo?: string;
   /**
@@ -159,6 +165,8 @@ export type SelectCardDetailViewModel = {
   placementStatus: string;
   /** "상세 정보" — "원하셨던 내용"(사용자가 처음 적은 의도 한 줄). 없으면 그 행 생략 */
   userIntent?: string;
+  /** 이름/소요시간 표시 수정용 원본 예상 소요 시간(분). 없으면 빈 입력으로 표시 */
+  estimatedDurationMin?: number | null;
   /**
    * "상세 정보" — "알아두면 좋아요"(amber 강조 행). 없으면 카드의 reminder 를 대신 쓰고,
    * 그것도 없으면 행 자체를 생략한다.
@@ -214,6 +222,8 @@ export type EditCardDetailViewModel = {
   placementStatus: string;
   /** "상세 정보" — "원하셨던 내용"(사용자가 처음 적은 의도 한 줄). 없으면 그 행 생략 */
   userIntent?: string;
+  /** 이름/소요시간 표시 수정용 원본 예상 소요 시간(분). 없으면 빈 입력으로 표시 */
+  estimatedDurationMin?: number | null;
   /**
    * "상세 정보" — "알아두면 좋아요"(amber 강조 행). 없으면 카드의 reminder 를 대신 쓰고,
    * 그것도 없으면 행 자체를 생략한다.

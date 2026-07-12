@@ -197,7 +197,7 @@ export const StatusInfoBox = ({
   classification: string;
   placementStatus: string;
 }) => (
-  <section className="rounded-xl bg-muted/60 p-4">
+  <section className="rounded-2xl bg-muted/60 p-4">
     <h3 className="text-sm font-semibold text-foreground">상태 정보</h3>
     <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1">
       <div className="min-w-0">
@@ -245,14 +245,16 @@ export const ItineraryInclusionBox = ({
   included = true,
   onExclude,
   onInclude,
+  disabled = false,
 }: {
   included?: boolean;
+  disabled?: boolean;
   //제외하기 (included=true 일 때만 보임)
   onExclude?: () => void;
   //포함하기(included=false 일 때만 보임)
   onInclude?: () => void;
 }) => (
-  <div className="flex items-center justify-between gap-3 rounded-xl bg-muted/60 p-4">
+  <div className="flex items-center justify-between gap-3 rounded-2xl bg-muted/60 p-4">
     <div className="min-w-0">
       <p className="text-sm font-semibold text-foreground">
         {included ? '일정에 포함된 항목이에요' : '현재 제외된 항목이에요'}
@@ -269,12 +271,19 @@ export const ItineraryInclusionBox = ({
         variant="outline"
         size="sm"
         className="shrink-0"
+        disabled={disabled}
         onClick={onExclude}
       >
         제외하기
       </Button>
     ) : (
-      <Button type="button" size="sm" className="shrink-0" onClick={onInclude}>
+      <Button
+        type="button"
+        size="sm"
+        className="shrink-0"
+        disabled={disabled}
+        onClick={onInclude}
+      >
         포함하기
       </Button>
     )}
@@ -283,11 +292,11 @@ export const ItineraryInclusionBox = ({
 
 // 질문 박스
 export const QuestionBox = ({ question }: { question: string }) => (
-  <div className="mt-3 rounded-xl bg-indigo-50/70 px-4 py-3.5 dark:bg-indigo-950/30">
-    <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-300">
+  <div className="mt-3 rounded-2xl bg-primary/10 px-4 py-3.5 dark:bg-primary/15">
+    <p className="text-xs font-semibold text-primary dark:text-primary">
       질문
     </p>
-    <p className="mt-1.5 text-sm leading-relaxed font-medium text-indigo-900 dark:text-indigo-100">
+    <p className="mt-1.5 text-sm leading-relaxed font-medium text-primary dark:text-primary">
       {question}
     </p>
   </div>
@@ -298,10 +307,12 @@ export const AnswerField = ({
   value,
   onChange,
   placeholder,
+  disabled = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  disabled?: boolean;
 }) => (
   <div className="mt-4">
     <h4 className="text-sm font-semibold text-foreground">질문에 대한 답변</h4>
@@ -309,8 +320,9 @@ export const AnswerField = ({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
+      disabled={disabled}
       rows={3}
-      className="mt-3 w-full resize-none rounded-xl border border-input bg-background px-3.5 py-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
+      className="mt-3 w-full resize-none rounded-xl border border-input bg-background px-3.5 py-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none disabled:opacity-60"
     />
   </div>
 );

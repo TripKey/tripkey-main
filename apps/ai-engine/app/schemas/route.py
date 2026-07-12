@@ -47,6 +47,16 @@ class OptimizeStop(BaseModel):
 
     instance_id: str = Field(..., min_length=1)
     coordinates: Coordinates
+    # 고정 카드(pin): time_constraint 가 있는 카드. 예약시각이 파싱되지 않으면 현재 순서(위치)를 고정한다.
+    pinned: bool = False
+    # 예약 시각 "HH:MM" (BE 가 time_constraint 에서 추출). 있으면 해당 시각 time window 로 반영.
+    reserved_time: str | None = None
+    # 체류 시간(분, estimated_duration_min). 예약시각 제약 계산의 service time 으로 사용.
+    duration_min: int | None = None
+    # 해당 Day 요일의 영업시간 "HH:MM" (BE 가 opening_hours 에서 추출). 방문 시작이 이 구간 안이어야 한다(#292).
+    # 예약시각이 있으면 예약이 우선(사용자의 명시적 약속). 둘 다 None 이면 제약 없음.
+    open_time: str | None = None
+    close_time: str | None = None
 
 
 class OptimizeOrderRequest(BaseModel):
@@ -54,8 +64,11 @@ class OptimizeOrderRequest(BaseModel):
 
     # 한 Day 안에서 순서를 최적화할 카드들 (좌표 있는 카드만 전달)
     stops: list[OptimizeStop]
-    # 시작 고정 앵커(예: 숙소) instance_id. None 이면 시작 자유.
+    # 시작 고정 앵커(예: 숙소, 첫날 도착 항공) instance_id. None 이면 시작 자유.
     start_instance_id: str | None = None
+    # 종료 고정 앵커(예: 마지막날 항공 출발) instance_id. None 이면 종료 자유.
+    # 시작 앵커와 같으면 귀가 closed-tour(숙소 출발 → 숙소 복귀)로 최적화한다.
+    end_instance_id: str | None = None
 
 
 class OptimizeOrderResponse(BaseModel):

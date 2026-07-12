@@ -6,6 +6,8 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.locationtech.jts.geom.Point;
 
 import java.time.OffsetDateTime;
@@ -100,6 +102,11 @@ public class PlaceCard {
 
     @Column(name = "time_constraint", columnDefinition = "text")
     private String timeConstraint;
+
+    // 영업시간 {요일(0=일~6=토): [["HH:MM","HH:MM"],...]} — Places regularOpeningHours 정규화 (#292)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "opening_hours", columnDefinition = "jsonb")
+    private String openingHours;
 
     @Column(name = "user_context", columnDefinition = "text")
     private String userContext;
@@ -274,7 +281,9 @@ public class PlaceCard {
         if (departureAirport != null && arrivalAirport != null) {
             return departureAirport + " → " + arrivalAirport;
         }
-        String label = "inbound".equals(flightRole) ? "귀국편" : "출발편";
+        String label = "outbound".equals(flightRole)
+                ? "출발편"
+                : "inbound".equals(flightRole) ? "귀국편" : "항공편";
         if (flightNumber != null) {
             return flightNumber + " " + label;
         }
@@ -299,6 +308,9 @@ public class PlaceCard {
 
     public void setExcluded(boolean excluded) {
         this.isExcluded = excluded;
+        if (excluded) {
+            clearDayPlacement();
+        }
     }
 
     public void setAllowDuplicate(boolean value) {
@@ -311,6 +323,16 @@ public class PlaceCard {
 
     public void updateMemo(String memo) {
         this.memo = trimToNull(memo);
+    }
+
+    public void updateDisplayFields(String name, Short estimatedDurationMin) {
+        String normalizedName = trimToNull(name);
+        if (normalizedName != null) {
+            this.name = normalizedName;
+        }
+        if (estimatedDurationMin != null) {
+            this.estimatedDurationMin = estimatedDurationMin;
+        }
     }
 
     /** 좌표 확보를 위해 Places 재처리(lookup)가 필요한 카테고리인지. transport/etc 는 좌표 불필요. */
@@ -329,6 +351,47 @@ public class PlaceCard {
     public void clearDayPlacement() {
         this.day = null;
         this.dayOrder = null;
+    }
+
+    public PlaceCard duplicateForPlacement() {
+        PlaceCard card = new PlaceCard();
+        card.tripId = this.tripId;
+        card.placeId = this.placeId;
+        card.name = this.name;
+        card.category = this.category;
+        card.classification = this.classification;
+        card.placementStatus = this.placementStatus;
+        card.processingStatus = this.processingStatus;
+        card.actionType = this.actionType;
+        card.canExclude = this.canExclude;
+        card.allowDuplicate = this.allowDuplicate;
+        card.isExcluded = false;
+        card.isAiGenerated = this.isAiGenerated;
+        card.pendingReorder = false;
+        card.estimatedDurationMin = this.estimatedDurationMin;
+        card.lat = this.lat;
+        card.lng = this.lng;
+        card.location = this.location;
+        card.address = this.address;
+        card.timeConstraint = this.timeConstraint;
+        card.userContext = this.userContext;
+        card.tips = this.tips;
+        card.questionText = this.questionText;
+        card.options = this.options == null ? null : List.copyOf(this.options);
+        card.blockedReason = this.blockedReason;
+        card.tags = this.tags == null ? null : List.copyOf(this.tags);
+        card.source = this.source;
+        card.notes = this.notes;
+        card.memo = this.memo;
+        card.checkIn = this.checkIn;
+        card.checkOut = this.checkOut;
+        card.flightNumber = this.flightNumber;
+        card.flightDatetime = this.flightDatetime;
+        card.flightRole = this.flightRole;
+        card.departureAirport = this.departureAirport;
+        card.arrivalAirport = this.arrivalAirport;
+        card.searchAlias = this.searchAlias;
+        return card;
     }
 
     /**
@@ -394,6 +457,7 @@ public class PlaceCard {
             this.lng = null;
         }
         this.address = trimToNull(dto.address());
+        this.openingHours = toJsonText(dto.openingHours()); // 장소 매칭 결과 기준으로 갱신 (#292)
 
         this.name = defaultString(dto.name(), this.name);
         this.category = normalizeCategory(dto.category() != null ? dto.category() : this.category);
@@ -435,6 +499,7 @@ public class PlaceCard {
         this.lat = null;
         this.lng = null;
         this.address = null;
+        this.openingHours = null; // 장소 미확정 → 영업시간도 초기화 (#292)
 
         this.name = defaultString(dto.name(), this.name);
         this.category = normalizeCategory(dto.category() != null ? dto.category() : this.category);
@@ -488,6 +553,13 @@ public class PlaceCard {
     }
 
     public void markProcessing() {
+        this.processingStatus = "processing";
+        recomputeActionType();
+    }
+
+    public void markAiRequestPending() {
+        this.classification = "undecided";
+        this.placementStatus = "needs_input";
         this.processingStatus = "processing";
         recomputeActionType();
     }
@@ -552,6 +624,7 @@ public class PlaceCard {
         }
         card.location = trimToNull(dto.location());
         card.address = trimToNull(dto.address());
+        card.openingHours = toJsonText(dto.openingHours()); // #292
         card.timeConstraint = trimToNull(dto.timeConstraint());
         card.userContext = trimToNull(dto.userContext());
         card.tips = trimToNull(dto.tips());
@@ -568,6 +641,11 @@ public class PlaceCard {
 
         card.demoteWhenCoordinatesMissing();
         return card;
+    }
+
+    /** AI 응답의 opening_hours JSON 노드 → jsonb 저장용 문자열 (#292). */
+    private static String toJsonText(com.fasterxml.jackson.databind.JsonNode node) {
+        return node == null || node.isNull() ? null : node.toString();
     }
 
     @PrePersist
