@@ -9,7 +9,8 @@
 //    (백엔드에 카드별 day 저장 API 가 없어 스냅샷 일괄 전송만 가능)
 
 import { format } from 'date-fns';
-import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus, Sparkles } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -21,6 +22,14 @@ import { PAGE_ENTER } from '@/components/common/PageTransition';
 import Header from '@/components/header/Header';
 import { Button } from '@/components/ui/button';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   useAddCardMutation,
   useArrangeCardsQuery,
   useConfirmPlacementMutation,
@@ -29,7 +38,7 @@ import {
   useGroups04Query,
   usePatchCardMutation,
   useReorderGroupsMutation,
-  useVerifyPlacementMutation,
+  useSuggestedItineraryMutation,
 } from '@/hooks/useArrange';
 import { useTripDetailQuery } from '@/hooks/useTripDetail';
 import { cn } from '@/lib/utils';
@@ -39,7 +48,7 @@ import type {
   DayColumnViewModel,
   ScheduledCardViewModel,
 } from '@/types/arrange';
-import type { RouteWarning } from '@/types/arrange-api';
+import type { RouteWarning, SuggestedItineraryRequest } from '@/types/arrange-api';
 import type { Card, CardPatchRequest } from '@/types/grouping-api';
 import type { ArrangeDragPayload } from '@/utils/arrange-dnd';
 
@@ -140,6 +149,7 @@ const toUpdatedScheduledCard = (
 
 const ArrangePage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const urlTripId = searchParams.get('tripId');
   const storeTripId = useOnboardingStore((s) => s.tripId);
@@ -160,7 +170,7 @@ const ArrangePage = () => {
   const addCardMutation = useAddCardMutation(tripId);
   const duplicateCardMutation = useDuplicateCardMutation(tripId);
   const reorderMutation = useReorderGroupsMutation(tripId);
-  const verifyMutation = useVerifyPlacementMutation(tripId);
+  const suggestedItineraryMutation = useSuggestedItineraryMutation(tripId);
   const confirmMutation = useConfirmPlacementMutation(tripId);
 
   // 여행 메타는 GET /trips/{id}(옵션 A)를 1순위로, 미로딩 시 온보딩 스토어로 폴백한다.
@@ -242,6 +252,9 @@ const ArrangePage = () => {
   const [notice, setNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [suggestionDialogOpen, setSuggestionDialogOpen] = useState(false);
+  const [travelStyle, setTravelStyle] = useState<SuggestedItineraryRequest['travel_style']>('BALANCED');
+  const [pace, setPace] = useState<SuggestedItineraryRequest['pace']>('NORMAL');
 
   // 진행 중인 재처리 폴링 취소 핸들. 카드 전환/언마운트 시 정리한다.
   const resolvePollRef = useRef<(() => void) | null>(null);
@@ -775,51 +788,47 @@ const ArrangePage = () => {
     }
   };
 
-  // 배치된 카드 중 좌표(지도 위치)가 없는 카드에 대한 안내 경고를 합성한다.
-  // 백엔드 RouteValidator 는 geom 이 null 인 카드를 거리 검증에서 조용히 제외하고
-  // 경고를 내려주지 않으므로(배치 자체는 허용), FE 가 검증 흐름에서 보완 안내한다.
-  const buildMissingLocationWarnings = (): RouteWarning[] => {
-    const noCoordsNames = new Map(
-      (cardsQuery.data?.cards ?? [])
-        .filter((card) => card.coordinates == null)
-        .map((card) => [card.instance_id, card.name])
-    );
-    const warnings: RouteWarning[] = [];
-    days.forEach((day, index) => {
-      day.cards.forEach((card) => {
-        if (!noCoordsNames.has(card.id)) return;
-        warnings.push({
-          type: 'missing_location',
-          day: index + 1,
-          instance_ids: [card.id],
-          message: `'${noCoordsNames.get(card.id) ?? card.name}' 카드는 위치 정보가 없어 거리 검증에서 제외됐어요. 정확한 장소를 확인해 주세요.`,
-          distance_meters: null,
-          total_minutes: null,
-        });
-      });
-    });
-    return warnings;
-  };
-
-  // 동선 검증 — POST /verify. 경고 목록을 배너로 표시.
-  const handleVerify = async () => {
+  const handleSuggestItinerary = async () => {
     if (!tripId) return;
     setActionError(null);
     setNotice(null);
     try {
-      const result = await verifyMutation.mutateAsync(
-        buildPlacementRequest(days, durationByInstance)
+      const suggestion = await suggestedItineraryMutation.mutateAsync({
+        travel_style: travelStyle,
+        pace,
+      });
+      const cardsById = new Map<string, ScheduledCardViewModel>();
+      groups.flatMap((group) => group.cards).forEach((card) =>
+        cardsById.set(card.id, toScheduledCard(card))
       );
-      const warnings = [
-        ...result.route_warnings,
-        ...buildMissingLocationWarnings(),
-      ];
-      setRouteWarnings(warnings);
+      days.flatMap((day) => day.cards).forEach((card) => cardsById.set(card.id, card));
+
+      setDays((previous) => previous.map((day, index) => {
+        const suggestedDay = suggestion.days.find((item) => item.day === index + 1);
+        const fixedCards = day.cards.filter((card) => card.fixedTime);
+        if (!suggestedDay) return { ...day, cards: fixedCards };
+        const fixedIds = new Set(fixedCards.map((card) => card.id));
+        const suggestedCards = suggestedDay.ordered_instance_ids
+          .filter((id) => !fixedIds.has(id))
+          .map((id) => cardsById.get(id))
+          .filter((card): card is ScheduledCardViewModel => card != null);
+        return {
+          ...day,
+          cards: [...fixedCards, ...suggestedCards],
+        };
+      }));
+      setRouteWarnings(null);
+      setConfirmed(false);
+      setSuggestionDialogOpen(false);
+      const placed = suggestion.days.reduce((sum, day) => sum + day.ordered_instance_ids.length, 0);
+      const unplaced = suggestion.unplaced_cards.length;
       setNotice(
-        warnings.length === 0 ? '동선 문제가 발견되지 않았어요.' : null
+        unplaced > 0
+          ? `${placed}개 카드로 여행 초안을 만들었어요. ${unplaced}개는 위치·일정 조건 때문에 카드 목록에 남겨뒀어요. 원하는 대로 옮겨서 완성해 보세요.`
+          : `${placed}개 카드로 여행 초안을 만들었어요. 원하는 대로 옮겨서 완성해 보세요.`
       );
     } catch (error) {
-      setActionError(errorMessageOf(error, '동선 검증에 실패했습니다.'));
+      setActionError(errorMessageOf(error, '여행 초안을 만들지 못했어요.'));
     }
   };
 
@@ -834,9 +843,13 @@ const ArrangePage = () => {
       );
       setRouteWarnings([
         ...result.route_warnings,
-        ...buildMissingLocationWarnings(),
       ]);
       setConfirmed(true);
+      // 배치 화면과 확정 화면이 같은 arrange query key를 사용하므로,
+      // confirm 저장 직후 서버의 day/day_order를 다시 받아 stale 보드 진입을 막는다.
+      await queryClient.invalidateQueries({
+        queryKey: ['arrange', tripId],
+      });
       navigate(`/confirm${tripId ? `?tripId=${tripId}` : ''}`, {
         state: { notice: '일정이 확정되었습니다.' },
       });
@@ -881,11 +894,11 @@ const ArrangePage = () => {
   const cardListTitle = viewModel?.cardListTitle ?? '카드 목록';
 
   const busy =
-    verifyMutation.isPending ||
     confirmMutation.isPending ||
     addCardMutation.isPending ||
     duplicateCardMutation.isPending ||
-    reorderMutation.isPending;
+    reorderMutation.isPending ||
+    suggestedItineraryMutation.isPending;
 
   // "재정렬이 필요한 카드" 그룹이 있을 때만 정리 반영 버튼을 노출한다.
   const hasPendingReorder = groups.some(
@@ -940,11 +953,13 @@ const ArrangePage = () => {
               </Button>
             )}
             <Button
-              variant="outline"
-              onClick={handleVerify}
+              onClick={() => setSuggestionDialogOpen(true)}
               disabled={!tripId || busy}
             >
-              {verifyMutation.isPending ? '검증 중…' : '동선 검증하기'}
+              <Sparkles aria-hidden="true" />
+              {suggestedItineraryMutation.isPending
+                ? '여행 초안 만드는 중…'
+                : '여행 초안 만들기'}
             </Button>
           </div>
         </div>
@@ -1044,6 +1059,59 @@ const ArrangePage = () => {
           </Button>
         </div>
       </footer>
+
+      <Dialog open={suggestionDialogOpen} onOpenChange={setSuggestionDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>여행 초안을 만들어볼까요?</DialogTitle>
+            <DialogDescription>
+              가까운 장소와 선택한 일정 밀도를 기준으로 Day별로 나눠드려요. 만든 뒤 자유롭게 옮길 수 있어요.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-2">
+            <fieldset>
+              <legend className="mb-3 text-sm font-semibold">여행 스타일</legend>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['BALANCED', '균형 있게', '맛집과 관광을 고르게'],
+                  ['SIGHTSEEING', '관광 중심', '장소를 더 많이'],
+                  ['FOOD', '맛집 중심', '먹는 즐거움을 더'],
+                ] as const).map(([value, label, description]) => (
+                  <button key={value} type="button" onClick={() => setTravelStyle(value)}
+                    className={cn('rounded-xl border px-3 py-3 text-left transition-colors',
+                      travelStyle === value ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted')}>
+                    <span className="block text-sm font-semibold">{label}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{description}</span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend className="mb-3 text-sm font-semibold">일정 밀도</legend>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['RELAXED', '여유롭게', '하루 3~4곳'],
+                  ['NORMAL', '보통', '하루 4~6곳'],
+                  ['PACKED', '알차게', '하루 6~8곳'],
+                ] as const).map(([value, label, description]) => (
+                  <button key={value} type="button" onClick={() => setPace(value)}
+                    className={cn('rounded-xl border px-3 py-3 text-left transition-colors',
+                      pace === value ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted')}>
+                    <span className="block text-sm font-semibold">{label}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{description}</span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSuggestItinerary} disabled={suggestedItineraryMutation.isPending}>
+              <Sparkles aria-hidden="true" />
+              {suggestedItineraryMutation.isPending ? '초안 만드는 중…' : '초안 만들기'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 카드 클릭 시 우측에서 열리는 상세 패널 */}
       <CardDetailPanel

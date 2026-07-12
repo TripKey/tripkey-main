@@ -4,14 +4,16 @@
 
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
 
-import type { DayViewModel, PlacementSaveRequest } from '@/types/arrange-api';
+import type { DayViewModel, PlacementSaveRequest, SuggestedItineraryRequest } from '@/types/arrange-api';
 import type { CardAddRequest, CardPatchRequest } from '@/types/grouping-api';
 
 import {
   confirmPlacement,
   fetchDay,
   fetchGroups04,
+  fetchRouteLegs,
   reorderGroups,
+  suggestItinerary,
   verifyPlacement,
 } from '../utils/arrange-api';
 import {
@@ -26,6 +28,7 @@ export const arrangeKeys = {
   cards: (tripId: string) => ['arrange', tripId, 'cards'] as const,
   day: (tripId: string, dayNumber: number) =>
     ['arrange', tripId, 'day', dayNumber] as const,
+  routeLegs: (tripId: string) => ['arrange', tripId, 'route-legs'] as const,
 };
 
 export const useGroups04Query = (tripId: string | null) =>
@@ -52,6 +55,13 @@ export const useArrangeCardsQuery = (tripId: string | null) =>
       if (!pending) return false;
       return query.state.dataUpdateCount > 15 ? false : 2000;
     },
+  });
+
+export const useRouteLegsQuery = (tripId: string | null) =>
+  useQuery({
+    queryKey: arrangeKeys.routeLegs(tripId ?? ''),
+    queryFn: () => fetchRouteLegs(tripId as string),
+    enabled: Boolean(tripId),
   });
 
 /**
@@ -100,6 +110,12 @@ export const useVerifyPlacementMutation = (tripId: string | null) =>
   useMutation({
     mutationFn: (payload: PlacementSaveRequest) =>
       verifyPlacement(tripId as string, payload),
+  });
+
+export const useSuggestedItineraryMutation = (tripId: string | null) =>
+  useMutation({
+    mutationFn: (payload: SuggestedItineraryRequest) =>
+      suggestItinerary(tripId as string, payload),
   });
 
 export const useConfirmPlacementMutation = (tripId: string | null) =>

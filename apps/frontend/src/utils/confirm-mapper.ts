@@ -10,12 +10,11 @@
 
 import type { OnboardingRequest } from '@/types/onboarding';
 
-import type { DayViewModel } from '../types/arrange-api';
+import type { DayViewModel, RouteLeg } from '../types/arrange-api';
 import type {
   ConfirmAlertCard,
   ConfirmCardViewModel,
   ConfirmChecklistItem,
-  ConfirmDayChecklistItem,
   ConfirmDayViewModel,
   ConfirmViewModel,
 } from '../types/confirm';
@@ -48,6 +47,7 @@ type ConfirmMapperInput = {
   detail: TripDetailResponse | undefined;
   cardsRes: CardsResponse | undefined;
   dayViewModels: (DayViewModel | undefined)[];
+  routeLegs: RouteLeg[];
   /** 온보딩 스토어 form — 메타 폴백 + 여행 이름(tripName) 출처. */
   form: OnboardingRequest;
   /** calendar store 라벨(formatDateRangeLabel) — 서버/항공편으로 날짜를 못 구할 때 폴백. */
@@ -110,35 +110,26 @@ const synthesizeDayTitle = (dayNumber: number, cards: Card[]): string => {
 const sumDuration = (cards: Card[]): number =>
   cards.reduce((acc, c) => acc + (c.estimated_duration_min ?? 0), 0);
 
-const isDayScope = (alert: AlertCard): boolean => alert.scope === 'day';
-
 const alertToConfirmAlert = (alert: AlertCard): ConfirmAlertCard => {
   const isInsight = alert.category === 'insight';
   return {
     id: alert.id,
     kind: isInsight ? 'AI 인사이트' : '실무 알림',
     category: isInsight ? 'insight' : 'practical',
-    body: alert.message,
+    body: alert.day ? `Day ${alert.day} · ${alert.message}` : alert.message,
   };
 };
-
-const alertToDayChecklistItem = (
-  alert: AlertCard
-): ConfirmDayChecklistItem => ({
-  id: alert.id,
-  label: alert.message,
-  done: false,
-});
 
 const buildDay = (
   dayNumber: number,
   dvm: DayViewModel | undefined,
-  alertCards: AlertCard[]
+  routeLegs: RouteLeg[]
 ): ConfirmDayViewModel => {
   const cards = dvm ? orderDayCards(dvm) : [];
-  const dayChecklist = alertCards
-    .filter((a) => isDayScope(a) && a.day === dayNumber)
-    .map(alertToDayChecklistItem);
+  const moveSeconds = routeLegs
+    .filter((leg) => leg.day === dayNumber && leg.duration_seconds != null)
+    .reduce((sum, leg) => sum + (leg.duration_seconds ?? 0), 0);
+  const moveMinutes = Math.ceil(moveSeconds / 60);
   return {
     id: `day-${dayNumber}`,
     dayLabel: `Day ${dayNumber}`,
@@ -146,10 +137,10 @@ const buildDay = (
     // Day 요약 문장(narrative)은 BE 미구현 → 생략.
     summary: '',
     // 이동시간은 confirm 응답 route_legs(#187) 연동 전까지 '-' 폴백.
-    totalMove: '-',
-    totalSpend: formatDuration(sumDuration(cards)) ?? '-',
+    totalMove: moveSeconds > 0 ? formatDuration(moveMinutes) ?? '-' : '-',
+    totalSpend: formatDuration(sumDuration(cards) + moveMinutes) ?? '-',
     contextCards: cards.map((card, idx) => cardToConfirmCard(card, idx + 1)),
-    dayChecklist,
+    dayChecklist: [],
   };
 };
 
@@ -157,6 +148,7 @@ export const mapToConfirmViewModel = ({
   detail,
   cardsRes,
   dayViewModels,
+  routeLegs,
   form,
   dateRangeFallback,
 }: ConfirmMapperInput): ConfirmViewModel => {
@@ -172,7 +164,7 @@ export const mapToConfirmViewModel = ({
 
   const days: ConfirmDayViewModel[] = Array.from(
     { length: Math.max(meta.travelDays, 0) },
-    (_, i) => buildDay(i + 1, dayViewModels[i], alerts)
+    (_, i) => buildDay(i + 1, dayViewModels[i], routeLegs)
   );
 
   return {
@@ -191,8 +183,8 @@ export const mapToConfirmViewModel = ({
       stats: [],
     },
     tripChecklist: DEFAULT_TRIP_CHECKLIST,
-    // scope!=='day' 알림만 좌측 Alert Cards 로. day-scope 는 해당 Day 체크리스트로 분기.
-    alertCards: alerts.filter((a) => !isDayScope(a)).map(alertToConfirmAlert),
+    // Day 체크리스트를 제거했으므로 문제성 Day alert도 좌측 Alert Cards에 함께 노출한다.
+    alertCards: alerts.map(alertToConfirmAlert),
     days,
   };
 };

@@ -38,6 +38,18 @@ const DropIndicator = () => (
   <div className="mx-1 h-0.5 rounded-full bg-primary" aria-hidden="true" />
 );
 
+const buildCompositionLabel = (cards: ScheduledCardViewModel[]): string => {
+  const counts = new Map<string, number>();
+  for (const card of cards) {
+    const category = card.badges?.find((badge) => badge.kind === 'category');
+    const label = category?.kind === 'category'
+      ? ({ food: '맛집', place: '장소', activity: '활동', shopping: '쇼핑', lodging: '숙소', transport: '이동' } as const)[category.category]
+      : '장소';
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([label, count]) => `${label} ${count}`).join(' · ');
+};
+
 const DayColumn = ({
   id,
   dayLabel,
@@ -52,6 +64,7 @@ const DayColumn = ({
   dragActive = false,
 }: DayColumnProps) => {
   const isEmpty = cards.length === 0;
+  const composition = buildCompositionLabel(cards);
   const [isOver, setIsOver] = useState(false);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -123,6 +136,11 @@ const DayColumn = ({
           {cards.length}개
         </span>
       </header>
+      {composition && (
+        <p className="mt-2 px-1 text-xs leading-relaxed text-muted-foreground">
+          {composition}
+        </p>
+      )}
 
       {isEmpty ? (
         // 빈 컬럼 — 드롭 플레이스홀더
