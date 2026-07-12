@@ -51,6 +51,25 @@ export type PlacementSaveRequest = {
   days: PlacementDay[];
 };
 
+export type SuggestedItineraryResponse = {
+  trip_id: string;
+  days: Array<{
+    day: number;
+    label: string;
+    ordered_instance_ids: string[];
+    total_duration_seconds: number;
+  }>;
+  unplaced_cards: Array<{
+    instance_id: string;
+    reason: 'MISSING_COORDINATE' | 'REQUIRES_USER_DECISION' | 'DAILY_CAPACITY_EXCEEDED' | string;
+  }>;
+};
+
+export type SuggestedItineraryRequest = {
+  travel_style: 'BALANCED' | 'SIGHTSEEING' | 'FOOD';
+  pace: 'RELAXED' | 'NORMAL' | 'PACKED';
+};
+
 /** 동선 검증 경고. */
 export type RouteWarning = {
   type: string;
@@ -73,6 +92,10 @@ export type RouteLeg = {
   distance_meters: number | null;
   mode: string | null;
   source: string | null;
+};
+
+export type RouteLegsResponse = {
+  route_legs: RouteLeg[];
 };
 
 export type PlacementSaveResponse = {

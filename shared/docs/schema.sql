@@ -63,7 +63,7 @@ create table if not exists public.place_cards (
   allow_duplicate        boolean     not null default false,       -- Day 보드 중복 배치 허용 (숙소/교통은 true 기본)
   is_excluded            boolean     not null default false,       -- 사용자가 제외한 카드 여부
   is_ai_generated        boolean     not null,                     -- AI가 자체적으로 추가한 추천 카드 여부 (INSERT 시 명시 필요)
-  pending_reorder        boolean     not null default true,        -- SCR-04 재정렬 대기 여부 (true=pending_reorder 그룹, false=available 클러스터 후보)
+  pending_reorder        boolean     not null default true,        -- SCR-04 재정렬 대기 여부 (배치 가능 카드가 클러스터 재계산 대기)
 
   -- 위치 / 메타
   estimated_duration_min smallint,                                 -- 예상 체류시간 (분)
@@ -72,6 +72,7 @@ create table if not exists public.place_cards (
   location               text,                                     -- 지역명/주소 요약
   address                text,                                     -- 상세 주소 (Blocking Enrichment 보강)
   time_constraint        text,                                     -- 시간 제약 설명
+  opening_hours          jsonb,                                    -- 영업시간 {요일(0=일~6=토): [[open,close],...]} (#292)
 
   -- 사용자/AI 컨텍스트
   user_context           text,                                     -- 사용자 맥락 반영 문구

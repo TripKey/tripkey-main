@@ -4,6 +4,8 @@
  */
 import type { LucideIcon } from 'lucide-react';
 
+import type { Coordinates } from './grouping-api';
+
 export type PlaceCardAccent = 'blue' | 'green' | 'amber' | 'red' | 'muted';
 
 export type PlaceCategory =
@@ -109,12 +111,22 @@ export type CardDetailViewModel = {
   placementStatus: string;
   /** "상세 정보" — "원하셨던 내용"(사용자가 처음 적은 의도 한 줄). 없으면 그 행 생략 */
   userIntent?: string;
+  /** 이름/소요시간 표시 수정용 원본 예상 소요 시간(분). 없으면 빈 입력으로 표시 */
+  estimatedDurationMin?: number | null;
   /**
    * "상세 정보" — "알아두면 좋아요"(amber 강조 행). 없으면 카드의 reminder 를 대신 쓰고,
    * 그것도 없으면 행 자체를 생략한다.
    * (리스트의 reminder 배너 = 짧은 넛지 / 패널의 이 행 = 좀 더 자세한 AI 노트 — 라는 구분)
    */
   aiHint?: string;
+  /** Google Maps 외부 링크용 장소 식별자. 있으면 좌표/검색어보다 우선한다. */
+  placeId?: string | null;
+  /** Google Maps 외부 링크 검색어 보강용 위치 라벨. */
+  location?: string | null;
+  /** Google Maps 외부 링크 검색어 보강용 주소. */
+  address?: string | null;
+  /** 장소 좌표(있으면 상세 패널에 지도 표시). 미해결/미도착 카드는 없음 */
+  coordinates?: Coordinates;
   /** "사용자 메모" textarea 초기값. 보통 ''(저장된 메모가 있으면 그 값). 입력값이 이 값과 달라지면 "메모 저장"이 활성화된다 */
   memo?: string;
   /**
@@ -159,11 +171,19 @@ export type SelectCardDetailViewModel = {
   placementStatus: string;
   /** "상세 정보" — "원하셨던 내용"(사용자가 처음 적은 의도 한 줄). 없으면 그 행 생략 */
   userIntent?: string;
+  /** 이름/소요시간 표시 수정용 원본 예상 소요 시간(분). 없으면 빈 입력으로 표시 */
+  estimatedDurationMin?: number | null;
   /**
    * "상세 정보" — "알아두면 좋아요"(amber 강조 행). 없으면 카드의 reminder 를 대신 쓰고,
    * 그것도 없으면 행 자체를 생략한다.
    */
   aiHint?: string;
+  /** Google Maps 외부 링크용 장소 식별자. 있으면 좌표/검색어보다 우선한다. */
+  placeId?: string | null;
+  /** Google Maps 외부 링크 검색어 보강용 위치 라벨. */
+  location?: string | null;
+  /** Google Maps 외부 링크 검색어 보강용 주소. */
+  address?: string | null;
   /** "질문 / 입력" — AI 가 던지는 질문 한 줄(fsd `0-6` Open Question / Choice Conflict) */
   question: string;
   /** "질문 / 입력" — 사용자가 고를 수 있는 선택지 칩들. 다중 선택 허용. 빈 배열이면 칩 영역 생략 */
@@ -214,6 +234,8 @@ export type EditCardDetailViewModel = {
   placementStatus: string;
   /** "상세 정보" — "원하셨던 내용"(사용자가 처음 적은 의도 한 줄). 없으면 그 행 생략 */
   userIntent?: string;
+  /** 이름/소요시간 표시 수정용 원본 예상 소요 시간(분). 없으면 빈 입력으로 표시 */
+  estimatedDurationMin?: number | null;
   /**
    * "상세 정보" — "알아두면 좋아요"(amber 강조 행). 없으면 카드의 reminder 를 대신 쓰고,
    * 그것도 없으면 행 자체를 생략한다.
@@ -229,6 +251,29 @@ export type EditCardDetailViewModel = {
   answer?: string;
   /** "사용자 메모" textarea 초기값. 보통 ''. 입력값이 이 값과 달라지면 "메모 저장"이 활성화된다 */
   memo?: string;
+  /** notes 보완 입력 초기값(장소 정보 보완 섹션). 구조화 편집과 분리된 notes 경로에 쓰인다. */
+  notes?: string;
+  /** 구조화 편집 초기값. 숙소/교통 edit 카드의 현재 저장된 필드값. */
+  structuredFields?: {
+    location?: string;
+    checkIn?: string;
+    checkOut?: string;
+    timeConstraint?: string;
+    flightNumber?: string;
+  };
+  /** 카테고리별 구조화 편집 폼 렌더링 결정용. */
+  structuredEditCategory?: 'accommodation' | 'transport';
+  /** 구조화 필드 편집으로 해결 가능한 처리필요 카드 여부. 숙소/교통 fix_required 카드에만 true. */
+  canResolveByStructuredEdit?: boolean;
+  /** notes 보완 입력으로 AI 재파싱 가능 여부(BE canStartNaturalLanguageParsingFromNotes 미러링). */
+  canResolveByNotes?: boolean;
+  /**
+   * 텍스트 입력 없이 선택처리 가능 여부.
+   * canResolveByNotes === true && (location != null || name != null).
+   */
+  canSelectProcess?: boolean;
+  /** 선택처리 시 notes 로 자동 전송할 텍스트. */
+  selectProcessNotes?: string;
 };
 
 /** "해야 할 액션" 버킷 1개(헤더 + 그 안의 카드들). */

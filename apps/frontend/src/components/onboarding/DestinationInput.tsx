@@ -24,7 +24,9 @@ const DestinationInput = ({ placeholder }: { placeholder?: string }) => {
             </button>
           </span>
         ))}
-        <DestinationDropdown placeholder={placeholder} />
+        {destinations.length === 0 && (
+          <DestinationDropdown placeholder={placeholder} />
+        )}
       </div>
 
       {import.meta.env.MODE === 'development' && (

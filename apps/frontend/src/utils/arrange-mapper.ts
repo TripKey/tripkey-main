@@ -139,6 +139,7 @@ const placementLabel = (card: Card): string => {
 };
 
 const attentionLabel = (card: Card): string => {
+  if (card.processing_status === 'processing') return '처리 중';
   if (card.processing_status === 'failed') return '처리 실패';
   if (card.placement_status === 'needs_input') return '입력 필요';
   if (card.placement_status === 'blocked') return '확인 필요';
@@ -146,7 +147,7 @@ const attentionLabel = (card: Card): string => {
 };
 
 /**
- * "처리가 필요한 카드"(배치 불가)를 클릭했을 때 띄울 브라우저 알림(window.alert) 안내 문구.
+ * "결정/확인이 필요한 카드"(배치 전 확인)를 클릭했을 때 띄울 상세 패널 안내 문구.
  * 케이스 판별 순서는 백엔드 GroupService.getGroups04 의 unavailable 분기와 맞춘다.
  *  - failed: 처리 중 오류
  *  - needs_input: 정보 부족
@@ -156,7 +157,10 @@ const attentionLabel = (card: Card): string => {
 const attentionGuide = (card: Card): string => {
   const name = card.name?.trim() || '이 카드';
   if (card.processing_status === 'failed') {
-    return `'${name}' 카드는 처리 중 문제가 생겨 일정에 배치할 수 없어요.\n\n아래에 장소명·주소 등 장소 정보를 다시 입력한 뒤 확인해 주세요.`;
+    return `'${name}' 카드는 AI 보강 중 문제가 생겼어요.\n\n일정 배치는 가능하지만, 장소명·주소가 부정확하다면 아래에서 보완해 주세요.`;
+  }
+  if (card.processing_status === 'processing') {
+    return `'${name}' 카드는 아직 처리 중이에요.\n\n잠시 후 자동으로 갱신됩니다.`;
   }
   if (card.placement_status === 'needs_input') {
     return `'${name}' 카드는 배치에 필요한 정보가 부족해요.\n\n아래에 빠진 장소명·주소를 입력한 뒤 확인해 주세요.`;
@@ -186,20 +190,43 @@ const canResolveByNotes = (card: Card): boolean =>
   (card.processing_status === 'failed' &&
     card.classification !== 'open_question');
 
+const compactText = (value: string | null | undefined): string | undefined => {
+  const text = value?.trim().replace(/\s+/g, ' ');
+  return text || undefined;
+};
+
+const suggestedResolveAnswer = (card: Card): string => {
+  const location = compactText(card.location);
+  const name = compactText(card.name);
+  if (!location) return name ?? '';
+  if (!name) return location;
+  if (name.includes(location)) return name;
+  if (location.includes(name)) return location;
+  return `${location} ${name}`;
+};
+
 /**
  * 좌표(지도 위치)만 없을 뿐, 그 외에는 배치 가능한 카드인지 판정한다.
  * 백엔드 GroupService.getGroups04 의 버킷 순서를 그대로 미러링한다:
- * blocked/needs_input/failed 가 아니면서 geom 만 null 이라 unavailable 로 분류된 케이스.
+ * processing/blocked/결정 필요가 아니면서 geom 만 null 이라 unavailable 로 분류된 케이스.
  *
  * 기획상 위치/좌표 없음은 자동 묶기·동선 검증의 제약 사유일 뿐, 사용자가 Day 에
  * 직접 올려 확인하는 행위 자체를 막는 사유는 아니다. 이런 카드는 드래그 가능한
- * 스톡 카드("위치 확인 필요" 배지)로 노출한다. (needs_input 은 PRD 상 배치 불가이므로 제외)
+ * 스톡 카드("위치 확인 필요" 배지)로 노출한다.
  */
 const isPlaceableDespiteMissingLocation = (card: Card): boolean =>
   card.coordinates == null &&
+  card.classification !== 'undecided' &&
   card.placement_status !== 'needs_input' &&
   card.placement_status !== 'blocked' &&
-  card.processing_status !== 'failed';
+  card.processing_status !== 'processing';
+
+const isDecisionRequired = (card: Card): boolean =>
+  card.classification === 'undecided' ||
+  card.placement_status === 'needs_input';
+
+const isProcessingCard = (card: Card): boolean =>
+  card.processing_status === 'processing';
 
 const flightLabel = (card: Card): string | undefined => {
   const date = parseDate(card.flight_datetime);
@@ -218,22 +245,57 @@ const detailDuration = (card: Card): string | undefined => {
   return formatDuration(card.estimated_duration_min);
 };
 
-const cardToDetail = (card: Card): ArrangeCardDetailViewModel => ({
-  classification:
-    CLASSIFICATION_LABEL[card.classification] ?? card.classification,
-  placementStatus: placementLabel(card),
-  fixedTimeLabel: flightLabel(card),
-  region: card.location ?? undefined,
-  durationLabel: detailDuration(card),
-  userIntent: card.user_context ?? undefined,
-  aiHint: card.tips ?? card.blocked_reason ?? undefined,
-  memo: card.memo ?? '',
-  notes: card.notes ?? '',
-});
+const cardToDetail = (card: Card): ArrangeCardDetailViewModel => {
+  const resolvable = canResolveByNotes(card);
+  return {
+    classification:
+      CLASSIFICATION_LABEL[card.classification] ?? card.classification,
+    placementStatus: placementLabel(card),
+    fixedTimeLabel: flightLabel(card),
+    region: card.location ?? undefined,
+    placeId: card.place_id,
+    location: card.location,
+    address: card.address,
+    coordinates: card.coordinates ?? undefined,
+    durationLabel: detailDuration(card),
+    estimatedDurationMin: card.estimated_duration_min,
+    userIntent: card.user_context ?? undefined,
+    aiHint: card.tips ?? card.blocked_reason ?? undefined,
+    includedInItinerary: !card.is_excluded,
+    memo: card.memo ?? '',
+    question:
+      card.question_text ??
+      (resolvable ? '이 장소를 이렇게 다시 찾아볼까요?' : undefined),
+    choices: card.options ?? undefined,
+    selectedChoices: [],
+    answer: resolvable ? suggestedResolveAnswer(card) : '',
+    structuredFields:
+      card.category === 'accommodation' || card.category === 'transport'
+        ? {
+            location: card.location ?? undefined,
+            checkIn: card.check_in ?? undefined,
+            checkOut: card.check_out ?? undefined,
+            timeConstraint: card.time_constraint ?? undefined,
+            flightNumber: card.flight_number ?? undefined,
+          }
+        : undefined,
+    structuredEditCategory:
+      card.category === 'accommodation'
+        ? 'accommodation'
+        : card.category === 'transport'
+          ? 'transport'
+          : undefined,
+    canSelectProcess: resolvable && !!(card.location ?? card.name),
+    selectProcessNotes: card.location ?? card.name ?? undefined,
+  };
+};
 
 /** 좌측 목록의 배치 가능 카드(드래그 가능). add 응답 등에서도 재사용한다. */
 export const cardToStockCard = (card: Card): ArrangeCardViewModel => {
   const badges = buildBadges(card);
+  if (card.day != null) {
+    badges.push({ kind: 'status', label: '배치됨', tone: 'pending' });
+  }
   // 좌표가 없으면(직접 추가 카드 등) 동선 검증·자동 묶기에서 빠지므로 미리 표식을 단다.
   const missingLocation = card.coordinates == null;
   if (missingLocation) badges.push(NEEDS_LOCATION_BADGE);
@@ -243,6 +305,7 @@ export const cardToStockCard = (card: Card): ArrangeCardViewModel => {
     accent: accentForCard(card),
     badges,
     draggable: true,
+    processing: card.processing_status === 'processing',
     // SCR-03 장소확인과 동일 규칙: BE가 notes 재파싱 가능한 카드에만 보완 입력을 연다.
     // (undecided+needs_input/ready_partial, 또는 failed. confirmed manual 카드는 제외)
     detail: {
@@ -267,10 +330,17 @@ const cardToAttentionCard = (
     accent: kind === 'excluded' ? 'muted' : 'red',
     badges: [...buildBadges(card), statusBadge],
     draggable: false,
+    processing: card.processing_status === 'processing',
     // 처리필요 카드만 notes 재파싱(self-heal) 가능 플래그를 채운다. 제외 카드는 해결 대상이 아니다.
     detail:
       kind === 'unavailable'
-        ? { ...cardToDetail(card), canResolveByNotes: canResolveByNotes(card) }
+        ? {
+            ...cardToDetail(card),
+            canResolveByNotes: canResolveByNotes(card),
+            canResolveByStructuredEdit:
+              card.category === 'accommodation' ||
+              card.category === 'transport',
+          }
         : cardToDetail(card),
     // 제외 카드는 의도적으로 뺀 항목이므로 안내하지 않는다.
     actionGuide: kind === 'unavailable' ? attentionGuide(card) : undefined,
@@ -283,6 +353,8 @@ const cardToScheduled = (card: Card): ScheduledCardViewModel => ({
   name: card.name,
   accent: accentForCard(card),
   badges: buildBadges(card),
+  detail: cardToDetail(card),
+  processing: card.processing_status === 'processing',
   fixedTime: card.flight_role ? fmtTime(card.flight_datetime) : undefined,
 });
 
@@ -353,13 +425,11 @@ export const mapToArrangeViewModel = (
   cardsRes: CardsResponse,
   meta: TripMeta
 ): ArrangeViewModel => {
-  const isUnplaced = (card: Card) => card.day == null;
-
   // --- 좌측 카드 목록 ---
   const groups: ArrangeCardGroup[] = [];
 
   for (const stock of groups04.available) {
-    const cards = stock.cards.filter(isUnplaced).map(cardToStockCard);
+    const cards = stock.cards.map(cardToStockCard);
     if (cards.length === 0) continue;
     groups.push({
       id: `stock-${stock.label}`,
@@ -370,7 +440,6 @@ export const mapToArrangeViewModel = (
   }
 
   const reorder = groups04.pending_reorder
-    .filter(isUnplaced)
     .map(cardToStockCard);
   if (reorder.length > 0) {
     groups.push({
@@ -381,13 +450,29 @@ export const mapToArrangeViewModel = (
     });
   }
 
-  // 백엔드 unavailable 은 (a) 좌표만 없는 배치 가능 카드와 (b) 입력·확인이 필요한
-  // 진짜 처리 필요 카드가 섞여 있다. (a)는 드래그 가능한 스톡 카드로, (b)는 기존대로
-  // 드래그 불가 안내 카드로 분리한다.
-  const unavailableCards = groups04.unavailable.filter(isUnplaced);
+  // 백엔드 unavailable 은 사용자 과업 기준으로 다시 나눈다.
+  // - 결정 필요: 03의 입력/선택 맥락을 04에서도 이어받아 먼저 해결하도록 유도
+  // - 위치 확인: 카드 내용은 쓸 수 있으나 지도 좌표만 없는 카드라 직접 Day 배치 가능
+  // - 처리/확인: 아직 처리 중이거나 blocked 등 사용 전 확인이 필요한 카드
+  const unavailableCards = groups04.unavailable;
+
+  const decisionRequired = unavailableCards
+    .filter(isDecisionRequired)
+    .map(cardToStockCard);
+  if (decisionRequired.length > 0) {
+    groups.push({
+      id: 'decision-required',
+      title: '결정이 필요한 카드',
+      description: '선택하거나 입력하면 일정에 쓸 수 있어요.',
+      cards: decisionRequired,
+    });
+  }
 
   const placeableNoLocation = unavailableCards
-    .filter(isPlaceableDespiteMissingLocation)
+    .filter(
+      (card) =>
+        !isDecisionRequired(card) && isPlaceableDespiteMissingLocation(card)
+    )
     .map(cardToStockCard);
   if (placeableNoLocation.length > 0) {
     groups.push({
@@ -398,20 +483,41 @@ export const mapToArrangeViewModel = (
     });
   }
 
-  const unavailable = unavailableCards
-    .filter((card) => !isPlaceableDespiteMissingLocation(card))
+  const processing = unavailableCards
+    .filter(
+      (card) =>
+        !isDecisionRequired(card) &&
+        !isPlaceableDespiteMissingLocation(card) &&
+        isProcessingCard(card)
+    )
     .map((card) => cardToAttentionCard(card, 'unavailable'));
-  if (unavailable.length > 0) {
+  if (processing.length > 0) {
     groups.push({
-      id: 'unavailable',
-      title: '처리가 필요한 카드',
-      description: '입력·확인이 끝나면 배치할 수 있어요.',
-      cards: unavailable,
+      id: 'processing',
+      title: '처리 중인 카드',
+      description: 'AI가 정리 중이에요. 잠시 후 자동으로 갱신됩니다.',
+      cards: processing,
+    });
+  }
+
+  const attentionRequired = unavailableCards
+    .filter(
+      (card) =>
+        !isDecisionRequired(card) &&
+        !isPlaceableDespiteMissingLocation(card) &&
+        !isProcessingCard(card)
+    )
+    .map((card) => cardToAttentionCard(card, 'unavailable'));
+  if (attentionRequired.length > 0) {
+    groups.push({
+      id: 'attention-required',
+      title: '확인이 필요한 카드',
+      description: '카드 내용을 확인한 뒤 일정에 사용할 수 있어요.',
+      cards: attentionRequired,
     });
   }
 
   const excluded = groups04.excluded
-    .filter(isUnplaced)
     .map((card) => cardToAttentionCard(card, 'excluded'));
   if (excluded.length > 0) {
     groups.push({
@@ -444,9 +550,9 @@ export const mapToArrangeViewModel = (
     },
     heading: {
       title: '일정 배치',
+      // context_summary는 최초 전체 파싱 시점의 스냅샷이라 카드 수정 후 stale해질 수 있다.
       subtitle:
-        cardsRes.context_summary ??
-        '배치 가능한 카드를 Day별로 끌어다 놓아 일정을 완성하세요.',
+        '카드를 Day별로 직접 배치하거나 여행 초안을 만든 뒤 원하는 순서로 다듬어보세요.',
     },
     cardListTitle: '카드 목록',
     groups,

@@ -3,6 +3,10 @@
 설계 노트: 기존 destination_search/core_parse 와 동일하게 googlemaps 라이브러리
 대신 httpx 로 신형 Routes v1 REST 를 직접 호출한다. walking/transit/driving 을
 모두 조회해 duration 최소 모드 1개를 반환하고, 실패한 leg 는 직선거리 추정 폴백.
+
+#274 pair 공유: 어차피 3모드를 호출하므로 그중 DRIVE 결과를 optimize 캐시
+(route_matrix_cache, DRIVE 전용)에 교차 적재한다 — 추가 호출 0, 메트릭 충돌 0.
+(역방향 matrix→legs 공유는 verify 의 best-mode 의미를 깨므로 하지 않는다.)
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ import httpx
 from app.fallback.estimated_route import estimate_leg
 from app.schemas.parse import Coordinates
 from app.schemas.route import RouteLeg, RouteLegResult, RouteRequest, RouteResponse
+from app.services import route_matrix_cache
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +79,8 @@ async def _call_routes_api(
     return {"duration_seconds": duration, "distance_meters": int(distance)}
 
 
-async def _optimize_leg(leg: RouteLeg, api_key: str) -> RouteLegResult:
+async def _optimize_leg(leg: RouteLeg, api_key: str) -> tuple[RouteLegResult, dict | None]:
+    """leg 의 best-mode 결과와, 함께 얻은 DRIVE 결과의 matrix 캐시 row(없으면 None)."""
     candidates: list[tuple[str, dict]] = []
     for mode in _TRAVEL_MODES:
         result = await _call_routes_api(leg.origin, leg.destination, mode, api_key)
@@ -86,7 +92,18 @@ async def _optimize_leg(leg: RouteLeg, api_key: str) -> RouteLegResult:
             leg.from_instance_id,
             leg.to_instance_id,
         )
-        return estimate_leg(leg)
+        return estimate_leg(leg), None
+
+    # #274 pair 공유 — DRIVE 후보는 optimize 캐시 row 로 변환(적재는 호출 측에서 일괄)
+    drive = dict(candidates).get("DRIVE")
+    drive_row = None
+    if drive is not None:
+        drive_row = route_matrix_cache.build_row(
+            leg.origin.lat, leg.origin.lng,
+            leg.destination.lat, leg.destination.lng,
+            drive["duration_seconds"], drive["distance_meters"],
+        )
+
     best_mode, best = min(candidates, key=lambda c: c[1]["duration_seconds"])
     return RouteLegResult(
         from_instance_id=leg.from_instance_id,
@@ -95,12 +112,16 @@ async def _optimize_leg(leg: RouteLeg, api_key: str) -> RouteLegResult:
         distance_meters=best["distance_meters"],
         mode=_MODE_NAMES[best_mode],
         source="google",
-    )
+    ), drive_row
 
 
 async def optimize_routes(request: RouteRequest) -> RouteResponse:
     api_key = _places_api_key()
     if not api_key:
+        logger.info(
+            "verify legs stats | legs=%d google=0 estimated=%d drive_rows_shared=0 (no api key)",
+            len(request.legs), len(request.legs),
+        )
         return RouteResponse(legs=[estimate_leg(leg) for leg in request.legs])
     results = await asyncio.gather(
         *(_optimize_leg(leg, api_key) for leg in request.legs),
@@ -108,6 +129,7 @@ async def optimize_routes(request: RouteRequest) -> RouteResponse:
     )
 
     legs: list[RouteLegResult] = []
+    drive_rows: list[dict] = []
     for leg, result in zip(request.legs, results):
         if isinstance(result, Exception):
             logger.warning(
@@ -118,5 +140,21 @@ async def optimize_routes(request: RouteRequest) -> RouteResponse:
             )
             legs.append(estimate_leg(leg))
             continue
-        legs.append(result)
+        leg_result, drive_row = result
+        legs.append(leg_result)
+        if drive_row is not None:
+            drive_rows.append(drive_row)
+
+    # #274 pair 공유: verify 미스에서 얻은 DRIVE pair 를 optimize 캐시에 교차 적재.
+    # 실패해도 무해(put_durations 내부 에러 무해화) — verify 응답에는 영향 없음.
+    shared = 0
+    if drive_rows and route_matrix_cache.cache_enabled():
+        await route_matrix_cache.put_durations(drive_rows)
+        shared = len(drive_rows)
+
+    google_count = sum(1 for leg in legs if leg.source == "google")
+    logger.info(
+        "verify legs stats | legs=%d google=%d estimated=%d drive_rows_shared=%d",
+        len(legs), google_count, len(legs) - google_count, shared,
+    )
     return RouteResponse(legs=legs)

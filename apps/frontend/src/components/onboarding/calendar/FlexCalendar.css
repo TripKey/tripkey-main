@@ -13,31 +13,31 @@
 
 .flex-calendar__month-btn {
   padding: 12px 0;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--background);
   font-size: 14px;
-  color: #111827;
+  color: var(--foreground);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .flex-calendar__month-btn:hover:not(:disabled) {
-  border-color: #6366f1;
-  color: #6366f1;
+  border-color: var(--calendar-accent);
+  color: var(--calendar-accent);
 }
 
 .flex-calendar__month-btn--active {
-  background: #6366f1;
-  border-color: #6366f1;
-  color: #ffffff;
+  background: var(--calendar-accent-soft);
+  border-color: var(--calendar-accent-line);
+  color: var(--calendar-accent);
   font-weight: 600;
 }
 
 .flex-calendar__month-btn--disabled {
-  background: #f9fafb;
-  border-color: #f3f4f6;
-  color: #d1d5db;
+  background: var(--muted);
+  border-color: var(--border);
+  color: var(--muted-foreground);
   cursor: default;
 }
 
@@ -45,7 +45,7 @@
 .flex-calendar__label {
   font-size: 14px;
   font-weight: 600;
-  color: #111827;
+  color: var(--foreground);
   margin: 0;
 }
 
@@ -58,24 +58,24 @@
 
 .flex-calendar__duration-btn {
   padding: 8px 16px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--background);
   font-size: 13px;
-  color: #374151;
+  color: var(--foreground);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s;
 }
 
 .flex-calendar__duration-btn:hover {
-  border-color: #6366f1;
-  color: #6366f1;
+  border-color: var(--calendar-accent);
+  color: var(--calendar-accent);
 }
 
 .flex-calendar__duration-btn--active {
-  background: #6366f1;
-  border-color: #6366f1;
-  color: #ffffff;
+  background: var(--calendar-accent-soft);
+  border-color: var(--calendar-accent-line);
+  color: var(--calendar-accent);
   font-weight: 600;
 }

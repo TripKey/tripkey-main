@@ -1,4 +1,7 @@
-// EditCardDetailPanel — "수정이 필요한 카드들"상세보기 사이드 패널
+// EditCardDetailPanel — "수정이 필요한 카드들" 상세보기 사이드 패널
+//
+// 숙소/교통 카드(canResolveByStructuredEdit): 구조화 편집 폼 + 선택처리 버튼 레이아웃
+// 그 외 카드: 기존 질문/입력(QuestionBox + AnswerField) 레이아웃
 
 import { Clock, Info, MapPin, User, X } from 'lucide-react';
 import { Dialog } from 'radix-ui';
@@ -10,12 +13,14 @@ import SidePanel from '@/components/common/SidePanel';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import type { PlaceCardViewModel } from '@/types/grouping';
+import type { CardPatchRequest } from '@/types/grouping-api';
 
 import {
   AnswerField,
   DetailRow,
   QuestionBox,
   StatusInfoBox,
+  StructuredEditSection,
   UserMemoField,
 } from './CardDetailParts';
 import PlaceCardBadge from './PlaceCardBadge';
@@ -23,10 +28,21 @@ import PlaceCardBadge from './PlaceCardBadge';
 type EditCardDetailPanelProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-
   card: PlaceCardViewModel | null;
   onConfirm?: (payload: { answer: string }) => void;
   onSaveMemo?: (memo: string) => void;
+  onSaveDisplay?: (payload: CardPatchRequest) => void;
+  /** 처리필요 숙소/교통 카드의 구조화 필드 편집 → 저장(+위치 변경 시 재처리) */
+  onResolveByStructuredEdit?: (args: {
+    payload: CardPatchRequest;
+    locationChanged: boolean;
+  }) => void;
+  /** notes 보완 입력 → 저장+재처리 */
+  onResolveByNotes?: (notes: string) => void;
+  /** 기존 location/name 을 notes 로 자동 전송해 AI 재처리 트리거 */
+  onSelectProcess?: () => void;
+  resolving?: boolean;
+  resolveError?: string | null;
 };
 
 const EditCardDetailPanel = ({
@@ -35,6 +51,12 @@ const EditCardDetailPanel = ({
   card,
   onConfirm,
   onSaveMemo,
+  onSaveDisplay,
+  onResolveByStructuredEdit,
+  onResolveByNotes,
+  onSelectProcess,
+  resolving = false,
+  resolveError = null,
 }: EditCardDetailPanelProps) => {
   return (
     <SidePanel open={open} onOpenChange={onOpenChange}>
@@ -46,6 +68,12 @@ const EditCardDetailPanel = ({
           onClose={() => onOpenChange(false)}
           onConfirm={onConfirm}
           onSaveMemo={onSaveMemo}
+          onSaveDisplay={onSaveDisplay}
+          onResolveByStructuredEdit={onResolveByStructuredEdit}
+          onResolveByNotes={onResolveByNotes}
+          onSelectProcess={onSelectProcess}
+          resolving={resolving}
+          resolveError={resolveError}
         />
       ) : null}
     </SidePanel>
@@ -60,33 +88,138 @@ const EditCardDetailBody = ({
   onClose,
   onConfirm,
   onSaveMemo,
+  onSaveDisplay,
+  onResolveByStructuredEdit,
+  onResolveByNotes,
+  onSelectProcess,
+  resolving,
+  resolveError,
 }: {
   card: PlaceCardViewModel;
   onClose: () => void;
   onConfirm?: (payload: { answer: string }) => void;
   onSaveMemo?: (memo: string) => void;
+  onSaveDisplay?: (payload: CardPatchRequest) => void;
+  onResolveByStructuredEdit?: (args: {
+    payload: CardPatchRequest;
+    locationChanged: boolean;
+  }) => void;
+  onResolveByNotes?: (notes: string) => void;
+  onSelectProcess?: () => void;
+  resolving: boolean;
+  resolveError: string | null;
 }) => {
   const detail = card.editDetail!;
+  const canStructuredEdit = detail.canResolveByStructuredEdit === true;
+  const isResolvable = detail.canResolveByNotes === true;
 
-  //입력 state(패널 로컬)
-
-  // "질문에 대한 답변"(보정 내용)
+  // 질문/답변 패스 (비구조화 카드)
   const [answer, setAnswer] = useState(detail.answer ?? '');
 
   // 사용자 메모
   const initialMemo = detail.memo ?? '';
   const [memo, setMemo] = useState(initialMemo);
   const memoDirty = memo.trim() !== initialMemo.trim();
+  const initialName = card.name;
+  const initialDuration = detail.estimatedDurationMin;
+  const [editingDisplay, setEditingDisplay] = useState(false);
+  const [displayName, setDisplayName] = useState(initialName);
+  const [durationMinutes, setDurationMinutes] = useState(
+    initialDuration == null ? '' : String(initialDuration)
+  );
+  const normalizedDisplayName = displayName.trim();
+  const parsedDuration =
+    durationMinutes.trim() === ''
+      ? undefined
+      : Number.parseInt(durationMinutes, 10);
+  const validDuration =
+    parsedDuration === undefined ||
+    (Number.isFinite(parsedDuration) && parsedDuration >= 0);
+  const displayDirty =
+    normalizedDisplayName !== initialName.trim() ||
+    (durationMinutes.trim() === ''
+      ? initialDuration != null
+      : parsedDuration !== initialDuration);
+  const canSaveDisplay =
+    editingDisplay &&
+    !resolving &&
+    normalizedDisplayName.length > 0 &&
+    validDuration &&
+    displayDirty;
 
-  // "확인하기"
-  const canConfirm = answer.trim().length > 0;
+  // 구조화 편집 필드 상태
+  const sf = detail.structuredFields;
+  const [location, setLocation] = useState(sf?.location ?? '');
+  const [checkIn, setCheckIn] = useState(sf?.checkIn ?? '');
+  const [checkOut, setCheckOut] = useState(sf?.checkOut ?? '');
+  const [timeConstraint, setTimeConstraint] = useState(
+    sf?.timeConstraint ?? ''
+  );
+  const [flightNumber, setFlightNumber] = useState(sf?.flightNumber ?? '');
+
+  const locationChanged = location.trim() !== (sf?.location ?? '').trim();
+  const structuredDirty =
+    locationChanged ||
+    checkIn.trim() !== (sf?.checkIn ?? '').trim() ||
+    checkOut.trim() !== (sf?.checkOut ?? '').trim() ||
+    timeConstraint.trim() !== (sf?.timeConstraint ?? '').trim() ||
+    flightNumber.trim() !== (sf?.flightNumber ?? '').trim();
+
+  // notes 보완 섹션
+  const [notes, setNotes] = useState(detail.notes ?? '');
+
+  // 확인하기 활성 조건
+  const canConfirmStructured =
+    canStructuredEdit &&
+    (structuredDirty || (isResolvable && notes.trim().length > 0)) &&
+    !resolving;
+  const canConfirmAnswer = !canStructuredEdit && answer.trim().length > 0;
+  const canConfirm = canConfirmStructured || canConfirmAnswer;
 
   const moreBadge = card.badges?.find((badge) => badge.kind === 'more');
   const hint = detail.aiHint ?? card.reminder;
-  // "상세 정보"
   const hasDetailRows = Boolean(
     card.region || card.durationLabel || detail.userIntent || hint
   );
+
+  const handleConfirm = () => {
+    if (canStructuredEdit) {
+      if (structuredDirty) {
+        const payload: CardPatchRequest = {};
+        if (location.trim()) payload.location = location.trim();
+        if (detail.structuredEditCategory === 'accommodation') {
+          if (checkIn.trim()) payload.check_in = checkIn.trim();
+          if (checkOut.trim()) payload.check_out = checkOut.trim();
+        } else if (detail.structuredEditCategory === 'transport') {
+          if (timeConstraint.trim())
+            payload.time_constraint = timeConstraint.trim();
+          if (flightNumber.trim()) payload.flight_number = flightNumber.trim();
+        }
+        onResolveByStructuredEdit?.({ payload, locationChanged });
+      } else if (isResolvable && notes.trim().length > 0) {
+        onResolveByNotes?.(notes.trim());
+      }
+    } else {
+      onConfirm?.({ answer: answer.trim() });
+    }
+  };
+
+  const resetDisplayEdit = () => {
+    setDisplayName(initialName);
+    setDurationMinutes(initialDuration == null ? '' : String(initialDuration));
+    setEditingDisplay(false);
+  };
+
+  const handleSaveDisplay = () => {
+    if (!canSaveDisplay) return;
+    const payload: CardPatchRequest = {
+      name: normalizedDisplayName,
+    };
+    if (parsedDuration !== undefined) {
+      payload.estimated_duration_min = parsedDuration;
+    }
+    onSaveDisplay?.(payload);
+  };
 
   return (
     <>
@@ -107,9 +240,36 @@ const EditCardDetailBody = ({
             </button>
           </Dialog.Close>
         </div>
-        <Dialog.Title className="mt-3 text-xl font-bold text-foreground">
-          {card.name}
-        </Dialog.Title>
+        <div className="mt-3 flex items-start gap-3">
+          {editingDisplay ? (
+            <input
+              type="text"
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-xl font-bold text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
+              aria-label="카드 이름"
+            />
+          ) : (
+            <Dialog.Title className="min-w-0 flex-1 text-xl font-bold text-foreground">
+              {card.name}
+            </Dialog.Title>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-0.5 h-8 shrink-0 px-3 text-xs"
+            disabled={resolving}
+            onClick={() =>
+              editingDisplay ? resetDisplayEdit() : setEditingDisplay(true)
+            }
+          >
+            {editingDisplay ? '취소' : '수정'}
+          </Button>
+        </div>
+        {editingDisplay && (
+          <Dialog.Title className="sr-only">{card.name}</Dialog.Title>
+        )}
         <Dialog.Description className="sr-only">
           {card.name} 카드의 배치 불가 안내, 상태·상세 정보, 보정 질문, 사용자
           메모
@@ -150,12 +310,46 @@ const EditCardDetailBody = ({
               {card.region && (
                 <DetailRow icon={MapPin} label="위치" value={card.region} />
               )}
-              {card.durationLabel && (
-                <DetailRow
-                  icon={Clock}
-                  label="예상 소요 시간"
-                  value={card.durationLabel}
-                />
+              {editingDisplay ? (
+                <li className="flex gap-3">
+                  <Clock
+                    className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <label className="text-xs text-muted-foreground">
+                      예상 소요 시간
+                    </label>
+                    <div className="mt-1 flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step={5}
+                        inputMode="numeric"
+                        value={durationMinutes}
+                        onChange={(event) =>
+                          setDurationMinutes(event.target.value)
+                        }
+                        placeholder="예) 90"
+                        className="h-10 w-28 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
+                      />
+                      <span className="text-sm text-muted-foreground">분</span>
+                    </div>
+                    {!validDuration && (
+                      <p className="mt-1 text-xs text-destructive">
+                        0 이상의 숫자로 입력해 주세요.
+                      </p>
+                    )}
+                  </div>
+                </li>
+              ) : (
+                card.durationLabel && (
+                  <DetailRow
+                    icon={Clock}
+                    label="예상 소요 시간"
+                    value={card.durationLabel}
+                  />
+                )
               )}
               {detail.userIntent && (
                 <DetailRow
@@ -178,51 +372,158 @@ const EditCardDetailBody = ({
 
         <Separator />
 
-        {/* 질문 / 입력 */}
-        <section>
-          <h3 className="text-sm font-semibold text-foreground">질문 / 입력</h3>
-          <QuestionBox question={detail.question} />
-          <AnswerField
-            value={answer}
-            onChange={setAnswer}
-            placeholder="필요한 내용을 자유롭게 입력해주세요..."
-          />
-        </section>
+        {canStructuredEdit && detail.structuredEditCategory ? (
+          // 숙소/교통 카드: 구조화 편집 레이아웃
+          <>
+            <StructuredEditSection
+              category={detail.structuredEditCategory}
+              location={location}
+              onLocationChange={setLocation}
+              checkIn={checkIn}
+              onCheckInChange={setCheckIn}
+              checkOut={checkOut}
+              onCheckOutChange={setCheckOut}
+              timeConstraint={timeConstraint}
+              onTimeConstraintChange={setTimeConstraint}
+              flightNumber={flightNumber}
+              onFlightNumberChange={setFlightNumber}
+              disabled={resolving || editingDisplay}
+              canSelectProcess={detail.canSelectProcess}
+              onSelectProcess={onSelectProcess}
+            />
 
-        <Separator />
+            {/* 장소 정보 보완 섹션 */}
+            {isResolvable && (
+              <>
+                <Separator />
+                <section>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    장소 정보 보완
+                  </h3>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    장소명이나 주소를 더 정확히 입력하면 AI 가 다시 분석해 지도
+                    위치를 찾아드려요.
+                  </p>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    disabled={resolving || editingDisplay}
+                    placeholder="예) 도톤보리 글리코 사인 앞 / 오사카시 추오구 도톤보리 1-10-2"
+                    rows={3}
+                    className="mt-3 w-full resize-none rounded-xl border border-input bg-background px-3.5 py-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none disabled:opacity-60"
+                  />
+                  {structuredDirty && notes.trim().length > 0 && (
+                    <p className="mt-2 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+                      구조화 편집 중에는 장소 정보 보완을 함께 전송하지 않아요.
+                      먼저 확인하기를 눌러 저장하세요.
+                    </p>
+                  )}
+                </section>
+              </>
+            )}
 
-        {/* 사용자 메모  */}
-        <UserMemoField value={memo} onChange={setMemo} />
+            {/* 재처리 에러 안내 */}
+            {resolveError && (
+              <div
+                role="alert"
+                className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm leading-relaxed text-destructive"
+              >
+                {resolveError}
+              </div>
+            )}
+          </>
+        ) : (
+          // 그 외 카드: 기존 질문/입력 레이아웃
+          <>
+            <section>
+              <h3 className="text-sm font-semibold text-foreground">
+                질문 / 입력
+              </h3>
+              <QuestionBox question={detail.question} />
+              <AnswerField
+                value={answer}
+                onChange={setAnswer}
+                placeholder="필요한 내용을 자유롭게 입력해주세요..."
+                disabled={editingDisplay}
+              />
+            </section>
+
+            <Separator />
+
+            <UserMemoField value={memo} onChange={setMemo} />
+          </>
+        )}
       </div>
 
       {/* 푸터(고정) */}
-      <PanelActions>
-        <Button
-          type="button"
-          variant="outline"
-          className="h-11 flex-1 text-sm"
-          onClick={onClose}
-        >
-          닫기
-        </Button>
-        <Button
-          type="button"
-          className="h-11 flex-1 text-sm font-semibold"
-          disabled={!canConfirm}
-          onClick={() => onConfirm?.({ answer: answer.trim() })}
-        >
-          확인하기
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="h-11 flex-1 text-sm font-semibold"
-          disabled={!memoDirty}
-          onClick={() => onSaveMemo?.(memo)}
-        >
-          메모 저장
-        </Button>
-      </PanelActions>
+      {canStructuredEdit ? (
+        <PanelActions>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 flex-1 text-sm"
+            onClick={onClose}
+          >
+            닫기
+          </Button>
+          <Button
+            type="button"
+            className="h-11 flex-1 text-sm font-semibold"
+            disabled={editingDisplay || !canConfirm}
+            onClick={handleConfirm}
+          >
+            {resolving ? '재처리 중…' : '확인하기'}
+          </Button>
+          {editingDisplay && (
+            <Button
+              type="button"
+              className="h-11 flex-1 text-sm font-semibold"
+              disabled={!canSaveDisplay}
+              onClick={handleSaveDisplay}
+            >
+              수정 저장
+            </Button>
+          )}
+        </PanelActions>
+      ) : (
+        <PanelActions>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 flex-1 text-sm"
+            onClick={onClose}
+          >
+            닫기
+          </Button>
+          <Button
+            type="button"
+            className="h-11 flex-1 text-sm font-semibold"
+            disabled={editingDisplay || !canConfirm}
+            onClick={handleConfirm}
+          >
+            확인하기
+          </Button>
+          {editingDisplay && (
+            <Button
+              type="button"
+              className="h-11 flex-1 text-sm font-semibold"
+              disabled={!canSaveDisplay}
+              onClick={handleSaveDisplay}
+            >
+              수정 저장
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 flex-1 text-sm font-semibold"
+            disabled={!memoDirty}
+            onClick={() => onSaveMemo?.(memo)}
+          >
+            메모 저장
+          </Button>
+        </PanelActions>
+      )}
     </>
   );
 };

@@ -1,6 +1,9 @@
+import { useState } from 'react';
+
 import { DUMP_TEXT } from '../../utils/constants';
 
 import './DumpForm.css';
+import DumpGuideDialog from './DumpGuideDialog';
 
 type DumpFormProps = {
   dumpText: string;
@@ -13,14 +16,17 @@ const PLACEHOLDER = `도쿄 여행 3박 4일 계획중이야`;
 const HELPER_TEXT =
   '메모, 카톡 대화, 검색 기록 등을 자유롭게 붙여넣어 주세요 (최소 10자 이상)';
 
-const EXAMPLE_TEXT = `꼭 가보고 싶은 명소가 몇 군데 있어, 여긴 무조건 갈 거야.
-현지에서 유명한 맛집이랑 분위기 좋은 카페 추천 받고 싶어.
-체험거리도 하나쯤 하고 싶은데 뭐가 좋을지 모르겠어.
-쇼핑은 어디가 좋을지 아직 못 정했어.`;
-
 const DumpForm = ({ dumpText, dumpTextCount, onTextChange }: DumpFormProps) => {
+  const [guideOpen, setGuideOpen] = useState(false);
+
   const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     onTextChange(event.target.value);
+  };
+
+  const handleAddGuideText = (guideText: string) => {
+    const separator = dumpText.trim() ? '\n\n' : '';
+    const nextText = `${dumpText.trimEnd()}${separator}${guideText}`;
+    onTextChange(nextText.slice(0, DUMP_TEXT.MAX_LENGTH));
   };
 
   const getStatusMessage = () => {
@@ -49,9 +55,9 @@ const DumpForm = ({ dumpText, dumpTextCount, onTextChange }: DumpFormProps) => {
         <button
           type="button"
           className="dump-form__example-btn"
-          onClick={() => onTextChange(EXAMPLE_TEXT)}
+          onClick={() => setGuideOpen(true)}
         >
-          가이드 문장 채우기
+          가이드로 시작하기
         </button>
       </div>
 
@@ -69,6 +75,12 @@ const DumpForm = ({ dumpText, dumpTextCount, onTextChange }: DumpFormProps) => {
       </div>
 
       <p className="dump-status-message">{getStatusMessage()}</p>
+
+      <DumpGuideDialog
+        open={guideOpen}
+        onOpenChange={setGuideOpen}
+        onAdd={handleAddGuideText}
+      />
     </div>
   );
 };

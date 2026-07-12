@@ -1,7 +1,4 @@
-import type {
-  AddCardCategory,
-  AddCardDraft,
-} from '@/components/grouping/AddCardModal';
+import type { AddCardDraft } from '@/components/grouping/AddCardModal';
 import type {
   ActionGroup,
   GroupingViewModel,
@@ -96,8 +93,13 @@ const toReviewCard = (card: Card): PlaceCardViewModel => ({
     classification:
       CLASSIFICATION_LABEL[card.classification] ?? card.classification,
     placementStatus: card.placement_status,
+    estimatedDurationMin: card.estimated_duration_min,
     userIntent: card.user_context ?? undefined,
     aiHint: card.tips ?? undefined,
+    placeId: card.place_id,
+    location: card.location,
+    address: card.address,
+    coordinates: card.coordinates ?? undefined,
     memo: card.memo ?? '',
     includedInItinerary: !card.is_excluded,
   },
@@ -116,6 +118,7 @@ const toSelectCard = (card: Card): PlaceCardViewModel => ({
     classification:
       CLASSIFICATION_LABEL[card.classification] ?? card.classification,
     placementStatus: card.placement_status,
+    estimatedDurationMin: card.estimated_duration_min,
     userIntent: card.user_context ?? undefined,
     aiHint: card.tips ?? undefined,
     question: card.question_text ?? '추가 정보가 필요해요',
@@ -127,28 +130,72 @@ const toSelectCard = (card: Card): PlaceCardViewModel => ({
   },
 });
 
-const toEditCard = (card: Card): PlaceCardViewModel => ({
-  id: card.instance_id,
-  name: card.name,
-  region: card.location ?? undefined,
-  durationLabel: formatDuration(card.estimated_duration_min),
-  processing: card.processing_status === 'processing',
-  accent: accentFor('edit'),
-  badges: buildBadges(card, 'edit'),
-  reminder: reminderFor(card),
-  editDetail: {
-    classification:
-      CLASSIFICATION_LABEL[card.classification] ?? card.classification,
-    placementStatus: card.placement_status,
-    userIntent: card.user_context ?? undefined,
-    aiHint: card.tips ?? undefined,
-    reason: card.blocked_reason ?? '처리에 실패했어요',
-    retryNotice: '아래에 올바른 정보를 입력해주시면 다시 처리를 시도합니다',
-    question: card.question_text ?? '정확한 정보를 입력해주세요',
-    answer: '',
-    memo: card.memo ?? '',
-  },
-});
+const canResolveByNotesCheck = (card: Card): boolean =>
+  (card.classification === 'undecided' &&
+    (card.placement_status === 'needs_input' ||
+      card.placement_status === 'ready_partial')) ||
+  (card.processing_status === 'failed' &&
+    card.classification !== 'open_question');
+
+const compactText = (value: string | null | undefined): string | undefined => {
+  const text = value?.trim().replace(/\s+/g, ' ');
+  return text || undefined;
+};
+
+const suggestedResolveAnswer = (card: Card): string => {
+  const location = compactText(card.location);
+  const name = compactText(card.name);
+  if (!location) return name ?? '';
+  if (!name) return location;
+  if (name.includes(location)) return name;
+  if (location.includes(name)) return location;
+  return `${location} ${name}`;
+};
+
+const toEditCard = (card: Card): PlaceCardViewModel => {
+  const resolvable = canResolveByNotesCheck(card);
+  const isStructuredCategory =
+    card.category === 'accommodation' || card.category === 'transport';
+  return {
+    id: card.instance_id,
+    name: card.name,
+    region: card.location ?? undefined,
+    durationLabel: formatDuration(card.estimated_duration_min),
+    processing: card.processing_status === 'processing',
+    accent: accentFor('edit'),
+    badges: buildBadges(card, 'edit'),
+    reminder: reminderFor(card),
+    editDetail: {
+      classification:
+        CLASSIFICATION_LABEL[card.classification] ?? card.classification,
+      placementStatus: card.placement_status,
+      userIntent: card.user_context ?? undefined,
+      aiHint: card.tips ?? undefined,
+      reason: card.blocked_reason ?? '처리에 실패했어요',
+      retryNotice: '아래에 올바른 정보를 입력해주시면 다시 처리를 시도합니다',
+      question: card.question_text ?? '이 장소를 이렇게 다시 찾아볼까요?',
+      answer: resolvable ? suggestedResolveAnswer(card) : '',
+      memo: card.memo ?? '',
+      notes: card.notes ?? '',
+      structuredFields: isStructuredCategory
+        ? {
+            location: card.location ?? undefined,
+            checkIn: card.check_in ?? undefined,
+            checkOut: card.check_out ?? undefined,
+            timeConstraint: card.time_constraint ?? undefined,
+            flightNumber: card.flight_number ?? undefined,
+          }
+        : undefined,
+      structuredEditCategory: isStructuredCategory
+        ? (card.category as 'accommodation' | 'transport')
+        : undefined,
+      canResolveByStructuredEdit: isStructuredCategory,
+      canResolveByNotes: resolvable,
+      canSelectProcess: resolvable && !!(card.location ?? card.name),
+      selectProcessNotes: card.location ?? card.name ?? undefined,
+    },
+  };
+};
 
 const toUnassignedCard = (card: Card): PlaceCardViewModel => ({
   id: card.instance_id,
@@ -167,8 +214,12 @@ const toUnassignedCard = (card: Card): PlaceCardViewModel => ({
     classification:
       CLASSIFICATION_LABEL[card.classification] ?? card.classification,
     placementStatus: card.placement_status,
+    estimatedDurationMin: card.estimated_duration_min,
     userIntent: card.user_context ?? undefined,
     aiHint: card.tips ?? undefined,
+    placeId: card.place_id,
+    location: card.location,
+    address: card.address,
     memo: card.memo ?? '',
     includedInItinerary: false,
   },
@@ -288,9 +339,8 @@ export const mapToGroupingViewModel = (
   return {
     heading: {
       title: '정보 정리하기',
-      subtitle:
-        options?.contextSummary ??
-        '카드별로 확인/수정/선택을 진행해 일정을 정리하세요',
+      // contextSummary는 최초 파싱 이후 카드별 수정 내용을 반영하지 못하므로 헤딩에 쓰지 않는다.
+      subtitle: '카드별로 필요한 정보를 확인하고 수정해 여행 준비를 정리하세요.',
     },
     progress: { percent, activeCount, doneCount },
     groups: actionGroups,
@@ -337,23 +387,44 @@ export const upsertCardIntoGroups = (
   return { ...filtered, [bucket]: [...filtered[bucket], card] };
 };
 
-const ADD_CATEGORY_MAP: Record<AddCardCategory, CardCategory> = {
-  place: 'place',
-  activity: 'activity',
-  flight: 'transport',
-  lodging: 'accommodation',
-  food: 'food',
-  etc: 'etc',
-};
-
 export const toCardAddRequest = (draft: AddCardDraft): CardAddRequest => ({
   name: draft.name.trim(),
-  category: ADD_CATEGORY_MAP[draft.category],
+  category: draft.category,
   location: draft.region.trim() || undefined,
   estimated_duration_min:
     Number.isFinite(draft.durationMin) && draft.durationMin > 0
       ? draft.durationMin
       : undefined,
   time_constraint: draft.timeMemo.trim() || undefined,
-  memo: draft.memo.trim() || undefined,
+  memo: draft.mode === 'manual' ? draft.memo.trim() || undefined : undefined,
+  flight_number:
+    draft.mode === 'manual' && draft.transportType === 'flight'
+      ? draft.flightNumber.trim() || undefined
+      : undefined,
+  flight_datetime:
+    draft.mode === 'manual' && draft.transportType === 'flight'
+      ? toOffsetDateTime(draft.flightDatetime)
+      : undefined,
+  flight_role:
+    draft.mode === 'manual' && draft.transportType === 'flight'
+      ? draft.flightRole
+      : undefined,
+  departure_airport:
+    draft.mode === 'manual' && draft.transportType === 'flight'
+      ? draft.departureAirport.trim() || undefined
+      : undefined,
+  arrival_airport:
+    draft.mode === 'manual' && draft.transportType === 'flight'
+      ? draft.arrivalAirport.trim() || undefined
+      : undefined,
+  parse_mode: draft.mode === 'ai' ? 'ai_request' : 'manual',
+  natural_language_input:
+    draft.mode === 'ai' ? draft.prompt.trim() || undefined : undefined,
 });
+
+const toOffsetDateTime = (value: string): string | undefined => {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (/[zZ]|[+-]\d{2}:\d{2}$/.test(trimmed)) return trimmed;
+  return `${trimmed}:00+09:00`;
+};

@@ -128,3 +128,61 @@
     @apply font-sans;
   }
 }
+
+/* 스크롤바 숨김 (Firefox + WebKit). */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* 메인 히어로 하늘/구름 배경용 */
+@keyframes cloud-float {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(2.5rem, -1rem) scale(1.06);
+  }
+}
+
+/* 메인 히어로 그리드 텍스처 (중앙으로 갈수록 진하게, 가장자리 페이드) */
+.hero-grid {
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in oklab, var(--primary) 5%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--primary) 5%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 70% 60% at 50% 38%,
+    #000 25%,
+    transparent 78%
+  );
+  mask-image: radial-gradient(
+    ellipse 70% 60% at 50% 38%,
+    #000 25%,
+    transparent 78%
+  );
+}
+
+/* 몽환적 오라 — 느리게 부풀고 흐르며 밝기 변화 */
+@keyframes aura-breathe {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translate(-1.5rem, 1.25rem) scale(1.15);
+    opacity: 1;
+  }
+}

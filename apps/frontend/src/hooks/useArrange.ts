@@ -4,23 +4,31 @@
 
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
 
-import type { DayViewModel, PlacementSaveRequest } from '@/types/arrange-api';
+import type { DayViewModel, PlacementSaveRequest, SuggestedItineraryRequest } from '@/types/arrange-api';
 import type { CardAddRequest, CardPatchRequest } from '@/types/grouping-api';
 
 import {
   confirmPlacement,
   fetchDay,
   fetchGroups04,
+  fetchRouteLegs,
   reorderGroups,
+  suggestItinerary,
   verifyPlacement,
 } from '../utils/arrange-api';
-import { addCard, fetchCards, patchCard } from '../utils/grouping-api';
+import {
+  addCard,
+  duplicateCard,
+  fetchCards,
+  patchCard,
+} from '../utils/grouping-api';
 
 export const arrangeKeys = {
   groups04: (tripId: string) => ['arrange', tripId, 'groups04'] as const,
   cards: (tripId: string) => ['arrange', tripId, 'cards'] as const,
   day: (tripId: string, dayNumber: number) =>
     ['arrange', tripId, 'day', dayNumber] as const,
+  routeLegs: (tripId: string) => ['arrange', tripId, 'route-legs'] as const,
 };
 
 export const useGroups04Query = (tripId: string | null) =>
@@ -34,6 +42,25 @@ export const useArrangeCardsQuery = (tripId: string | null) =>
   useQuery({
     queryKey: arrangeKeys.cards(tripId ?? ''),
     queryFn: () => fetchCards(tripId as string),
+    enabled: Boolean(tripId),
+    // 좌표(Places) enrichment가 끝나기 전에 화면에 들어와도 지도가 비지 않도록,
+    // 처리 중(processing) 카드가 있으면 자동으로 다시 받아오고 모두 정착되면 멈춘다.
+    // dataUpdateCount 로 상한을 둬(최대 ~30초) 무한 폴링을 방지한다.
+    refetchInterval: (query) => {
+      const cards = query.state.data?.cards;
+      if (!cards) return false;
+      const pending = cards.some(
+        (card) => card.processing_status === 'processing'
+      );
+      if (!pending) return false;
+      return query.state.dataUpdateCount > 15 ? false : 2000;
+    },
+  });
+
+export const useRouteLegsQuery = (tripId: string | null) =>
+  useQuery({
+    queryKey: arrangeKeys.routeLegs(tripId ?? ''),
+    queryFn: () => fetchRouteLegs(tripId as string),
     enabled: Boolean(tripId),
   });
 
@@ -68,6 +95,12 @@ export const useAddCardMutation = (tripId: string | null) =>
     mutationFn: (payload: CardAddRequest) => addCard(tripId as string, payload),
   });
 
+export const useDuplicateCardMutation = (tripId: string | null) =>
+  useMutation({
+    mutationFn: (instanceId: string) =>
+      duplicateCard(tripId as string, instanceId),
+  });
+
 export const useReorderGroupsMutation = (tripId: string | null) =>
   useMutation({
     mutationFn: () => reorderGroups(tripId as string),
@@ -77,6 +110,12 @@ export const useVerifyPlacementMutation = (tripId: string | null) =>
   useMutation({
     mutationFn: (payload: PlacementSaveRequest) =>
       verifyPlacement(tripId as string, payload),
+  });
+
+export const useSuggestedItineraryMutation = (tripId: string | null) =>
+  useMutation({
+    mutationFn: (payload: SuggestedItineraryRequest) =>
+      suggestItinerary(tripId as string, payload),
   });
 
 export const useConfirmPlacementMutation = (tripId: string | null) =>

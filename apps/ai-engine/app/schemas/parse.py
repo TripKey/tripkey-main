@@ -94,6 +94,8 @@ class CardResponse(BaseModel):
     coordinates: Optional[Coordinates] = None
     location: Optional[str] = None
     address: Optional[str] = None
+    # 영업시간 {요일(0=일~6=토): [["HH:MM","HH:MM"], ...]} — Places regularOpeningHours 정규화(#292)
+    opening_hours: Optional[dict[str, list[list[str]]]] = None
 
     time_constraint: Optional[str] = None
     question_text: Optional[str] = None

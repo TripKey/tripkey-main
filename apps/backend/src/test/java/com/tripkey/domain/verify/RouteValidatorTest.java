@@ -2,7 +2,10 @@ package com.tripkey.domain.verify;
 
 import com.tripkey.domain.place.PlaceCard;
 import com.tripkey.domain.place.PlaceCardRepository;
+import com.tripkey.domain.route.RouteService;
+import com.tripkey.dto.placement.RouteLeg;
 import com.tripkey.dto.placement.RouteWarning;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -14,6 +17,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -22,8 +27,17 @@ class RouteValidatorTest {
     @Mock
     private PlaceCardRepository placeCardRepository;
 
+    @Mock
+    private RouteService routeService;
+
     @InjectMocks
     private RouteValidator routeValidator;
+
+    @BeforeEach
+    void setUp() {
+        // 기본: 캐시된 leg 없음 → 이동시간 0, 거리 conflict 는 직선거리 폴백
+        lenient().when(routeService.readCachedLegs(any())).thenReturn(List.of());
+    }
 
     @Test
     void validateReturnsEmptyWhenNoData() {
@@ -188,6 +202,45 @@ class RouteValidatorTest {
         assertThat(warnings).hasSize(2);
         assertThat(warnings).extracting(RouteWarning::type)
                 .containsExactlyInAnyOrder("distance", "duration");
+    }
+
+    @Test
+    void durationIncludesTravelTimeFromCachedLegs() {
+        UUID tripId = UUID.randomUUID();
+        PlaceCard c1 = placeCard(tripId, "place", 1, (short) 300);
+        PlaceCard c2 = placeCard(tripId, "place", 1, (short) 300);
+        // 체류 600분(임계 600 동일 → 단독이면 미경고). 이동 60분 더해 660 > 600 → 경고.
+        when(placeCardRepository.findAdjacentCardDistances(tripId)).thenReturn(List.of());
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(c1, c2));
+        when(routeService.readCachedLegs(tripId)).thenReturn(List.of(
+                new RouteLeg(1, c1.getInstanceId(), c2.getInstanceId(), 3600, 5_000, "driving", "google")));
+
+        List<RouteWarning> warnings = routeValidator.validate(tripId);
+
+        assertThat(warnings).hasSize(1);
+        RouteWarning w = warnings.get(0);
+        assertThat(w.type()).isEqualTo("duration");
+        assertThat(w.totalMinutes()).isEqualTo(660); // 600 체류 + 60 이동
+    }
+
+    @Test
+    void distanceUsesRealLegDistanceOverStraightLine() {
+        UUID tripId = UUID.randomUUID();
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        // 직선거리 5km(임계 이하)지만 실제 이동거리 12km(임계 초과) → 경고
+        when(placeCardRepository.findAdjacentCardDistances(tripId))
+                .thenReturn(List.<Object[]>of(new Object[]{a, b, 1, 5_000.0}));
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
+        when(routeService.readCachedLegs(tripId)).thenReturn(List.of(
+                new RouteLeg(1, a, b, 1500, 12_000, "driving", "google")));
+
+        List<RouteWarning> warnings = routeValidator.validate(tripId);
+
+        assertThat(warnings).hasSize(1);
+        RouteWarning w = warnings.get(0);
+        assertThat(w.type()).isEqualTo("distance");
+        assertThat(w.distanceMeters()).isEqualTo(12_000);
     }
 
     private PlaceCard placeCard(UUID tripId, String category, Integer day, Short estimatedDurationMin) {

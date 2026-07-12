@@ -3,11 +3,11 @@
 // tripId 는 URL(?tripId=) → 온보딩 스토어 순으로 취득(진입 가드는 RequireTrip 위임).
 
 import { useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
+import { PAGE_ENTER_FADE } from '@/components/common/PageTransition';
 import AlertCardList from '@/components/confirm/AlertCardList';
 import ContextCardList from '@/components/confirm/ContextCardList';
-import DayChecklist from '@/components/confirm/DayChecklist';
 import DaySummary from '@/components/confirm/DaySummary';
 import DayTabs from '@/components/confirm/DayTabs';
 import MapCard from '@/components/confirm/MapCard';
@@ -17,19 +17,28 @@ import TripHeroCard from '@/components/confirm/TripHeroCard';
 import Header from '@/components/header/Header';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { useArrangeCardsQuery, useDaysQuery } from '@/hooks/useArrange';
+import { useArrangeCardsQuery, useDaysQuery, useRouteLegsQuery } from '@/hooks/useArrange';
 import { useTripDetailQuery } from '@/hooks/useTripDetail';
+import { cn } from '@/lib/utils';
 import { formatDateRangeLabel, useCalendarStore } from '@/utils/calendar-store';
 import { mapToConfirmViewModel } from '@/utils/confirm-mapper';
 import { useOnboardingStore } from '@/utils/onboarding-store';
 
 const ConfirmPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const [notice, setNotice] = useState<string | null>(
+    (location.state as { notice?: string } | null)?.notice ?? null
+  );
   const urlTripId = searchParams.get('tripId');
   const storeTripId = useOnboardingStore((s) => s.tripId);
   const form = useOnboardingStore((s) => s.form);
   const tripId = urlTripId ?? storeTripId;
+
+  // 공유 링크(?shared=1)로 들어온 방문자: 확정 화면만 읽기 전용으로 보여주고
+  // 단계 진행바·다른 화면으로 넘어가는 액션(배치/세션 초기화)을 숨긴다.
+  const isShared = searchParams.get('shared') === '1';
 
   // dateRange 폴백용 — 서버 start_date·출국편으로 날짜를 못 구할 때만 사용.
   const calType = useCalendarStore((s) => s.type);
@@ -38,6 +47,7 @@ const ConfirmPage = () => {
 
   const tripDetailQuery = useTripDetailQuery(tripId);
   const cardsQuery = useArrangeCardsQuery(tripId);
+  const routeLegsQuery = useRouteLegsQuery(tripId);
   const detail = tripDetailQuery.data;
 
   // Day 수 = travel_days(메타 미로딩 시 온보딩 form 폴백).
@@ -53,6 +63,7 @@ const ConfirmPage = () => {
       detail,
       cardsRes: cardsQuery.data,
       dayViewModels: daysQuery.dayViewModels,
+      routeLegs: routeLegsQuery.data?.route_legs ?? [],
       form,
       // formatDateRangeLabel 은 값이 없으면 '-' 를 반환 — 매퍼에서 '기간 미정' 으로 처리되게 빈 문자열로.
       dateRangeFallback: rawFallback === '-' ? '' : rawFallback,
@@ -61,6 +72,7 @@ const ConfirmPage = () => {
     detail,
     cardsQuery.data,
     daysQuery.dayViewModels,
+    routeLegsQuery.data,
     form,
     calType,
     exactDate,
@@ -94,6 +106,7 @@ const ConfirmPage = () => {
     }
 
     sessionStorage.clear();
+    sessionStorage.setItem('tripkey:show-splash', '1'); // 리셋 후에만 스플래시 노출
     window.location.href = '/onboarding';
   };
 
@@ -115,34 +128,52 @@ const ConfirmPage = () => {
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted">
+    <div className={cn('flex min-h-screen flex-col bg-muted', PAGE_ENTER_FADE)}>
       <Header
+        fluid
         currentStepId="confirm"
+        showStepper={!isShared}
         destination={summary.destination}
         extraDestinations={summary.extraDestinations}
         travelers={summary.travelers}
         dateRange={summary.dateRange}
         actions={
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!tripId}
-              onClick={() =>
-                navigate(`/arrange${tripId ? `?tripId=${tripId}` : ''}`)
-              }
-            >
-              배치로 돌아가기
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleResetSession}>
-              여행 세션 초기화
-            </Button>
-          </div>
+          isShared ? undefined : (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!tripId}
+                onClick={() =>
+                  navigate(`/arrange${tripId ? `?tripId=${tripId}` : ''}`)
+                }
+              >
+                배치로 돌아가기
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleResetSession}>
+                여행 세션 초기화
+              </Button>
+            </div>
+          )
         }
       />
 
+      {notice && (
+        <div className="flex items-center justify-between border-b border-primary/20 bg-primary/5 px-8 py-3 text-sm text-primary">
+          <span>{notice}</span>
+          <button
+            type="button"
+            aria-label="닫기"
+            className="ml-4 text-primary/60 hover:text-primary"
+            onClick={() => setNotice(null)}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       <main className="grid flex-1 grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="flex flex-col gap-6 border-r border-border bg-card px-8 py-10">
+        <aside className="flex flex-col gap-6 border-r border-border bg-card px-6 py-10">
           <div>
             <p className="text-xs font-semibold tracking-widest text-primary">
               FINAL REVIEW
@@ -214,8 +245,7 @@ const ConfirmPage = () => {
                       <div className="grid grid-cols-[minmax(0,1fr)_320px] items-start gap-6">
                         <ContextCardList cards={activeDay.contextCards} />
                         <div className="flex flex-col gap-6">
-                          <DayChecklist items={activeDay.dayChecklist} />
-                          <SaveShareCard />
+                          <SaveShareCard tripId={tripId} />
                         </div>
                       </div>
                     </>

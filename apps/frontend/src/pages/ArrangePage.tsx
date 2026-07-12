@@ -9,34 +9,47 @@
 //    (백엔드에 카드별 day 저장 API 가 없어 스냅샷 일괄 전송만 가능)
 
 import { format } from 'date-fns';
-import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus, Sparkles } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import ArrangeCardDetailPanel from '@/components/arrange/ArrangeCardDetailPanel';
 import CardListPanel from '@/components/arrange/CardListPanel';
 import DayColumn from '@/components/arrange/DayColumn';
-import AddCardModal from '@/components/grouping/AddCardModal';
+import CardAddFlow from '@/components/card-add/CardAddFlow';
+import CardDetailPanel from '@/components/card-detail/CardDetailPanel';
+import { PAGE_ENTER } from '@/components/common/PageTransition';
 import Header from '@/components/header/Header';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   useAddCardMutation,
   useArrangeCardsQuery,
   useConfirmPlacementMutation,
   useDaysQuery,
+  useDuplicateCardMutation,
   useGroups04Query,
   usePatchCardMutation,
   useReorderGroupsMutation,
-  useVerifyPlacementMutation,
+  useSuggestedItineraryMutation,
 } from '@/hooks/useArrange';
 import { useTripDetailQuery } from '@/hooks/useTripDetail';
+import { cn } from '@/lib/utils';
 import type {
   ArrangeCardGroup,
   ArrangeCardViewModel,
   DayColumnViewModel,
   ScheduledCardViewModel,
 } from '@/types/arrange';
-import type { RouteWarning } from '@/types/arrange-api';
+import type { RouteWarning, SuggestedItineraryRequest } from '@/types/arrange-api';
+import type { Card, CardPatchRequest } from '@/types/grouping-api';
 import type { ArrangeDragPayload } from '@/utils/arrange-dnd';
 
 import { fetchGroups04 } from '../utils/arrange-api';
@@ -63,6 +76,31 @@ const ADDED_GROUP_ID = 'added';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 30000;
 
+const buildSelectionNotes = ({
+  cardName,
+  selectedText,
+  destinations,
+  region,
+  userIntent,
+}: {
+  cardName: string;
+  selectedText: string;
+  destinations: string[];
+  region?: string;
+  userIntent?: string;
+}) => {
+  const selectedCandidate = selectedText.trim() || cardName;
+  return [
+    `사용자가 선택한 후보: ${selectedCandidate}`,
+    `기존 카드명: ${cardName}`,
+    destinations.length > 0 ? `여행지: ${destinations.join(', ')}` : null,
+    region ? `지역 힌트: ${region}` : null,
+    userIntent ? `기존 요청: ${userIntent}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+};
+
 // 좌측 목록 카드 → Day 보드에 배치되는 일정 카드로 변환(로컬 드래그앤드롭용).
 const toScheduledCard = (
   card: ArrangeCardViewModel
@@ -71,15 +109,8 @@ const toScheduledCard = (
   name: card.name,
   accent: card.accent,
   badges: card.badges,
-});
-
-// 배치 보드 카드 → 좌측 목록 카드로 되돌릴 때의 폴백 변환(원본 보존 실패 시).
-const toArrangeCard = (card: ScheduledCardViewModel): ArrangeCardViewModel => ({
-  id: card.id,
-  name: card.name,
-  accent: card.accent,
-  badges: card.badges,
-  draggable: true,
+  detail: card.detail,
+  processing: card.processing,
 });
 
 // index 위치에 item 삽입(미지정·범위 초과 시 맨 뒤).
@@ -96,8 +127,29 @@ const errorMessageOf = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
+const toArrangeCardFromScheduled = (
+  card: ScheduledCardViewModel
+): ArrangeCardViewModel => ({
+  id: card.id,
+  name: card.name,
+  accent: card.accent,
+  badges: card.badges,
+  draggable: !card.fixedTime,
+  detail: card.detail,
+  processing: card.processing,
+});
+
+const toUpdatedScheduledCard = (
+  card: Card,
+  previous: ScheduledCardViewModel
+): ScheduledCardViewModel => ({
+  ...toScheduledCard(cardToStockCard(card)),
+  fixedTime: previous.fixedTime,
+});
+
 const ArrangePage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const urlTripId = searchParams.get('tripId');
   const storeTripId = useOnboardingStore((s) => s.tripId);
@@ -116,8 +168,9 @@ const ArrangePage = () => {
 
   const patchCardMutation = usePatchCardMutation(tripId);
   const addCardMutation = useAddCardMutation(tripId);
+  const duplicateCardMutation = useDuplicateCardMutation(tripId);
   const reorderMutation = useReorderGroupsMutation(tripId);
-  const verifyMutation = useVerifyPlacementMutation(tripId);
+  const suggestedItineraryMutation = useSuggestedItineraryMutation(tripId);
   const confirmMutation = useConfirmPlacementMutation(tripId);
 
   // 여행 메타는 GET /trips/{id}(옵션 A)를 1순위로, 미로딩 시 온보딩 스토어로 폴백한다.
@@ -162,13 +215,16 @@ const ArrangePage = () => {
   }, [cardsQuery.data, meta, daysQuery.isLoaded, daysQuery.dayViewModels]);
 
   // 배치 저장 요청 시 카드별 예상 소요 시간 조회용.
+  const [chatCardDurations, setChatCardDurations] = useState<
+    Record<string, number | null>
+  >({});
   const durationByInstance = useMemo(() => {
     const map: Record<string, number | null> = {};
     for (const card of cardsQuery.data?.cards ?? []) {
       map[card.instance_id] = card.estimated_duration_min;
     }
-    return map;
-  }, [cardsQuery.data]);
+    return { ...map, ...chatCardDurations };
+  }, [cardsQuery.data, chatCardDurations]);
 
   // 드래그앤드롭에 따라 좌/우가 함께 바뀌므로 ViewModel 을 로컬 상태로 보관한다.
   // (mutation 후 query 를 invalidate 하지 않으므로 미저장 배치가 덮어써지지 않는다.)
@@ -182,11 +238,6 @@ const ArrangePage = () => {
   }, [dayColumns]);
 
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
-  // 좌측 → Day 배치 시 원본 카드를 보존한다. 좌측으로 되돌릴 때 detail/메모 등
-  // ScheduledCardViewModel 이 들고 있지 않은 필드까지 복원하기 위함.
-  const originalCardsRef = useRef<
-    Map<string, { card: ArrangeCardViewModel; groupId: string }>
-  >(new Map());
   const [detailCard, setDetailCard] = useState<ArrangeCardViewModel | null>(
     null
   );
@@ -194,22 +245,21 @@ const ArrangePage = () => {
   // 처리필요 카드 해결(notes 재파싱) 상태: 재처리 진행 중 / 실패·미해결 안내.
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
-  const [addCardOpen, setAddCardOpen] = useState(false);
+  const [cardAddFlowOpen, setCardAddFlowOpen] = useState(false);
   const [routeWarnings, setRouteWarnings] = useState<RouteWarning[] | null>(
     null
   );
   const [notice, setNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [suggestionDialogOpen, setSuggestionDialogOpen] = useState(false);
+  const [travelStyle, setTravelStyle] = useState<SuggestedItineraryRequest['travel_style']>('BALANCED');
+  const [pace, setPace] = useState<SuggestedItineraryRequest['pace']>('NORMAL');
 
   // 진행 중인 재처리 폴링 취소 핸들. 카드 전환/언마운트 시 정리한다.
   const resolvePollRef = useRef<(() => void) | null>(null);
-  // 폴링 콜백(비동기)이 최신 보드/패널 상태를 읽도록 ref 로 보관한다.
-  const daysRef = useRef<DayColumnViewModel[]>([]);
+  // 폴링 콜백(비동기)이 최신 패널 상태를 읽도록 ref 로 보관한다.
   const detailCardIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    daysRef.current = days;
-  }, [days]);
   useEffect(() => {
     detailCardIdRef.current = detailCard?.id ?? null;
   }, [detailCard]);
@@ -220,9 +270,10 @@ const ArrangePage = () => {
     (total, group) => total + group.cards.length,
     0
   );
-  const unplacedCount = groups
-    .flatMap((group) => group.cards)
-    .filter((card) => card.draggable !== false).length;
+  const placedCardIds = useMemo(
+    () => new Set(days.flatMap((day) => day.cards.map((card) => card.id))),
+    [days]
+  );
 
   const openCardDetail = (card: ArrangeCardViewModel) => {
     // 처리필요 카드도 alert 로 끝내지 않고, 해결 패널을 그대로 열어 인플레이스로 해결한다.
@@ -235,7 +286,7 @@ const ArrangePage = () => {
   };
 
   // 좌측 목록 카드 → Day 에 배치(targetIndex 위치 삽입).
-  const placeFromList = (
+  const placeFromList = async (
     cardId: string,
     targetDayId: string,
     targetIndex?: number
@@ -245,14 +296,48 @@ const ArrangePage = () => {
     // 드래그 불가(처리 필요/제외) 카드는 배치하지 않는다.
     if (!card || group == null || card.draggable === false) return;
 
-    // 되돌리기 복원용으로 원본 카드 + 원래 그룹 id 보존.
-    originalCardsRef.current.set(cardId, { card, groupId: group.id });
-    setGroups((prev) =>
-      prev.map((g) => ({
-        ...g,
-        cards: g.cards.filter((c) => c.id !== cardId),
-      }))
+    const alreadyPlaced = days.some((day) =>
+      day.cards.some((placed) => placed.id === cardId)
     );
+
+    if (alreadyPlaced) {
+      const duplicate = window.confirm(
+        `'${card.name}' 카드는 이미 배치되어 있어요. 새 카드로 복제해서 한 번 더 배치할까요?`
+      );
+      if (!duplicate) return;
+      try {
+        const created = await duplicateCardMutation.mutateAsync(cardId);
+        const clonedCard = cardToStockCard(created);
+        setGroups((prev) =>
+          prev.map((g) =>
+            g.id === group.id ? { ...g, cards: [...g.cards, clonedCard] } : g
+          )
+        );
+        setDays((prev) =>
+          prev.map((day) =>
+            day.id === targetDayId
+              ? {
+                  ...day,
+                  cards: insertAt(
+                    day.cards,
+                    toScheduledCard(clonedCard),
+                    targetIndex
+                  ),
+                }
+              : day
+          )
+        );
+        setNotice(`'${card.name}' 카드를 복제해서 배치했어요.`);
+      } catch (error) {
+        const message = errorMessageOf(error, '카드 복제에 실패했습니다.');
+        setActionError(
+          message.includes('404')
+            ? '카드 복제 API를 찾지 못했어요. 백엔드 배포 상태를 확인해 주세요.'
+            : message
+        );
+      }
+      return;
+    }
     setDays((prev) =>
       prev.map((day) =>
         day.id === targetDayId
@@ -308,7 +393,7 @@ const ArrangePage = () => {
     targetIndex?: number
   ) => {
     if (payload.fromDayId === null) {
-      placeFromList(payload.cardId, targetDayId, targetIndex);
+      void placeFromList(payload.cardId, targetDayId, targetIndex);
     } else {
       moveBetweenDays(
         { cardId: payload.cardId, fromDayId: payload.fromDayId },
@@ -330,9 +415,6 @@ const ArrangePage = () => {
       return;
     }
 
-    const saved = originalCardsRef.current.get(cardId);
-    const restored = saved?.card ?? toArrangeCard(scheduled);
-
     setDays((prev) =>
       prev.map((d) =>
         d.id === fromDay!.id
@@ -340,33 +422,12 @@ const ArrangePage = () => {
           : d
       )
     );
-    setGroups((prev) => {
-      // 원래 그룹이 남아 있으면 그곳으로, 아니면 "추가한 카드" 또는 첫 그룹으로 폴백.
-      const originGroupId = saved?.groupId;
-      const targetGroupId =
-        originGroupId && prev.some((g) => g.id === originGroupId)
-          ? originGroupId
-          : prev.some((g) => g.id === ADDED_GROUP_ID)
-            ? ADDED_GROUP_ID
-            : prev[0]?.id;
-      if (targetGroupId) {
-        return prev.map((g) =>
-          g.id === targetGroupId ? { ...g, cards: [...g.cards, restored] } : g
-        );
-      }
-      // 좌측이 완전히 비어 있던 경우 새 그룹 생성.
-      return [
-        {
-          id: 'restored',
-          title: '카드 목록',
-          description: '다시 Day에 배치할 수 있어요.',
-          cards: [restored],
-        },
-      ];
-    });
-    originalCardsRef.current.delete(cardId);
     setDraggingCardId(null);
     setConfirmed(false);
+  };
+
+  const openScheduledCardDetail = (card: ScheduledCardViewModel) => {
+    openCardDetail(toArrangeCardFromScheduled(card));
   };
 
   // 모달에서 추가한 카드 → 서버 저장 후 좌측 "추가한 카드" 그룹에 올린다.
@@ -376,7 +437,7 @@ const ArrangePage = () => {
     if (!tripId) return;
     setActionError(null);
     setNotice(null);
-    setAddCardOpen(false);
+    setCardAddFlowOpen(false);
     try {
       const created = await addCardMutation.mutateAsync(
         toCardAddRequest(draft)
@@ -436,9 +497,59 @@ const ArrangePage = () => {
     }
   };
 
+  const handleSaveDisplay = async (payload: CardPatchRequest) => {
+    if (!tripId || !detailCard) return;
+    setActionError(null);
+    try {
+      const updated = await patchCardMutation.mutateAsync({
+        instanceId: detailCard.id,
+        payload,
+      });
+      applyUpdatedCardLocally(updated);
+      setDetailOpen(false);
+    } catch (error) {
+      setActionError(errorMessageOf(error, '카드 수정에 실패했습니다.'));
+    }
+  };
+
+  const handleToggleInclusion = async (included: boolean) => {
+    if (!tripId || !detailCard) return;
+    const instanceId = detailCard.id;
+    setActionError(null);
+    try {
+      await patchCardMutation.mutateAsync({
+        instanceId,
+        payload: { is_excluded: !included },
+      });
+      if (!included) {
+        setDays((prev) =>
+          prev.map((day) => ({
+            ...day,
+            cards: day.cards.filter((card) => card.id !== instanceId),
+          }))
+        );
+      }
+      await refreshLeftGroupsPreservingBoard();
+      setDetailOpen(false);
+      setNotice(
+        included
+          ? '카드를 다시 일정 후보에 포함했어요.'
+          : '카드를 이번 여행 일정에서 제외했어요.'
+      );
+      setConfirmed(false);
+    } catch (error) {
+      setActionError(
+        errorMessageOf(
+          error,
+          included ? '복원 처리에 실패했습니다.' : '제외 처리에 실패했습니다.'
+        )
+      );
+    }
+  };
+
   // 좌측 그룹을 서버 최신(groups04)으로 다시 그린다.
-  // 단, 우측 보드에 배치(로컬·미저장)된 카드는 좌측에 다시 나타나지 않도록 제외해
-  // "mutation 후 query invalidate 안 함" 불변식(미저장 배치 보존)을 깨지 않는다.
+  // Day 보드는 로컬 미저장 배치를 보존하되, 이미 배치된 카드의 표시 상태는 서버 최신값으로 동기화한다.
+  // 좌측 Stock 은 배치된 카드도 계속 노출한다.
   const refreshLeftGroupsPreservingBoard = async (): Promise<{
     groups: ArrangeCardGroup[];
     unavailableIds: Set<string>;
@@ -448,43 +559,54 @@ const ArrangePage = () => {
       fetchGroups04(tripId),
       fetchCards(tripId),
     ]);
-    const placedIds = new Set(
-      daysRef.current.flatMap((day) => day.cards.map((card) => card.id))
-    );
-    const fresh = mapToArrangeViewModel(groupsRes, cardsRes, meta).groups.map(
-      (group) => ({
-        ...group,
-        cards: group.cards.filter((card) => !placedIds.has(card.id)),
-      })
+    const fresh = mapToArrangeViewModel(groupsRes, cardsRes, meta).groups;
+    const cardsById = new Map(
+      cardsRes.cards.map((card) => [card.instance_id, card])
     );
     setGroups(fresh);
+    setDays((prev) =>
+      prev.map((day) => ({
+        ...day,
+        cards: day.cards.map((card) => {
+          const latest = cardsById.get(card.id);
+          return latest ? toUpdatedScheduledCard(latest, card) : card;
+        }),
+      }))
+    );
     return {
       groups: fresh,
       unavailableIds: new Set(groupsRes.unavailable.map((c) => c.instance_id)),
     };
   };
 
-  // 처리필요 카드 해결 — 자연어(notes) 보완 입력으로 카드 레벨 AI 재파싱을 트리거하고,
-  // 재처리(processing)가 끝날 때까지 폴링한 뒤 결과를 좌측 목록에 반영한다.
-  // 성공(배치 가능 승격) → 패널 닫기 / 미해결·타임아웃 → 패널 유지(재시도 가능).
-  const handleResolveByNotes = async (notes: string) => {
-    if (!tripId || !detailCard) return;
-    const instanceId = detailCard.id;
-    setResolveError(null);
-    setResolving(true);
-    resolvePollRef.current?.();
-
-    try {
-      await patchCardMutation.mutateAsync({
-        instanceId,
-        payload: { notes },
-      });
-    } catch (error) {
-      setResolving(false);
-      setResolveError(errorMessageOf(error, '재처리 요청에 실패했습니다.'));
-      return;
+  const applyUpdatedCardLocally = (updated: Card) => {
+    const updatedStockCard = cardToStockCard(updated);
+    setGroups((prev) =>
+      prev.map((group) => ({
+        ...group,
+        cards: group.cards.map((card) =>
+          card.id === updated.instance_id ? updatedStockCard : card
+        ),
+      }))
+    );
+    setDays((prev) =>
+      prev.map((day) => ({
+        ...day,
+        cards: day.cards.map((card) =>
+          card.id === updated.instance_id
+            ? toUpdatedScheduledCard(updated, card)
+            : card
+        ),
+      }))
+    );
+    if (detailCardIdRef.current === updated.instance_id) {
+      setDetailCard(updatedStockCard);
     }
+  };
 
+  // 재처리 폴링 공통 로직: patchCard 완료 후 instanceId 카드가 processing 을 벗어날 때까지
+  // 2 초 간격으로 /cards 를 조회하고, 승격(unavailable 이탈) 여부에 따라 패널을 닫거나 재시도 안내를 띄운다.
+  const startResolvePoll = (instanceId: string) => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     resolvePollRef.current = () => {
@@ -493,7 +615,6 @@ const ArrangePage = () => {
     };
     const startedAt = Date.now();
 
-    // 폴링 종료 처리: 좌측 목록을 갱신하고, 승격 여부에 따라 패널을 닫거나 재시도 안내를 띄운다.
     const settle = async (timedOut: boolean) => {
       const result = await refreshLeftGroupsPreservingBoard().catch(() => null);
       if (cancelled) return;
@@ -501,28 +622,29 @@ const ArrangePage = () => {
       const promoted = result != null && !result.unavailableIds.has(instanceId);
       if (promoted) {
         setNotice('카드가 배치 가능 목록으로 이동했어요.');
-        // 패널이 아직 이 카드를 보여주는 중일 때만 닫는다.
         if (detailCardIdRef.current === instanceId) setDetailOpen(false);
         return;
       }
-      // 아직 해결 안 됨 — 패널을 열어둔 채 최신 카드 상태로 갱신해 다시 시도할 수 있게 한다.
       if (detailCardIdRef.current === instanceId) {
         const refreshed = result?.groups
           .flatMap((group) => group.cards)
           .find((card) => card.id === instanceId);
         if (refreshed) setDetailCard(refreshed);
-        setResolveError(
-          timedOut
-            ? '재처리가 시간 내에 끝나지 않았어요. 잠시 후 다시 시도해 주세요.'
-            : '아직 배치할 수 없어요. 장소명·주소를 더 정확히 입력해 다시 시도해 주세요.'
-        );
+        // 후속 질문이 있으면 대화가 이어지는 것이므로 에러 대신 질문을 보여준다.
+        if (!refreshed?.detail?.question) {
+          setResolveError(
+            timedOut
+              ? '재처리가 시간 내에 끝나지 않았어요. 잠시 후 다시 시도해 주세요.'
+              : '현재 정보로는 위치를 찾지 못했어요. 장소명이나 주소를 더 정확히 입력해 주세요.'
+          );
+        }
       }
     };
 
     const tick = async () => {
       if (cancelled) return;
       try {
-        const cardsRes = await fetchCards(tripId);
+        const cardsRes = await fetchCards(tripId!);
         if (cancelled) return;
         const card = cardsRes.cards.find((c) => c.instance_id === instanceId);
         const done = !card || card.processing_status !== 'processing';
@@ -536,6 +658,119 @@ const ArrangePage = () => {
     timer = setTimeout(tick, POLL_INTERVAL_MS);
   };
 
+  const hasBackgroundProcessing = (cardsQuery.data?.cards ?? []).some(
+    (card) => card.processing_status === 'processing'
+  );
+
+  useEffect(() => {
+    if (!tripId || !hasBackgroundProcessing) return;
+    let cancelled = false;
+    const timer = setInterval(() => {
+      if (cancelled) return;
+      void refreshLeftGroupsPreservingBoard();
+      void cardsQuery.refetch();
+      void groups04Query.refetch();
+    }, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [tripId, hasBackgroundProcessing, cardsQuery, groups04Query]);
+
+  // 처리필요 카드 해결 — 자연어(notes) 보완 입력으로 AI 재파싱 트리거.
+  const handleResolveByNotes = async (notes: string) => {
+    if (!tripId || !detailCard) return;
+    const instanceId = detailCard.id;
+    setResolveError(null);
+    setResolving(true);
+    resolvePollRef.current?.();
+    try {
+      const updated = await patchCardMutation.mutateAsync({
+        instanceId,
+        payload: { notes },
+      });
+      applyUpdatedCardLocally(updated);
+      // 닫지 않고 유지 — 재파싱 후 후속 질문이 있으면 이어서 보여준다(startResolvePoll).
+    } catch (error) {
+      setResolving(false);
+      setResolveError(errorMessageOf(error, '재처리 요청에 실패했습니다.'));
+      return;
+    }
+    startResolvePoll(instanceId);
+  };
+
+  // 처리필요 숙소/교통 카드의 구조화 필드 편집.
+  // 위치 변경 시 → 재처리 트리거 + 폴링. 비위치 필드만 → 즉시 저장 후 갱신.
+  const handleResolveByStructuredEdit = async ({
+    payload,
+    locationChanged,
+  }: {
+    payload: CardPatchRequest;
+    locationChanged: boolean;
+  }) => {
+    if (!tripId || !detailCard) return;
+    const instanceId = detailCard.id;
+    setResolveError(null);
+    setResolving(true);
+    resolvePollRef.current?.();
+    try {
+      await patchCardMutation.mutateAsync({ instanceId, payload });
+    } catch (error) {
+      setResolving(false);
+      setResolveError(errorMessageOf(error, '저장에 실패했습니다.'));
+      return;
+    }
+    if (!locationChanged) {
+      // 비위치 필드만 변경 → 폴링 없이 즉시 갱신
+      setResolving(false);
+      await refreshLeftGroupsPreservingBoard();
+      if (detailCardIdRef.current === instanceId) setDetailOpen(false);
+      return;
+    }
+    startResolvePoll(instanceId);
+  };
+
+  // 선택처리 — 기존 location 또는 name 을 notes 로 자동 전송해 AI 재파싱 트리거.
+  const handleSelectProcess = async () => {
+    if (!tripId || !detailCard) return;
+    const autoNotes = detailCard.detail?.selectProcessNotes;
+    if (!autoNotes) return;
+    const instanceId = detailCard.id;
+    setResolveError(null);
+    setResolving(true);
+    resolvePollRef.current?.();
+    try {
+      await patchCardMutation.mutateAsync({
+        instanceId,
+        payload: { notes: autoNotes },
+      });
+    } catch (error) {
+      setResolving(false);
+      setResolveError(errorMessageOf(error, '재처리 요청에 실패했습니다.'));
+      return;
+    }
+    startResolvePoll(instanceId);
+  };
+
+  const handleConfirmSelection = async (payload: {
+    choices: string[];
+    answer: string;
+  }) => {
+    if (!tripId || !detailCard) return;
+    const selectedText = [...payload.choices, payload.answer]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .join(', ');
+    const notes = buildSelectionNotes({
+      cardName: detailCard.name,
+      selectedText,
+      destinations: meta.destinations,
+      region: detailCard.detail?.region,
+      userIntent: detailCard.detail?.userIntent,
+    });
+    await handleResolveByNotes(notes);
+  };
+
   // 정리 반영 — POST /groups/reorder. "재정렬이 필요한 카드"를 클러스터로 재편입한 뒤
   // 좌측 목록만 갱신한다. 이미 Day 에 배치(로컬·미저장)한 카드는 그대로 둔다.
   const handleReorder = async () => {
@@ -546,68 +781,54 @@ const ArrangePage = () => {
       const fresh = await reorderMutation.mutateAsync();
       // 좌측 그룹(vm.groups)만 갱신한다. Day 보드는 로컬 상태를 유지한다.
       const vm = mapToArrangeViewModel(fresh, cardsQuery.data, meta);
-      const placedIds = new Set(
-        days.flatMap((day) => day.cards).map((card) => card.id)
-      );
-      setGroups(
-        vm.groups
-          .map((group) => ({
-            ...group,
-            cards: group.cards.filter((card) => !placedIds.has(card.id)),
-          }))
-          .filter((group) => group.cards.length > 0)
-      );
+      setGroups(vm.groups.filter((group) => group.cards.length > 0));
       setNotice('카드를 다시 정리했어요.');
     } catch (error) {
       setActionError(errorMessageOf(error, '카드 정리에 실패했습니다.'));
     }
   };
 
-  // 배치된 카드 중 좌표(지도 위치)가 없는 카드에 대한 안내 경고를 합성한다.
-  // 백엔드 RouteValidator 는 geom 이 null 인 카드를 거리 검증에서 조용히 제외하고
-  // 경고를 내려주지 않으므로(배치 자체는 허용), FE 가 검증 흐름에서 보완 안내한다.
-  const buildMissingLocationWarnings = (): RouteWarning[] => {
-    const noCoordsNames = new Map(
-      (cardsQuery.data?.cards ?? [])
-        .filter((card) => card.coordinates == null)
-        .map((card) => [card.instance_id, card.name])
-    );
-    const warnings: RouteWarning[] = [];
-    days.forEach((day, index) => {
-      day.cards.forEach((card) => {
-        if (!noCoordsNames.has(card.id)) return;
-        warnings.push({
-          type: 'missing_location',
-          day: index + 1,
-          instance_ids: [card.id],
-          message: `'${noCoordsNames.get(card.id) ?? card.name}' 카드는 위치 정보가 없어 거리 검증에서 제외됐어요. 정확한 장소를 확인해 주세요.`,
-          distance_meters: null,
-          total_minutes: null,
-        });
-      });
-    });
-    return warnings;
-  };
-
-  // 동선 검증 — POST /verify. 경고 목록을 배너로 표시.
-  const handleVerify = async () => {
+  const handleSuggestItinerary = async () => {
     if (!tripId) return;
     setActionError(null);
     setNotice(null);
     try {
-      const result = await verifyMutation.mutateAsync(
-        buildPlacementRequest(days, durationByInstance)
+      const suggestion = await suggestedItineraryMutation.mutateAsync({
+        travel_style: travelStyle,
+        pace,
+      });
+      const cardsById = new Map<string, ScheduledCardViewModel>();
+      groups.flatMap((group) => group.cards).forEach((card) =>
+        cardsById.set(card.id, toScheduledCard(card))
       );
-      const warnings = [
-        ...result.route_warnings,
-        ...buildMissingLocationWarnings(),
-      ];
-      setRouteWarnings(warnings);
+      days.flatMap((day) => day.cards).forEach((card) => cardsById.set(card.id, card));
+
+      setDays((previous) => previous.map((day, index) => {
+        const suggestedDay = suggestion.days.find((item) => item.day === index + 1);
+        const fixedCards = day.cards.filter((card) => card.fixedTime);
+        if (!suggestedDay) return { ...day, cards: fixedCards };
+        const fixedIds = new Set(fixedCards.map((card) => card.id));
+        const suggestedCards = suggestedDay.ordered_instance_ids
+          .filter((id) => !fixedIds.has(id))
+          .map((id) => cardsById.get(id))
+          .filter((card): card is ScheduledCardViewModel => card != null);
+        return {
+          ...day,
+          cards: [...fixedCards, ...suggestedCards],
+        };
+      }));
+      setRouteWarnings(null);
+      setConfirmed(false);
+      setSuggestionDialogOpen(false);
+      const placed = suggestion.days.reduce((sum, day) => sum + day.ordered_instance_ids.length, 0);
+      const unplaced = suggestion.unplaced_cards.length;
       setNotice(
-        warnings.length === 0 ? '동선 문제가 발견되지 않았어요.' : null
+        unplaced > 0
+          ? `${placed}개 카드로 여행 초안을 만들었어요. ${unplaced}개는 위치·일정 조건 때문에 카드 목록에 남겨뒀어요. 원하는 대로 옮겨서 완성해 보세요.`
+          : `${placed}개 카드로 여행 초안을 만들었어요. 원하는 대로 옮겨서 완성해 보세요.`
       );
     } catch (error) {
-      setActionError(errorMessageOf(error, '동선 검증에 실패했습니다.'));
+      setActionError(errorMessageOf(error, '여행 초안을 만들지 못했어요.'));
     }
   };
 
@@ -622,12 +843,16 @@ const ArrangePage = () => {
       );
       setRouteWarnings([
         ...result.route_warnings,
-        ...buildMissingLocationWarnings(),
       ]);
       setConfirmed(true);
-      setNotice('일정이 확정되었습니다.');
-      // 확정 성공 → SCR-05(확정 전 최종 점검) 화면으로 이동.
-      navigate(`/confirm${tripId ? `?tripId=${tripId}` : ''}`);
+      // 배치 화면과 확정 화면이 같은 arrange query key를 사용하므로,
+      // confirm 저장 직후 서버의 day/day_order를 다시 받아 stale 보드 진입을 막는다.
+      await queryClient.invalidateQueries({
+        queryKey: ['arrange', tripId],
+      });
+      navigate(`/confirm${tripId ? `?tripId=${tripId}` : ''}`, {
+        state: { notice: '일정이 확정되었습니다.' },
+      });
     } catch (error) {
       setActionError(errorMessageOf(error, '일정 확정에 실패했습니다.'));
     }
@@ -669,10 +894,11 @@ const ArrangePage = () => {
   const cardListTitle = viewModel?.cardListTitle ?? '카드 목록';
 
   const busy =
-    verifyMutation.isPending ||
     confirmMutation.isPending ||
     addCardMutation.isPending ||
-    reorderMutation.isPending;
+    duplicateCardMutation.isPending ||
+    reorderMutation.isPending ||
+    suggestedItineraryMutation.isPending;
 
   // "재정렬이 필요한 카드" 그룹이 있을 때만 정리 반영 버튼을 노출한다.
   const hasPendingReorder = groups.some(
@@ -680,8 +906,14 @@ const ArrangePage = () => {
   );
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-muted">
+    <div
+      className={cn(
+        'flex h-screen flex-col overflow-hidden bg-linear-to-b from-muted/50 to-background',
+        PAGE_ENTER
+      )}
+    >
       <Header
+        fluid
         currentStepId="arrange"
         destination={summary.destination}
         extraDestinations={summary.extraDestinations}
@@ -690,10 +922,10 @@ const ArrangePage = () => {
         actions={
           <Button
             size="sm"
-            onClick={() => setAddCardOpen(true)}
+            onClick={() => setCardAddFlowOpen(true)}
             disabled={!tripId || busy}
           >
-            <Plus className="size-4" aria-hidden="true" />
+            <Plus aria-hidden="true" />
             카드 추가하기
           </Button>
         }
@@ -706,7 +938,7 @@ const ArrangePage = () => {
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               {heading.title}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm text-muted-foreground">
               {heading.subtitle}
             </p>
           </div>
@@ -721,11 +953,13 @@ const ArrangePage = () => {
               </Button>
             )}
             <Button
-              variant="outline"
-              onClick={handleVerify}
+              onClick={() => setSuggestionDialogOpen(true)}
               disabled={!tripId || busy}
             >
-              {verifyMutation.isPending ? '검증 중…' : '동선 검증하기'}
+              <Sparkles aria-hidden="true" />
+              {suggestedItineraryMutation.isPending
+                ? '여행 초안 만드는 중…'
+                : '여행 초안 만들기'}
             </Button>
           </div>
         </div>
@@ -771,6 +1005,7 @@ const ArrangePage = () => {
               groups={groups}
               onSelectCard={openCardDetail}
               draggingCardId={draggingCardId}
+              placedCardIds={placedCardIds}
               dragActive={draggingCardId !== null}
               onDragCardStart={setDraggingCardId}
               onDragCardEnd={() => setDraggingCardId(null)}
@@ -786,6 +1021,8 @@ const ArrangePage = () => {
                     {...day}
                     dragActive={draggingCardId !== null}
                     draggingCardId={draggingCardId}
+                    onSelectCard={openScheduledCardDetail}
+                    onRemoveCard={returnCardToList}
                     onCardDragStart={setDraggingCardId}
                     onCardDragEnd={() => setDraggingCardId(null)}
                     onDropCard={(payload, index) =>
@@ -813,11 +1050,6 @@ const ArrangePage = () => {
         </Button>
 
         <div className="flex items-center gap-4">
-          {unplacedCount > 0 && (
-            <span className="text-sm text-muted-foreground">
-              {unplacedCount}개 카드가 아직 배치되지 않았습니다
-            </span>
-          )}
           <Button
             onClick={handleConfirm}
             disabled={!tripId || busy || confirmed}
@@ -828,22 +1060,97 @@ const ArrangePage = () => {
         </div>
       </footer>
 
+      <Dialog open={suggestionDialogOpen} onOpenChange={setSuggestionDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>여행 초안을 만들어볼까요?</DialogTitle>
+            <DialogDescription>
+              가까운 장소와 선택한 일정 밀도를 기준으로 Day별로 나눠드려요. 만든 뒤 자유롭게 옮길 수 있어요.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-2">
+            <fieldset>
+              <legend className="mb-3 text-sm font-semibold">여행 스타일</legend>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['BALANCED', '균형 있게', '맛집과 관광을 고르게'],
+                  ['SIGHTSEEING', '관광 중심', '장소를 더 많이'],
+                  ['FOOD', '맛집 중심', '먹는 즐거움을 더'],
+                ] as const).map(([value, label, description]) => (
+                  <button key={value} type="button" onClick={() => setTravelStyle(value)}
+                    className={cn('rounded-xl border px-3 py-3 text-left transition-colors',
+                      travelStyle === value ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted')}>
+                    <span className="block text-sm font-semibold">{label}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{description}</span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend className="mb-3 text-sm font-semibold">일정 밀도</legend>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['RELAXED', '여유롭게', '하루 3~4곳'],
+                  ['NORMAL', '보통', '하루 4~6곳'],
+                  ['PACKED', '알차게', '하루 6~8곳'],
+                ] as const).map(([value, label, description]) => (
+                  <button key={value} type="button" onClick={() => setPace(value)}
+                    className={cn('rounded-xl border px-3 py-3 text-left transition-colors',
+                      pace === value ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted')}>
+                    <span className="block text-sm font-semibold">{label}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{description}</span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSuggestItinerary} disabled={suggestedItineraryMutation.isPending}>
+              <Sparkles aria-hidden="true" />
+              {suggestedItineraryMutation.isPending ? '초안 만드는 중…' : '초안 만들기'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 카드 클릭 시 우측에서 열리는 상세 패널 */}
-      <ArrangeCardDetailPanel
+      <CardDetailPanel
         open={detailOpen}
         onOpenChange={setDetailOpen}
         card={detailCard}
         onSaveMemo={handleSaveMemo}
-        onResolveByNotes={handleResolveByNotes}
+        onSaveDisplay={handleSaveDisplay}
+        onExclude={() => void handleToggleInclusion(false)}
+        onInclude={() => void handleToggleInclusion(true)}
+        onConfirmSelection={(payload) => void handleConfirmSelection(payload)}
+        onResolveByStructuredEdit={handleResolveByStructuredEdit}
+        onSelectProcess={handleSelectProcess}
         resolving={resolving}
         resolveError={resolveError}
       />
 
-      {/* "카드 추가하기" 모달 — 정리 화면(SCR-03)의 AddCardModal 재사용 */}
-      <AddCardModal
-        open={addCardOpen}
-        onOpenChange={setAddCardOpen}
-        onSubmit={handleAddCard}
+      <CardAddFlow
+        open={cardAddFlowOpen}
+        onOpenChange={setCardAddFlowOpen}
+        tripId={tripId}
+        destination={summary.destination}
+        tripStartDate={detail?.start_date}
+        travelDays={detail?.travel_days}
+        savedActionLabel="배치 화면에서 확인하기"
+        onManualSubmit={handleAddCard}
+        onAiCardsCreated={async (cards) => {
+          setChatCardDurations((current) => ({
+            ...current,
+            ...Object.fromEntries(
+              cards.map((card) => [
+                card.instance_id,
+                card.estimated_duration_min,
+              ])
+            ),
+          }));
+          await refreshLeftGroupsPreservingBoard();
+          setConfirmed(false);
+        }}
       />
     </div>
   );

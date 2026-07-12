@@ -1,7 +1,6 @@
 // TripChecklist — 확정 화면(SCR-05) 좌측 사이드의 "여행 전반 체크리스트".
 // 출국 전까지 처리해야 할 실무 항목(여권/항공권/숙소 바우처/보험 등) 목록.
 
-import { Pencil } from 'lucide-react';
 import { useState } from 'react';
 
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,20 +22,9 @@ const TripChecklist = ({ items }: TripChecklistProps) => {
   return (
     <section className="flex flex-col gap-3">
       <header className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-sm font-bold text-foreground">
+        <h2 className="text-sm font-bold text-foreground">
           여행 전반 체크리스트
-          {/* BE 컨트랙트 없는 FE 고정 목록 — 실데이터 연동 전까지 임시 표식 */}
-          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-            목데이터
-          </span>
         </h2>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-        >
-          <Pencil className="size-3.5" aria-hidden="true" />
-          편집
-        </button>
       </header>
 
       <ul className="flex flex-col gap-2">

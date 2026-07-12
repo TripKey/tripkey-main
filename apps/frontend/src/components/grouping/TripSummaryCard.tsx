@@ -25,6 +25,10 @@ type TripSummaryCardProps = TripSummaryViewModel & {
   progressValueLabel?: string;
   guideText?: string;
   errorMessage?: string | null;
+  /** 상위 통합 카드 안에 넣을 때 자체 카드 껍데기 제거 */
+  bare?: boolean;
+  /** 진행률(ProgressStat) 숨김 */
+  hideProgress?: boolean;
 };
 
 const TripSummaryCard = ({
@@ -44,9 +48,11 @@ const TripSummaryCard = ({
   progressValueLabel,
   guideText,
   errorMessage,
+  bare = false,
+  hideProgress = false,
 }: TripSummaryCardProps) => {
-  return (
-    <div className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-foreground/10">
+  const inner = (
+    <>
       <h2 className="text-lg font-bold text-foreground">여행 요약</h2>
 
       <ul className="mt-5 space-y-4">
@@ -95,7 +101,7 @@ const TripSummaryCard = ({
       <Separator className="my-5" />
 
       {/* 정리 완료도 */}
-      {completionPct != null && (
+      {!hideProgress && completionPct != null && (
         <ProgressStat
           label={progressLabel}
           value={completionPct}
@@ -133,6 +139,14 @@ const TripSummaryCard = ({
           <span>{errorMessage}</span>
         </p>
       )}
+    </>
+  );
+
+  if (bare) return inner;
+
+  return (
+    <div className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-foreground/10">
+      {inner}
     </div>
   );
 };

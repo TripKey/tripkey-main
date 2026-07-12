@@ -10,11 +10,18 @@ export const API_PATH = {
   CARDS: (tripId: string) => `/trips/${tripId}/cards`,
   CARD: (tripId: string, instanceId: string) =>
     `/trips/${tripId}/cards/${instanceId}`,
+  CHAT_PARSE: (tripId: string) => `/trips/${tripId}/chat/parse`,
+  CHAT_CARDS: (tripId: string) => `/trips/${tripId}/chat/cards`,
+  DUPLICATE_CARD: (tripId: string, instanceId: string) =>
+    `/trips/${tripId}/cards/${instanceId}/duplicate`,
   GROUPS: (tripId: string) => `/trips/${tripId}/groups`,
   REORDER: (tripId: string) => `/trips/${tripId}/groups/reorder`,
   DAY: (tripId: string, dayNumber: number) =>
     `/trips/${tripId}/days/${dayNumber}`,
   VERIFY: (tripId: string) => `/trips/${tripId}/verify`,
+  SUGGEST_ITINERARY: (tripId: string) =>
+    `/trips/${tripId}/optimize/suggest-itinerary`,
+  ROUTE_LEGS: (tripId: string) => `/trips/${tripId}/route-legs`,
   CONFIRM: (tripId: string) => `/trips/${tripId}/confirm`,
 } as const;
 
