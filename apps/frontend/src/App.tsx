@@ -12,17 +12,19 @@ import GroupingPage from './pages/GroupingPage';
 import MainPage from './pages/MainPage';
 import OnboardingPage from './pages/OnboardingPage';
 
-const SPLASH_SEEN_KEY = 'tripkey:splash-seen';
+// 세션 리셋(로고/확정 화면) 직후에만 스플래시를 띄운다.
+// 리셋 시 sessionStorage.clear() 후 이 플래그를 심고 리로드하므로,
+// 일반 첫 진입(플래그 없음)에는 스플래시가 뜨지 않는다.
+const SPLASH_FLAG_KEY = 'tripkey:show-splash';
 
 const AppContent = () => {
   const navigate = useNavigate();
 
-  // 첫 진입 시 한 번 보여주는 스플래시.
   const [showSplash, setShowSplash] = useState(
-    () => sessionStorage.getItem(SPLASH_SEEN_KEY) !== '1'
+    () => sessionStorage.getItem(SPLASH_FLAG_KEY) === '1'
   );
   const handleSplashFinish = () => {
-    sessionStorage.setItem(SPLASH_SEEN_KEY, '1');
+    sessionStorage.removeItem(SPLASH_FLAG_KEY); // 일회용 — 소비
     setShowSplash(false);
   };
 

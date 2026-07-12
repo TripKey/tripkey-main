@@ -67,6 +67,7 @@ const Header = ({
       return;
     }
     sessionStorage.clear();
+    sessionStorage.setItem('tripkey:show-splash', '1'); // 리셋 후에만 스플래시 노출
     window.location.href = '/';
   };
 

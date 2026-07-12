@@ -28,6 +28,7 @@ import type {
 } from '@/types/grouping';
 import type { Card, Groups03Response } from '@/types/grouping-api';
 
+import PageTransition from '../components/common/PageTransition';
 import type { CardPatchRequest } from '../types/grouping-api';
 import {
   useCalendarStore,
@@ -677,7 +678,7 @@ const GroupingPage = () => {
   };
 
   return (
-    <>
+    <PageTransition>
       <Header
         currentStepId="organize"
         destination={summary.destinations[0] ?? '여행'}
@@ -888,7 +889,7 @@ const GroupingPage = () => {
           );
         }}
       />
-    </>
+    </PageTransition>
   );
 };
 

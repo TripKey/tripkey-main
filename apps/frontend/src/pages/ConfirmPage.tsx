@@ -5,6 +5,7 @@
 import { useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
+import { PAGE_ENTER_FADE } from '@/components/common/PageTransition';
 import AlertCardList from '@/components/confirm/AlertCardList';
 import ContextCardList from '@/components/confirm/ContextCardList';
 import DayChecklist from '@/components/confirm/DayChecklist';
@@ -19,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useArrangeCardsQuery, useDaysQuery } from '@/hooks/useArrange';
 import { useTripDetailQuery } from '@/hooks/useTripDetail';
+import { cn } from '@/lib/utils';
 import { formatDateRangeLabel, useCalendarStore } from '@/utils/calendar-store';
 import { mapToConfirmViewModel } from '@/utils/confirm-mapper';
 import { useOnboardingStore } from '@/utils/onboarding-store';
@@ -102,6 +104,7 @@ const ConfirmPage = () => {
     }
 
     sessionStorage.clear();
+    sessionStorage.setItem('tripkey:show-splash', '1'); // 리셋 후에만 스플래시 노출
     window.location.href = '/onboarding';
   };
 
@@ -123,7 +126,7 @@ const ConfirmPage = () => {
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted">
+    <div className={cn('flex min-h-screen flex-col bg-muted', PAGE_ENTER_FADE)}>
       <Header
         fluid
         currentStepId="confirm"
