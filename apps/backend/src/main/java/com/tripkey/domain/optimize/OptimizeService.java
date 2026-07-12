@@ -56,13 +56,25 @@ public class OptimizeService {
         List<OptimizeResponse.DayOrder> days = new ArrayList<>();
 
         for (Map.Entry<Integer, List<PlaceCard>> entry : byDay.entrySet()) {
-            List<PlaceCard> cards = entry.getValue();
-            if (cards.size() < 2) {
-                continue; // 최적화할 게 없음 (0~1개)
-            }
+            if (entry.getValue().size() < 2) continue;
+            DayOrderSuggestion suggestion = optimizeDay(trip, entry.getKey(), entry.getValue());
+            if (suggestion == null) continue;
+            days.add(new OptimizeResponse.DayOrder(entry.getKey(), suggestion.orderedInstanceIds(),
+                    suggestion.totalDurationSeconds(), suggestion.source()));
+        }
+
+        return OptimizeResponse.of(tripId, days);
+    }
+
+    /** DB 저장 없이 주어진 카드 묶음의 Day 내 방문 순서만 계산한다. */
+    public DayOrderSuggestion optimizeDay(Trip trip, int day, List<PlaceCard> cards) {
+        if (cards.isEmpty()) return null;
+        if (cards.size() == 1) {
+            return new DayOrderSuggestion(List.of(cards.get(0).getInstanceId()), 0, "single_stop");
+        }
 
             // Day N 의 요일(0=일~6=토, Google 규약). 여행 시작일이 없으면 null → 영업시간 제약 생략 (#292)
-            Integer weekday = weekdayOf(trip.getStartDate(), entry.getKey());
+            Integer weekday = weekdayOf(trip.getStartDate(), day);
 
             List<AiOptimizeOrderRequest.Stop> stops = new ArrayList<>();
             for (PlaceCard card : cards) {
@@ -86,12 +98,10 @@ public class OptimizeService {
                     .map(UUID::fromString)
                     .toList();
 
-            days.add(new OptimizeResponse.DayOrder(
-                    entry.getKey(), orderedIds, response.totalDurationSeconds(), response.source()));
-        }
-
-        return OptimizeResponse.of(tripId, days);
+        return new DayOrderSuggestion(orderedIds, response.totalDurationSeconds(), response.source());
     }
+
+    public record DayOrderSuggestion(List<UUID> orderedInstanceIds, int totalDurationSeconds, String source) {}
 
     /**
      * Day 시작 앵커 — 도착 항공편(outbound, 첫날 공항 도착 후 시작)이 있으면 그 카드,

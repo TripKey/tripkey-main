@@ -19,6 +19,8 @@ export const API_PATH = {
   DAY: (tripId: string, dayNumber: number) =>
     `/trips/${tripId}/days/${dayNumber}`,
   VERIFY: (tripId: string) => `/trips/${tripId}/verify`,
+  SUGGEST_ITINERARY: (tripId: string) =>
+    `/trips/${tripId}/optimize/suggest-itinerary`,
   CONFIRM: (tripId: string) => `/trips/${tripId}/confirm`,
 } as const;
 

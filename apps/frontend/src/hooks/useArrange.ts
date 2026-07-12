@@ -4,7 +4,7 @@
 
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
 
-import type { DayViewModel, PlacementSaveRequest } from '@/types/arrange-api';
+import type { DayViewModel, PlacementSaveRequest, SuggestedItineraryRequest } from '@/types/arrange-api';
 import type { CardAddRequest, CardPatchRequest } from '@/types/grouping-api';
 
 import {
@@ -12,6 +12,7 @@ import {
   fetchDay,
   fetchGroups04,
   reorderGroups,
+  suggestItinerary,
   verifyPlacement,
 } from '../utils/arrange-api';
 import {
@@ -100,6 +101,12 @@ export const useVerifyPlacementMutation = (tripId: string | null) =>
   useMutation({
     mutationFn: (payload: PlacementSaveRequest) =>
       verifyPlacement(tripId as string, payload),
+  });
+
+export const useSuggestedItineraryMutation = (tripId: string | null) =>
+  useMutation({
+    mutationFn: (payload: SuggestedItineraryRequest) =>
+      suggestItinerary(tripId as string, payload),
   });
 
 export const useConfirmPlacementMutation = (tripId: string | null) =>

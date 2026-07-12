@@ -3,6 +3,8 @@ import type {
   Groups04Response,
   PlacementSaveRequest,
   PlacementSaveResponse,
+  SuggestedItineraryResponse,
+  SuggestedItineraryRequest,
 } from '../types/arrange-api';
 
 import { apiClient } from './api-client';
@@ -51,6 +53,18 @@ export const verifyPlacement = async (
 ): Promise<PlacementSaveResponse> => {
   const response = await apiClient.post<PlacementSaveResponse>(
     API_PATH.VERIFY(tripId),
+    payload
+  );
+  return response.data;
+};
+
+/** 배치 가능한 카드를 지역별로 묶고 Day 내부 방문 순서를 최적화한 저장 전 제안. */
+export const suggestItinerary = async (
+  tripId: string,
+  payload: SuggestedItineraryRequest
+): Promise<SuggestedItineraryResponse> => {
+  const response = await apiClient.post<SuggestedItineraryResponse>(
+    API_PATH.SUGGEST_ITINERARY(tripId),
     payload
   );
   return response.data;
