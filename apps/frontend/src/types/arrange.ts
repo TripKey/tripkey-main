@@ -49,6 +49,12 @@ export type ArrangeCardDetailViewModel = {
   fixedTimeLabel?: string;
   /** "상세 정보" — 위치(📍). 없으면 행 생략 */
   region?: string;
+  /** Google Maps 외부 링크용 장소 식별자. 있으면 좌표/검색어보다 우선한다. */
+  placeId?: string | null;
+  /** Google Maps 외부 링크 검색어 보강용 위치 라벨. */
+  location?: string | null;
+  /** Google Maps 외부 링크 검색어 보강용 주소. */
+  address?: string | null;
   /** 장소 좌표(있으면 상세 패널에 지도 표시). 미해결/미도착 카드는 없음 */
   coordinates?: Coordinates;
   /** "상세 정보" — 예상 소요 시간/체크인 정보(⏱). 없으면 행 생략 */

@@ -1,4 +1,13 @@
-import { Bot, Clock, Info, MapPin, Plane, User, X } from 'lucide-react';
+import {
+  Bot,
+  Clock,
+  ExternalLink,
+  Info,
+  MapPin,
+  Plane,
+  User,
+  X,
+} from 'lucide-react';
 import { Dialog } from 'radix-ui';
 import { useState } from 'react';
 
@@ -28,6 +37,9 @@ export type CommonCardDetailViewModel = {
   estimatedDurationMin?: number | null;
   userIntent?: string;
   aiHint?: string;
+  placeId?: string | null;
+  location?: string | null;
+  address?: string | null;
   coordinates?: { lat: number; lng: number };
   includedInItinerary?: boolean;
   memo?: string;
@@ -208,6 +220,13 @@ const CardDetailBody = ({
       selectedChoices.length > 0 ||
       answer.trim().length > 0) &&
     !resolving;
+  const googleMapsUrl = googleMapsPlaceUrl({
+    name: card.name,
+    placeId: detail.placeId,
+    location: detail.location ?? detail.region,
+    address: detail.address,
+    coordinates: detail.coordinates,
+  });
 
   const categoryBadge = card.badges?.find((badge) => badge.kind === 'category');
   const toggleChoice = (choice: string) =>
@@ -388,6 +407,15 @@ const CardDetailBody = ({
                 lng={detail.coordinates.lng}
                 name={card.name}
               />
+              <a
+                href={googleMapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+              >
+                지도에서 보기
+                <ExternalLink className="size-3" aria-hidden="true" />
+              </a>
             </div>
           )}
         </section>
@@ -569,3 +597,27 @@ const QuestionInputSection = ({
     </div>
   </section>
 );
+
+const googleMapsPlaceUrl = ({
+  name,
+  placeId,
+  location,
+  address,
+  coordinates,
+}: {
+  name: string;
+  placeId?: string | null;
+  location?: string | null;
+  address?: string | null;
+  coordinates?: { lat: number; lng: number };
+}) => {
+  const query = [name, location, address].filter(Boolean).join(' ');
+  const params = new URLSearchParams({
+    api: '1',
+    query:
+      query ||
+      (coordinates ? `${coordinates.lat},${coordinates.lng}` : name),
+  });
+  if (placeId) params.set('query_place_id', placeId);
+  return `https://www.google.com/maps/search/?${params.toString()}`;
+};
