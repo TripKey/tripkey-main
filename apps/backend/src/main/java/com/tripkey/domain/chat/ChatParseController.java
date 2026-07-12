@@ -1,5 +1,7 @@
 package com.tripkey.domain.chat;
 
+import com.tripkey.dto.chat.ChatCardSaveRequest;
+import com.tripkey.dto.chat.ChatCardSaveResponse;
 import com.tripkey.dto.chat.ChatParseRequest;
 import com.tripkey.dto.chat.ChatParseResponse;
 import lombok.RequiredArgsConstructor;
@@ -25,5 +27,13 @@ public class ChatParseController {
             @RequestBody ChatParseRequest request
     ) {
         return ResponseEntity.ok(chatParseService.parse(tripId, request));
+    }
+
+    @PostMapping("/cards")
+    public ResponseEntity<ChatCardSaveResponse> saveCards(
+            @PathVariable UUID tripId,
+            @RequestBody ChatCardSaveRequest request
+    ) {
+        return ResponseEntity.ok(chatParseService.saveCards(tripId, request));
     }
 }

@@ -87,8 +87,8 @@ class ChatParseServiceTest {
         assertThat(captor.getValue().maxCards()).isEqualTo(3);
         assertThat(captor.getValue().context().interests()).containsExactly("food");
         assertThat(captor.getValue().context().constraints()).isEmpty();
-        assertThat(response.createdCards()).isEmpty();
-        verify(cardWriter, never()).saveRecommendedCards(any(), any());
+        assertThat(response.suggestedCards()).isEmpty();
+        verify(cardWriter, never()).prepareSuggestions(any(), any());
     }
 
     @Test
@@ -105,7 +105,7 @@ class ChatParseServiceTest {
                         null, null, null, null, null, null, null, null, null,
                         null, null, null, null, null, null)),
                 List.of(new AiChatParseResponse.Duplicate("기존 장소", "already_exists"))));
-        when(cardWriter.saveRecommendedCards(any(), any())).thenReturn(new ChatCardWriteResult(
+        when(cardWriter.prepareSuggestions(any(), any())).thenReturn(new ChatSuggestionResult(
                 List.of(),
                 List.of(ChatDuplicateDto.alreadyExists("기존 장소"), ChatDuplicateDto.alreadyExists("다른 장소"))));
 

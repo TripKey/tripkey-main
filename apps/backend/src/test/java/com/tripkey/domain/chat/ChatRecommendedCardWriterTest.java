@@ -2,6 +2,7 @@ package com.tripkey.domain.chat;
 
 import com.tripkey.domain.place.PlaceCard;
 import com.tripkey.domain.place.PlaceCardRepository;
+import com.tripkey.dto.chat.ChatSuggestedCardDto;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,6 +23,35 @@ class ChatRecommendedCardWriterTest {
 
     @Mock
     private PlaceCardRepository placeCardRepository;
+
+    @Test
+    void preparesSuggestionsWithoutSavingThem() {
+        UUID tripId = UUID.randomUUID();
+        ChatRecommendedCardWriter writer = new ChatRecommendedCardWriter(placeCardRepository);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
+
+        ChatSuggestionResult result = writer.prepareSuggestions(
+                tripId, List.of(card("place-1", 34.68, 135.52)));
+
+        assertThat(result.suggestions()).hasSize(1);
+        assertThat(result.suggestions().getFirst().candidateId()).isNotNull();
+        assertThat(result.suggestions().getFirst().card().classification()).isEqualTo("open_question");
+        verify(placeCardRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void savesOnlySelectedSuggestions() {
+        UUID tripId = UUID.randomUUID();
+        ChatRecommendedCardWriter writer = new ChatRecommendedCardWriter(placeCardRepository);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
+        when(placeCardRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+        ChatSuggestedCardDto selected = ChatSuggestedCardDto.from(card("place-1", 34.68, 135.52));
+
+        ChatCardWriteResult result = writer.saveSelectedCards(tripId, List.of(selected));
+
+        assertThat(result.savedCards()).hasSize(1);
+        assertThat(result.savedCards().getFirst().getPlaceId()).isEqualTo("place-1");
+    }
 
     @Test
     void correctsFieldsDropsInvalidCardsAndDeduplicatesWithinResponse() {

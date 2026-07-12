@@ -3,6 +3,7 @@ package com.tripkey.domain.chat;
 import com.tripkey.domain.place.PlaceCard;
 import com.tripkey.domain.place.PlaceCardRepository;
 import com.tripkey.dto.chat.ChatDuplicateDto;
+import com.tripkey.dto.chat.ChatSuggestedCardDto;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,18 +21,49 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ChatRecommendedCardWriter {
 
+    private static final Set<String> ALLOWED_CATEGORIES = Set.of(
+            "place", "activity", "transport", "accommodation", "food", "etc");
+
     private final PlaceCardRepository placeCardRepository;
+
+    public ChatSuggestionResult prepareSuggestions(UUID tripId, List<AiPlaceCardDto> candidates) {
+        Set<String> seenPlaceIds = activePlaceIds(tripId);
+        List<ChatSuggestedCardDto> suggestions = new ArrayList<>();
+        List<ChatDuplicateDto> duplicates = new ArrayList<>();
+        Set<String> duplicatePlaceIds = new HashSet<>();
+
+        for (AiPlaceCardDto dto : candidates == null ? List.<AiPlaceCardDto>of() : candidates) {
+            if (!isValidResolvedPlace(dto)) {
+                log.warn("Dropping invalid resolved chat suggestion. name={} placeId={}",
+                        dto == null ? null : dto.name(), dto == null ? null : dto.placeId());
+                continue;
+            }
+            String placeId = dto.placeId().trim();
+            if (!seenPlaceIds.add(placeId)) {
+                if (duplicatePlaceIds.add(placeId)) {
+                    duplicates.add(ChatDuplicateDto.alreadyExists(dto.name()));
+                }
+                continue;
+            }
+            suggestions.add(ChatSuggestedCardDto.from(corrected(dto, placeId)));
+        }
+        return new ChatSuggestionResult(List.copyOf(suggestions), List.copyOf(duplicates));
+    }
+
+    @Transactional
+    public ChatCardWriteResult saveSelectedCards(UUID tripId, List<ChatSuggestedCardDto> candidates) {
+        List<AiPlaceCardDto> cards = candidates == null
+                ? List.of()
+                : candidates.stream()
+                .filter(candidate -> candidate != null && candidate.card() != null)
+                .map(ChatSuggestedCardDto::card)
+                .toList();
+        return saveRecommendedCards(tripId, cards);
+    }
 
     @Transactional
     public ChatCardWriteResult saveRecommendedCards(UUID tripId, List<AiPlaceCardDto> candidates) {
-        Set<String> seenPlaceIds = new HashSet<>();
-        placeCardRepository.findAllByTripId(tripId).stream()
-                .filter(card -> !Boolean.TRUE.equals(card.getIsExcluded()))
-                .map(PlaceCard::getPlaceId)
-                .filter(ChatRecommendedCardWriter::hasText)
-                .map(String::trim)
-                .forEach(seenPlaceIds::add);
-
+        Set<String> seenPlaceIds = activePlaceIds(tripId);
         List<PlaceCard> toSave = new ArrayList<>();
         List<ChatDuplicateDto> duplicates = new ArrayList<>();
         Set<String> duplicatePlaceIds = new HashSet<>();
@@ -51,8 +83,7 @@ public class ChatRecommendedCardWriter {
                 continue;
             }
 
-            AiPlaceCardDto corrected = corrected(dto, placeId);
-            PlaceCard card = PlaceCard.createFromAiResponse(tripId, corrected, "ai_recommend");
+            PlaceCard card = PlaceCard.createFromAiResponse(tripId, corrected(dto, placeId), "ai_recommend");
             card.markProcessingCompleted();
             toSave.add(card);
             seenPlaceIds.add(placeId);
@@ -62,8 +93,20 @@ public class ChatRecommendedCardWriter {
         return new ChatCardWriteResult(List.copyOf(saved), List.copyOf(duplicates));
     }
 
+    private Set<String> activePlaceIds(UUID tripId) {
+        Set<String> placeIds = new HashSet<>();
+        placeCardRepository.findAllByTripId(tripId).stream()
+                .filter(card -> !Boolean.TRUE.equals(card.getIsExcluded()))
+                .map(PlaceCard::getPlaceId)
+                .filter(ChatRecommendedCardWriter::hasText)
+                .map(String::trim)
+                .forEach(placeIds::add);
+        return placeIds;
+    }
+
     private static boolean isValidResolvedPlace(AiPlaceCardDto dto) {
-        if (dto == null || !hasText(dto.placeId()) || dto.coordinates() == null) {
+        if (dto == null || !hasText(dto.placeId()) || !hasText(dto.name())
+                || !ALLOWED_CATEGORIES.contains(dto.category()) || dto.coordinates() == null) {
             return false;
         }
         Double lat = dto.coordinates().lat();
@@ -99,7 +142,8 @@ public class ChatRecommendedCardWriter {
                 dto.flightNumber(),
                 dto.flightDatetime(),
                 dto.flightRole(),
-                dto.searchAlias()
+                dto.searchAlias(),
+                dto.openingHours()
         );
     }
 

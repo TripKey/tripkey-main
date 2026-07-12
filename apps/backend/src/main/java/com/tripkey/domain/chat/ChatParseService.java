@@ -8,6 +8,8 @@ import com.tripkey.domain.trip.TripDestination;
 import com.tripkey.domain.trip.TripDestinationRepository;
 import com.tripkey.domain.trip.TripRepository;
 import com.tripkey.dto.card.CardDto;
+import com.tripkey.dto.chat.ChatCardSaveRequest;
+import com.tripkey.dto.chat.ChatCardSaveResponse;
 import com.tripkey.dto.chat.ChatContextDto;
 import com.tripkey.dto.chat.ChatDuplicateDto;
 import com.tripkey.dto.chat.ChatParseRequest;
@@ -78,14 +80,28 @@ public class ChatParseService {
                     aiResponse.intent(), reply, updatedContext, List.of(), aiDuplicates);
         }
 
-        ChatCardWriteResult writeResult = cardWriter.saveRecommendedCards(tripId, aiResponse.cards());
-        List<CardDto> createdCards = writeResult.savedCards().stream().map(CardDto::from).toList();
-        List<ChatDuplicateDto> duplicates = mergeDuplicates(aiDuplicates, writeResult.duplicates());
-        String reply = createdCards.isEmpty() && !duplicates.isEmpty()
+        ChatSuggestionResult suggestionResult = cardWriter.prepareSuggestions(tripId, aiResponse.cards());
+        List<ChatDuplicateDto> duplicates = mergeDuplicates(aiDuplicates, suggestionResult.duplicates());
+        String reply = suggestionResult.suggestions().isEmpty() && !duplicates.isEmpty()
                 ? DUPLICATE_ONLY_REPLY
                 : aiResponse.reply();
         return new ChatParseResponse(
-                aiResponse.intent(), reply, updatedContext, createdCards, duplicates);
+                aiResponse.intent(), reply, updatedContext, suggestionResult.suggestions(), duplicates);
+    }
+
+    public ChatCardSaveResponse saveCards(UUID tripId, ChatCardSaveRequest request) {
+        if (!tripRepository.existsById(tripId)) {
+            throw new TripNotFoundException(tripId);
+        }
+        if (request == null || request.cards() == null || request.cards().isEmpty()) {
+            throw new ChatParseBadRequestException("저장할 추천 카드를 선택해주세요");
+        }
+        if (request.cards().size() > MAX_CONTEXT_ITEMS) {
+            throw new ChatParseBadRequestException("추천 카드는 한 번에 최대 20개까지 저장할 수 있어요");
+        }
+        ChatCardWriteResult result = cardWriter.saveSelectedCards(tripId, request.cards());
+        List<CardDto> createdCards = result.savedCards().stream().map(CardDto::from).toList();
+        return new ChatCardSaveResponse(createdCards, result.duplicates());
     }
 
     private static NormalizedRequest normalize(ChatParseRequest request) {
