@@ -820,6 +820,9 @@ const GroupingPage = () => {
           if (!open) setAwaitingSelectId(null);
         }}
         card={selectCard}
+        mapContext={summary.destinations
+          .filter((item) => item !== '-')
+          .join(' ')}
         pending={busy || awaitingSelectId != null}
         error={state.phase === 'ready' ? state.errorMessage : null}
         onConfirm={async (payload) => {

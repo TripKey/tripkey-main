@@ -10,6 +10,7 @@ type SelectCardDetailPanelProps = {
   card: PlaceCardViewModel | null;
   pending?: boolean;
   error?: string | null;
+  mapContext?: string;
   onConfirm?: (payload: { choices: string[]; answer: string }) => void;
   onExclude?: () => void;
   onSaveMemo?: (memo: string) => void;
@@ -17,7 +18,8 @@ type SelectCardDetailPanelProps = {
 };
 
 const toCommonCard = (
-  card: PlaceCardViewModel | null
+  card: PlaceCardViewModel | null,
+  mapContext?: string
 ): CommonCardDetailCard | null => {
   if (!card?.selectDetail) return null;
   const detail = card.selectDetail;
@@ -40,6 +42,7 @@ const toCommonCard = (
       address: detail.address,
       question: detail.question,
       choices: detail.choices,
+      choiceMapContext: mapContext ?? card.region,
       selectedChoices: detail.selectedChoices,
       answer: detail.answer,
       memo: detail.memo,
@@ -52,13 +55,14 @@ const SelectCardDetailPanel = ({
   card,
   pending = false,
   error = null,
+  mapContext,
   onConfirm,
   ...props
 }: SelectCardDetailPanelProps) => {
   return (
     <CardDetailPanel
       {...props}
-      card={toCommonCard(card)}
+      card={toCommonCard(card, mapContext)}
       onConfirmSelection={onConfirm}
       resolving={pending}
       resolveError={error}
