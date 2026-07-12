@@ -7,10 +7,11 @@ import {
   Copy,
   MapPin,
   ShoppingBag,
+  Trash2,
   UserRound,
   Utensils,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,15 +23,19 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import type { ChatIntent } from '@/types/chat-api';
+import type {
+  ChatIntent,
+  ChatSuggestedCard,
+  ChatSuggestedCardPayload,
+} from '@/types/chat-api';
 import type { Card, CardCategory } from '@/types/grouping-api';
-import { chatErrorMessage, parseChat } from '@/utils/chat-api';
+import { chatErrorMessage, parseChat, saveChatCards } from '@/utils/chat-api';
 
 type ChatMessage = {
   id: string;
   role: 'assistant' | 'user';
   text: string;
-  cards?: Card[];
+  suggestions?: ChatSuggestedCard[];
   duplicates?: string[];
   intent?: ChatIntent;
 };
@@ -70,9 +75,18 @@ const ChatAssistantDialog = ({
   const [input, setInput] = useState('');
   const [interests, setInterests] = useState<string[]>([]);
   const [constraints, setConstraints] = useState<string[]>([]);
+  const [candidates, setCandidates] = useState<ChatSuggestedCard[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isReplying, setIsReplying] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const selectedCandidates = useMemo(
+    () =>
+      candidates.filter((candidate) => selectedIds.has(candidate.candidate_id)),
+    [candidates, selectedIds]
+  );
 
   useEffect(() => {
     if (!open || messages.length > 0) return;
@@ -80,7 +94,7 @@ const ChatAssistantDialog = ({
       {
         id: 'welcome',
         role: 'assistant',
-        text: `${destination} 여행에 더하고 싶은 장소나 조건을 알려주세요. 추천 결과는 현재 카드 목록에 바로 추가해드릴게요.`,
+        text: `${destination} 여행에 더하고 싶은 장소나 조건을 알려주세요. 추천 후보를 확인한 뒤 필요한 카드만 추가할 수 있어요.`,
       },
     ]);
   }, [destination, messages.length, open]);
@@ -91,6 +105,18 @@ const ChatAssistantDialog = ({
       behavior: 'smooth',
     });
   }, [isReplying, messages]);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && candidates.length > 0) {
+      const shouldClose = window.confirm(
+        `저장하지 않은 추천 후보 ${candidates.length}개가 있어요. 닫으면 후보가 사라집니다.`
+      );
+      if (!shouldClose) return;
+      setCandidates([]);
+      setSelectedIds(new Set());
+    }
+    onOpenChange(nextOpen);
+  };
 
   const submitMessage = async (rawMessage?: string) => {
     const message = (rawMessage ?? input).trim();
@@ -112,20 +138,28 @@ const ChatAssistantDialog = ({
       });
       setInterests(response.updated_context.interests);
       setConstraints(response.updated_context.constraints);
+      setCandidates((current) => {
+        const knownPlaceIds = new Set(
+          current.map((item) => item.card.place_id)
+        );
+        return [
+          ...current,
+          ...response.suggested_cards.filter(
+            (item) => !knownPlaceIds.has(item.card.place_id)
+          ),
+        ];
+      });
       setMessages((current) => [
         ...current,
         {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
           text: response.reply,
-          cards: response.created_cards,
+          suggestions: response.suggested_cards,
           duplicates: response.duplicates.map((item) => item.name),
           intent: response.intent,
         },
       ]);
-      if (response.created_cards.length > 0) {
-        await onCardsCreated(response.created_cards);
-      }
     } catch (error) {
       setErrorMessage(chatErrorMessage(error));
     } finally {
@@ -133,25 +167,89 @@ const ChatAssistantDialog = ({
     }
   };
 
+  const saveSelected = async () => {
+    if (!tripId || selectedCandidates.length === 0 || isSaving) return;
+    setIsSaving(true);
+    setErrorMessage(null);
+    try {
+      const response = await saveChatCards(tripId, {
+        cards: selectedCandidates,
+      });
+      const handledPlaceIds = new Set([
+        ...response.created_cards.map((card) => card.place_id),
+        ...selectedCandidates
+          .filter((candidate) =>
+            response.duplicates.some(
+              (duplicate) => duplicate.name === candidate.card.name
+            )
+          )
+          .map((candidate) => candidate.card.place_id),
+      ]);
+      setCandidates((current) =>
+        current.filter(
+          (candidate) => !handledPlaceIds.has(candidate.card.place_id)
+        )
+      );
+      setSelectedIds(new Set());
+      if (response.created_cards.length > 0) {
+        await onCardsCreated(response.created_cards);
+      }
+      const duplicateSuffix = response.duplicates.length
+        ? ` 중복 ${response.duplicates.length}개는 제외했어요.`
+        : '';
+      setMessages((current) => [
+        ...current,
+        {
+          id: `saved-${Date.now()}`,
+          role: 'assistant',
+          text: `${response.created_cards.length}개의 카드를 목록에 추가했어요.${duplicateSuffix}`,
+        },
+      ]);
+    } catch (error) {
+      setErrorMessage(chatErrorMessage(error));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const toggleCandidate = (candidateId: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(candidateId)) next.delete(candidateId);
+      else next.add(candidateId);
+      return next;
+    });
+  };
+
+  const removeCandidate = (candidateId: string) => {
+    setCandidates((current) =>
+      current.filter((candidate) => candidate.candidate_id !== candidateId)
+    );
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      next.delete(candidateId);
+      return next;
+    });
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[min(760px,calc(100vh-2rem))] max-w-[900px] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-[900px]">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="h-[min(780px,calc(100vh-2rem))] max-w-[980px] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-[980px]">
         <DialogHeader className="border-b px-6 py-5 pr-14">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
               <Bot className="size-5" aria-hidden="true" />
             </div>
             <div>
-              <DialogTitle>AI로 카드 더 찾기</DialogTitle>
+              <DialogTitle>AI에게 카드 요청하기</DialogTitle>
               <DialogDescription className="mt-1">
-                정리 중 부족한 장소를 대화로 보완해보세요. 추천 카드는 자동
-                저장돼요.
+                추천 후보를 비교하고 필요한 카드만 목록에 추가하세요.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_240px]">
+        <div className="grid min-h-0 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
           <section className="flex min-h-0 flex-col md:border-r">
             <div
               ref={scrollRef}
@@ -160,20 +258,7 @@ const ChatAssistantDialog = ({
               {messages.map((message) => (
                 <MessageBubble key={message.id} message={message} />
               ))}
-              {isReplying && (
-                <div className="flex items-start gap-3">
-                  <BotAvatar />
-                  <div className="flex h-10 items-center gap-1 rounded-2xl rounded-tl-md border bg-background px-4">
-                    {[0, 1, 2].map((index) => (
-                      <span
-                        key={index}
-                        className="size-1.5 animate-pulse rounded-full bg-muted-foreground/60"
-                        style={{ animationDelay: `${index * 120}ms` }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+              {isReplying && <ReplyingIndicator />}
             </div>
 
             {errorMessage && (
@@ -226,21 +311,54 @@ const ChatAssistantDialog = ({
             </div>
           </section>
 
-          <aside className="hidden overflow-y-auto bg-background p-5 md:block">
-            <p className="text-sm font-semibold">대화에 반영된 맥락</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              대화에서 파악한 취향과 조건을 다음 추천에도 이어서 반영해요.
-            </p>
-            <ContextSummary title="관심사" items={interests} />
-            <ContextSummary title="여행 조건" items={constraints} />
-            <div className="mt-6 rounded-xl border border-dashed bg-muted/30 p-4">
-              <div className="flex items-center gap-2 text-xs font-medium">
-                <Check className="size-3.5 text-primary" aria-hidden="true" />
-                기존 카드와 함께 정리
+          <aside className="flex min-h-0 flex-col bg-background">
+            <div className="border-b px-5 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold">추천 후보</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {candidates.length}개 중 {selectedCandidates.length}개 선택
+                  </p>
+                </div>
+                <Badge variant="secondary">{candidates.length}</Badge>
               </div>
-              <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                새 카드는 현재 03 화면에 추가됩니다. 중복 장소는 새로 만들지
-                않아요.
+            </div>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
+              {candidates.length > 0 ? (
+                candidates.map((candidate) => (
+                  <CandidateItem
+                    key={candidate.candidate_id}
+                    candidate={candidate}
+                    selected={selectedIds.has(candidate.candidate_id)}
+                    onToggle={() => toggleCandidate(candidate.candidate_id)}
+                    onRemove={() => removeCandidate(candidate.candidate_id)}
+                  />
+                ))
+              ) : (
+                <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-8 text-center">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    아직 추천 후보가 없어요
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    원하는 장소나 조건을 대화로 알려주세요.
+                  </p>
+                </div>
+              )}
+              <ContextSummary title="관심사" items={interests} />
+              <ContextSummary title="여행 조건" items={constraints} />
+            </div>
+            <div className="border-t p-4">
+              <Button
+                className="w-full"
+                disabled={selectedCandidates.length === 0 || isSaving}
+                onClick={saveSelected}
+              >
+                {isSaving
+                  ? '추가하는 중…'
+                  : `선택한 카드 ${selectedCandidates.length}개 추가`}
+              </Button>
+              <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                선택한 카드만 실제 카드 목록에 저장돼요.
               </p>
             </div>
           </aside>
@@ -253,6 +371,21 @@ const ChatAssistantDialog = ({
 const BotAvatar = () => (
   <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
     <Bot className="size-4" aria-hidden="true" />
+  </div>
+);
+
+const ReplyingIndicator = () => (
+  <div className="flex items-start gap-3">
+    <BotAvatar />
+    <div className="flex h-10 items-center gap-1 rounded-2xl rounded-tl-md border bg-background px-4">
+      {[0, 1, 2].map((index) => (
+        <span
+          key={index}
+          className="size-1.5 animate-pulse rounded-full bg-muted-foreground/60"
+          style={{ animationDelay: `${index * 120}ms` }}
+        />
+      ))}
+    </div>
   </div>
 );
 
@@ -282,8 +415,11 @@ const MessageBubble = ({ message }: { message: ChatMessage }) => {
             <Badge className="bg-amber-100 text-amber-800">이미 있음</Badge>
           </div>
         ))}
-        {message.cards?.map((card) => (
-          <RecommendationCard key={card.instance_id} card={card} />
+        {message.suggestions?.map((candidate) => (
+          <RecommendationCard
+            key={candidate.candidate_id}
+            card={candidate.card}
+          />
         ))}
       </div>
       {isUser && (
@@ -295,7 +431,7 @@ const MessageBubble = ({ message }: { message: ChatMessage }) => {
   );
 };
 
-const RecommendationCard = ({ card }: { card: Card }) => (
+const RecommendationCard = ({ card }: { card: ChatSuggestedCardPayload }) => (
   <article className="rounded-xl border bg-background p-3 shadow-xs">
     <div className="flex items-start gap-3">
       <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -308,20 +444,74 @@ const RecommendationCard = ({ card }: { card: Card }) => (
             {CATEGORY_LABELS[card.category]}
           </Badge>
         </div>
-        <p
-          className="mt-1 truncate text-xs text-muted-foreground"
-          title={[card.location, card.address].filter(Boolean).join(' · ')}
-        >
-          {[card.location, card.address].filter(Boolean).join(' · ') ||
-            '위치 정보 확인됨'}
-        </p>
+        <LocationLine card={card} />
       </div>
-      <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-primary">
-        <Check className="size-3" aria-hidden="true" /> 저장됨
+      <span className="shrink-0 text-[11px] font-medium text-primary">
+        추천됨
       </span>
     </div>
   </article>
 );
+
+const CandidateItem = ({
+  candidate,
+  selected,
+  onToggle,
+  onRemove,
+}: {
+  candidate: ChatSuggestedCard;
+  selected: boolean;
+  onToggle: () => void;
+  onRemove: () => void;
+}) => (
+  <article
+    className={cn(
+      'rounded-xl border p-3 transition-colors',
+      selected && 'border-primary/40 bg-primary/5'
+    )}
+  >
+    <div className="flex items-start gap-2.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={cn(
+          'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded border',
+          selected
+            ? 'border-primary bg-primary text-primary-foreground'
+            : 'border-border bg-background'
+        )}
+        aria-label={`${candidate.card.name} ${selected ? '선택 해제' : '선택'}`}
+      >
+        {selected && <Check className="size-3.5" aria-hidden="true" />}
+      </button>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="min-w-0 flex-1 text-left"
+      >
+        <p className="truncate text-sm font-semibold">{candidate.card.name}</p>
+        <LocationLine card={candidate.card} />
+      </button>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+        aria-label={`${candidate.card.name} 후보에서 제거`}
+      >
+        <Trash2 className="size-3.5" aria-hidden="true" />
+      </button>
+    </div>
+  </article>
+);
+
+const LocationLine = ({ card }: { card: ChatSuggestedCardPayload }) => {
+  const location = [card.location, card.address].filter(Boolean).join(' · ');
+  return (
+    <p className="mt-1 truncate text-xs text-muted-foreground" title={location}>
+      {location || '위치 정보 확인됨'}
+    </p>
+  );
+};
 
 const ContextSummary = ({
   title,
@@ -330,7 +520,7 @@ const ContextSummary = ({
   title: string;
   items: string[];
 }) => (
-  <section className="mt-5">
+  <section className="mt-4 border-t pt-4">
     <div className="flex items-center justify-between">
       <h3 className="text-xs font-semibold text-muted-foreground">{title}</h3>
       <span className="text-[11px] text-muted-foreground">{items.length}</span>

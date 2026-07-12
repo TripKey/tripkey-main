@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-import type { ChatParseRequest, ChatParseResponse } from '@/types/chat-api';
+import type {
+  ChatCardSaveRequest,
+  ChatCardSaveResponse,
+  ChatParseRequest,
+  ChatParseResponse,
+} from '@/types/chat-api';
 import type { ApiErrorBody } from '@/types/grouping-api';
 
 import { apiClient } from './api-client';
@@ -12,6 +17,17 @@ export const parseChat = async (
 ): Promise<ChatParseResponse> => {
   const response = await apiClient.post<ChatParseResponse>(
     API_PATH.CHAT_PARSE(tripId),
+    payload
+  );
+  return response.data;
+};
+
+export const saveChatCards = async (
+  tripId: string,
+  payload: ChatCardSaveRequest
+): Promise<ChatCardSaveResponse> => {
+  const response = await apiClient.post<ChatCardSaveResponse>(
+    API_PATH.CHAT_CARDS(tripId),
     payload
   );
   return response.data;

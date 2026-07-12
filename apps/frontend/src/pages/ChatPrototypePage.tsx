@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 import type { ChatIntent } from '@/types/chat-api';
 import type { PlaceCardViewModel, PlaceCategory } from '@/types/grouping';
 import type { Card, CardCategory } from '@/types/grouping-api';
-import { chatErrorMessage, parseChat } from '@/utils/chat-api';
+import { chatErrorMessage, parseChat, saveChatCards } from '@/utils/chat-api';
 import { fetchCards, patchCard } from '@/utils/grouping-api';
 import { useOnboardingStore } from '@/utils/onboarding-store';
 import { tripDateRangeLabel } from '@/utils/trip-meta';
@@ -228,11 +228,14 @@ const ChatPrototypePage = () => {
         context: { interests, constraints },
         max_cards: 3,
       });
+      const saveResponse = response.suggested_cards.length
+        ? await saveChatCards(tripId, { cards: response.suggested_cards })
+        : { created_cards: [], duplicates: [] };
       setInterests(response.updated_context.interests);
       setConstraints(response.updated_context.constraints);
       setSavedCards((current) => {
         const byId = new Map(current.map((card) => [card.instance_id, card]));
-        response.created_cards.forEach((card) =>
+        saveResponse.created_cards.forEach((card) =>
           byId.set(card.instance_id, card)
         );
         return [...byId.values()];
@@ -243,8 +246,10 @@ const ChatPrototypePage = () => {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
           text: response.reply,
-          cards: response.created_cards,
-          duplicates: response.duplicates.map((item) => item.name),
+          cards: saveResponse.created_cards,
+          duplicates: [...response.duplicates, ...saveResponse.duplicates].map(
+            (item) => item.name
+          ),
           intent: response.intent,
         },
       ]);
