@@ -1,7 +1,7 @@
-// AddCardModal — 헤더 "카드 추가하기" 버튼으로 여는 중앙 모달.
-// 한 번 입력하면 AI 가 먼저 정리한 뒤 카드 목록에 올라간다(처리 요청은 1차 stub).
+// AddCardModal — 카드 정보를 직접 입력하는 중앙 모달.
+// legacy AI 단일 입력 모드는 기존 호출부 호환을 위해 유지한다.
 
-import { X } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 import { Dialog } from 'radix-ui';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 
@@ -65,6 +65,9 @@ type AddCardModalProps = {
   travelDays?: number | null;
   /** "처리 요청하기" — 1차는 stub. 닫는 동작은 onOpenChange(false) 로 호출부가 결정 */
   onSubmit?: (draft: AddCardDraft) => void;
+  /** 통합 카드 추가 흐름에서는 기존 단일 AI 입력 탭을 숨기고 수동 폼만 노출한다. */
+  manualOnly?: boolean;
+  onBack?: () => void;
 };
 
 // 패널들 textarea 와 동일한 입력 필드 스타일(단, 한 줄 입력은 h-11 고정).
@@ -77,6 +80,8 @@ const AddCardModal = ({
   tripStartDate,
   travelDays,
   onSubmit,
+  manualOnly = false,
+  onBack,
 }: AddCardModalProps) => {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -89,6 +94,8 @@ const AddCardModal = ({
             tripStartDate={tripStartDate}
             travelDays={travelDays}
             onSubmit={onSubmit}
+            manualOnly={manualOnly}
+            onBack={onBack}
           />
         </Dialog.Content>
       </Dialog.Portal>
@@ -104,11 +111,15 @@ const AddCardForm = ({
   tripStartDate,
   travelDays,
   onSubmit,
+  manualOnly,
+  onBack,
 }: {
   onClose: () => void;
   tripStartDate?: string | null;
   travelDays?: number | null;
   onSubmit?: (draft: AddCardDraft) => void;
+  manualOnly: boolean;
+  onBack?: () => void;
 }) => {
   const [category, setCategory] = useState<AddCardCategory>('place');
   const [mode, setMode] = useState<AddCardMode>('manual');
@@ -215,6 +226,16 @@ const AddCardForm = ({
     <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
       {/* 헤더 */}
       <div className="shrink-0 px-6 pt-6 pb-4">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            추가 방식 선택
+          </button>
+        )}
         <div className="flex items-start justify-between gap-3">
           <Dialog.Title className="text-xl font-bold text-foreground">
             카드 추가하기
@@ -230,49 +251,53 @@ const AddCardForm = ({
           </Dialog.Close>
         </div>
         <Dialog.Description className="mt-1 text-sm text-muted-foreground">
-          알고 있는 일정은 바로 카드로 추가하고, 더 찾아볼 내용은 AI에게 요청해보세요.
+          {manualOnly
+            ? '알고 있는 장소, 숙소, 교통편이나 예약 정보를 직접 추가하세요.'
+            : '알고 있는 일정은 바로 카드로 추가하고, 더 찾아볼 내용은 AI에게 요청해보세요.'}
         </Dialog.Description>
       </div>
 
       {/* 본문(스크롤) */}
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-5">
-        <div className="space-y-2">
-          <p className="text-sm font-semibold text-foreground">추가 방식</p>
-          <div className="inline-flex rounded-lg bg-muted p-1">
-            {[
-              { value: 'manual', label: '직접 추가' },
-              { value: 'ai', label: 'AI에게 요청' },
-            ].map((option) => {
-              const active = mode === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setMode(option.value as AddCardMode)}
-                  className={cn(
-                    'rounded-md px-4 py-2 text-sm font-semibold transition-colors',
-                    active
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
+        {!manualOnly && (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-foreground">추가 방식</p>
+            <div className="inline-flex rounded-lg bg-muted p-1">
+              {[
+                { value: 'manual', label: '직접 추가' },
+                { value: 'ai', label: 'AI에게 요청' },
+              ].map((option) => {
+                const active = mode === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setMode(option.value as AddCardMode)}
+                    className={cn(
+                      'rounded-md px-4 py-2 text-sm font-semibold transition-colors',
+                      active
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {isManual
+                ? '이미 알고 있는 장소, 숙소, 교통편을 일정 후보 카드로 추가해요.'
+                : '아직 정하지 못한 장소나 조건을 적으면 AI가 후보나 확인 질문으로 정리해요.'}
+            </p>
+            <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+              {isManual
+                ? '예상 결과: 카드가 추가되고, 위치 보강이 필요한 항목은 잠시 처리 중으로 표시돼요.'
+                : '예상 결과: 확정 카드, 선택이 필요한 카드, 입력이 필요한 카드 중 하나로 정리돼요.'}
+            </p>
           </div>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {isManual
-              ? '이미 알고 있는 장소, 숙소, 교통편을 일정 후보 카드로 추가해요.'
-              : '아직 정하지 못한 장소나 조건을 적으면 AI가 후보나 확인 질문으로 정리해요.'}
-          </p>
-          <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-            {isManual
-              ? '예상 결과: 카드가 추가되고, 위치 보강이 필요한 항목은 잠시 처리 중으로 표시돼요.'
-              : '예상 결과: 확정 카드, 선택이 필요한 카드, 입력이 필요한 카드 중 하나로 정리돼요.'}
-          </p>
-        </div>
+        )}
 
         {/* 카테고리(단일 선택) */}
         <div className="space-y-2">
@@ -336,7 +361,8 @@ const AddCardForm = ({
                 항공편 정보
               </p>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                출발편과 귀국편은 일정의 시작과 종료 기준으로 활용돼요. 여행 중 이동은 일반 교통 카드로 남아요.
+                출발편과 귀국편은 일정의 시작과 종료 기준으로 활용돼요. 여행 중
+                이동은 일반 교통 카드로 남아요.
               </p>
             </div>
 
@@ -595,7 +621,9 @@ const fallbackAiCardName = (
 ): string => {
   const firstLine = prompt.trim().split('\n')[0]?.trim();
   if (firstLine) return firstLine.slice(0, 40);
-  const label = CATEGORY_OPTIONS.find((option) => option.value === category)?.label;
+  const label = CATEGORY_OPTIONS.find(
+    (option) => option.value === category
+  )?.label;
   return label ? `${label} 요청` : 'AI 요청';
 };
 
@@ -760,9 +788,9 @@ const hasAnyFlightInput = ({
 }): boolean =>
   Boolean(
     flightNumber.trim() ||
-      (includeDatetime && flightDate.trim()) ||
-      departureAirport.trim() ||
-      arrivalAirport.trim()
+    (includeDatetime && flightDate.trim()) ||
+    departureAirport.trim() ||
+    arrivalAirport.trim()
   );
 
 const fallbackFlightCardName = ({

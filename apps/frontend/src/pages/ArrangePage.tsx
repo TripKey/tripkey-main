@@ -9,16 +9,15 @@
 //    (백엔드에 카드별 day 저장 API 가 없어 스냅샷 일괄 전송만 가능)
 
 import { format } from 'date-fns';
-import { ArrowLeft, ArrowRight, Plus, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import CardListPanel from '@/components/arrange/CardListPanel';
 import DayColumn from '@/components/arrange/DayColumn';
+import CardAddFlow from '@/components/card-add/CardAddFlow';
 import CardDetailPanel from '@/components/card-detail/CardDetailPanel';
-import ChatAssistantDialog from '@/components/chat/ChatAssistantDialog';
 import { PAGE_ENTER } from '@/components/common/PageTransition';
-import AddCardModal from '@/components/grouping/AddCardModal';
 import Header from '@/components/header/Header';
 import { Button } from '@/components/ui/button';
 import {
@@ -236,8 +235,7 @@ const ArrangePage = () => {
   // 처리필요 카드 해결(notes 재파싱) 상태: 재처리 진행 중 / 실패·미해결 안내.
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
-  const [addCardOpen, setAddCardOpen] = useState(false);
-  const [chatAssistantOpen, setChatAssistantOpen] = useState(false);
+  const [cardAddFlowOpen, setCardAddFlowOpen] = useState(false);
   const [routeWarnings, setRouteWarnings] = useState<RouteWarning[] | null>(
     null
   );
@@ -426,7 +424,7 @@ const ArrangePage = () => {
     if (!tripId) return;
     setActionError(null);
     setNotice(null);
-    setAddCardOpen(false);
+    setCardAddFlowOpen(false);
     try {
       const created = await addCardMutation.mutateAsync(
         toCardAddRequest(draft)
@@ -909,25 +907,14 @@ const ArrangePage = () => {
         travelers={summary.travelers}
         dateRange={summary.dateRange}
         actions={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setChatAssistantOpen(true)}
-              disabled={!tripId || busy}
-            >
-              <Sparkles aria-hidden="true" />
-              AI로 카드 더 찾기
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => setAddCardOpen(true)}
-              disabled={!tripId || busy}
-            >
-              <Plus aria-hidden="true" />
-              카드 추가하기
-            </Button>
-          </>
+          <Button
+            size="sm"
+            onClick={() => setCardAddFlowOpen(true)}
+            disabled={!tripId || busy}
+          >
+            <Plus aria-hidden="true" />
+            카드 추가하기
+          </Button>
         }
       />
 
@@ -1074,21 +1061,15 @@ const ArrangePage = () => {
         resolveError={resolveError}
       />
 
-      {/* "카드 추가하기" 모달 — 정리 화면(SCR-03)의 AddCardModal 재사용 */}
-      <AddCardModal
-        open={addCardOpen}
-        onOpenChange={setAddCardOpen}
-        tripStartDate={detail?.start_date}
-        travelDays={detail?.travel_days}
-        onSubmit={handleAddCard}
-      />
-
-      <ChatAssistantDialog
-        open={chatAssistantOpen}
-        onOpenChange={setChatAssistantOpen}
+      <CardAddFlow
+        open={cardAddFlowOpen}
+        onOpenChange={setCardAddFlowOpen}
         tripId={tripId}
         destination={summary.destination}
-        onCardsCreated={async (cards) => {
+        tripStartDate={detail?.start_date}
+        travelDays={detail?.travel_days}
+        onManualSubmit={handleAddCard}
+        onAiCardsCreated={async (cards) => {
           setChatCardDurations((current) => ({
             ...current,
             ...Object.fromEntries(

@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   ArrowUp,
   Bot,
   Check,
@@ -46,6 +47,7 @@ type ChatAssistantDialogProps = {
   tripId: string | null;
   destination?: string;
   onCardsCreated: (cards: Card[]) => Promise<void> | void;
+  onBack?: () => void;
 };
 
 const SUGGESTIONS = [
@@ -70,6 +72,7 @@ const ChatAssistantDialog = ({
   tripId,
   destination = '여행지',
   onCardsCreated,
+  onBack,
 }: ChatAssistantDialogProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -106,16 +109,30 @@ const ChatAssistantDialog = ({
     });
   }, [isReplying, messages]);
 
+  const confirmDiscardCandidates = () => {
+    if (candidates.length === 0) return true;
+    return window.confirm(
+      `저장하지 않은 추천 후보 ${candidates.length}개가 있어요. 닫으면 후보가 사라집니다.`
+    );
+  };
+
+  const clearCandidates = () => {
+    setCandidates([]);
+    setSelectedIds(new Set());
+  };
+
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && candidates.length > 0) {
-      const shouldClose = window.confirm(
-        `저장하지 않은 추천 후보 ${candidates.length}개가 있어요. 닫으면 후보가 사라집니다.`
-      );
-      if (!shouldClose) return;
-      setCandidates([]);
-      setSelectedIds(new Set());
+    if (!nextOpen) {
+      if (!confirmDiscardCandidates()) return;
+      clearCandidates();
     }
     onOpenChange(nextOpen);
+  };
+
+  const handleBack = () => {
+    if (!confirmDiscardCandidates()) return;
+    clearCandidates();
+    onBack?.();
   };
 
   const submitMessage = async (rawMessage?: string) => {
@@ -236,6 +253,16 @@ const ChatAssistantDialog = ({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="h-[min(780px,calc(100vh-2rem))] max-w-[980px] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-[980px]">
         <DialogHeader className="border-b px-6 py-5 pr-14">
+          {onBack && (
+            <button
+              type="button"
+              onClick={handleBack}
+              className="mb-3 inline-flex w-fit items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+              추가 방식 선택
+            </button>
+          )}
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
               <Bot className="size-5" aria-hidden="true" />
