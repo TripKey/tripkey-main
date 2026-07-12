@@ -18,6 +18,16 @@ class GlobalExceptionHandlerTest {
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
     @Test
+    void mapsChatExceptionsToContractStatuses() {
+        assertThat(handler.handleChatParseBadRequest(new ChatParseBadRequestException("bad")).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(handler.handleAiEngineUnavailable().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(handler.handleAiEngineCall().getStatusCode())
+                .isEqualTo(HttpStatus.BAD_GATEWAY);
+    }
+
+    @Test
     void handleValidationReturnsDumpTooShortForBlankDumpText() throws Exception {
         MethodArgumentNotValidException exception = buildValidationException(
                 "dumpText",

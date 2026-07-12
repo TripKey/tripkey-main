@@ -15,9 +15,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import CardListPanel from '@/components/arrange/CardListPanel';
 import DayColumn from '@/components/arrange/DayColumn';
+import CardAddFlow from '@/components/card-add/CardAddFlow';
 import CardDetailPanel from '@/components/card-detail/CardDetailPanel';
 import { PAGE_ENTER } from '@/components/common/PageTransition';
-import AddCardModal from '@/components/grouping/AddCardModal';
 import Header from '@/components/header/Header';
 import { Button } from '@/components/ui/button';
 import {
@@ -205,13 +205,16 @@ const ArrangePage = () => {
   }, [cardsQuery.data, meta, daysQuery.isLoaded, daysQuery.dayViewModels]);
 
   // 배치 저장 요청 시 카드별 예상 소요 시간 조회용.
+  const [chatCardDurations, setChatCardDurations] = useState<
+    Record<string, number | null>
+  >({});
   const durationByInstance = useMemo(() => {
     const map: Record<string, number | null> = {};
     for (const card of cardsQuery.data?.cards ?? []) {
       map[card.instance_id] = card.estimated_duration_min;
     }
-    return map;
-  }, [cardsQuery.data]);
+    return { ...map, ...chatCardDurations };
+  }, [cardsQuery.data, chatCardDurations]);
 
   // 드래그앤드롭에 따라 좌/우가 함께 바뀌므로 ViewModel 을 로컬 상태로 보관한다.
   // (mutation 후 query 를 invalidate 하지 않으므로 미저장 배치가 덮어써지지 않는다.)
@@ -232,7 +235,7 @@ const ArrangePage = () => {
   // 처리필요 카드 해결(notes 재파싱) 상태: 재처리 진행 중 / 실패·미해결 안내.
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
-  const [addCardOpen, setAddCardOpen] = useState(false);
+  const [cardAddFlowOpen, setCardAddFlowOpen] = useState(false);
   const [routeWarnings, setRouteWarnings] = useState<RouteWarning[] | null>(
     null
   );
@@ -421,7 +424,7 @@ const ArrangePage = () => {
     if (!tripId) return;
     setActionError(null);
     setNotice(null);
-    setAddCardOpen(false);
+    setCardAddFlowOpen(false);
     try {
       const created = await addCardMutation.mutateAsync(
         toCardAddRequest(draft)
@@ -906,7 +909,7 @@ const ArrangePage = () => {
         actions={
           <Button
             size="sm"
-            onClick={() => setAddCardOpen(true)}
+            onClick={() => setCardAddFlowOpen(true)}
             disabled={!tripId || busy}
           >
             <Plus aria-hidden="true" />
@@ -1058,13 +1061,28 @@ const ArrangePage = () => {
         resolveError={resolveError}
       />
 
-      {/* "카드 추가하기" 모달 — 정리 화면(SCR-03)의 AddCardModal 재사용 */}
-      <AddCardModal
-        open={addCardOpen}
-        onOpenChange={setAddCardOpen}
+      <CardAddFlow
+        open={cardAddFlowOpen}
+        onOpenChange={setCardAddFlowOpen}
+        tripId={tripId}
+        destination={summary.destination}
         tripStartDate={detail?.start_date}
         travelDays={detail?.travel_days}
-        onSubmit={handleAddCard}
+        savedActionLabel="배치 화면에서 확인하기"
+        onManualSubmit={handleAddCard}
+        onAiCardsCreated={async (cards) => {
+          setChatCardDurations((current) => ({
+            ...current,
+            ...Object.fromEntries(
+              cards.map((card) => [
+                card.instance_id,
+                card.estimated_duration_min,
+              ])
+            ),
+          }));
+          await refreshLeftGroupsPreservingBoard();
+          setConfirmed(false);
+        }}
       />
     </div>
   );

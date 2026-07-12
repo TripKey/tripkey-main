@@ -6,6 +6,8 @@ import com.tripkey.dto.dump.ParseJobStatusResponse;
 import com.tripkey.dto.trip.TripCreateResponse;
 import com.tripkey.dto.trip.TripDetailResponse;
 import com.tripkey.infra.aiengine.dto.AiParseResponse;
+import com.tripkey.infra.aiengine.dto.AiChatParseRequest;
+import com.tripkey.dto.chat.ChatContextDto;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,30 @@ class JsonNamingStrategyTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Test
+    void serializesAiChatRequestFieldsAsSnakeCase() throws Exception {
+        AiChatParseRequest request = new AiChatParseRequest(
+                UUID.randomUUID(),
+                "추천해줘",
+                List.of("오사카"),
+                (short) 3,
+                (short) 2,
+                new ChatContextDto(List.of("food"), List.of("low_walking")),
+                List.of(new AiChatParseRequest.ExistingCard("장소", "place", "오사카", "place-1")),
+                3
+        );
+
+        String json = objectMapper.writeValueAsString(request);
+        String defaultMapperJson = new ObjectMapper().writeValueAsString(request);
+
+        assertThat(json)
+                .contains("trip_id", "travel_days", "companion_count", "existing_cards", "max_cards", "place_id")
+                .doesNotContain("tripId", "travelDays", "companionCount", "existingCards", "maxCards", "placeId");
+        assertThat(defaultMapperJson)
+                .contains("trip_id", "travel_days", "companion_count", "existing_cards", "max_cards", "place_id")
+                .doesNotContain("tripId", "travelDays", "companionCount", "existingCards", "maxCards", "placeId");
+    }
 
     @Test
     void serializesTopLevelResponseFieldsAsSnakeCase() throws Exception {

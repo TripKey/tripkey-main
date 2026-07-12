@@ -119,6 +119,12 @@ export type CardDetailViewModel = {
    * (리스트의 reminder 배너 = 짧은 넛지 / 패널의 이 행 = 좀 더 자세한 AI 노트 — 라는 구분)
    */
   aiHint?: string;
+  /** Google Maps 외부 링크용 장소 식별자. 있으면 좌표/검색어보다 우선한다. */
+  placeId?: string | null;
+  /** Google Maps 외부 링크 검색어 보강용 위치 라벨. */
+  location?: string | null;
+  /** Google Maps 외부 링크 검색어 보강용 주소. */
+  address?: string | null;
   /** 장소 좌표(있으면 상세 패널에 지도 표시). 미해결/미도착 카드는 없음 */
   coordinates?: Coordinates;
   /** "사용자 메모" textarea 초기값. 보통 ''(저장된 메모가 있으면 그 값). 입력값이 이 값과 달라지면 "메모 저장"이 활성화된다 */
@@ -172,6 +178,12 @@ export type SelectCardDetailViewModel = {
    * 그것도 없으면 행 자체를 생략한다.
    */
   aiHint?: string;
+  /** Google Maps 외부 링크용 장소 식별자. 있으면 좌표/검색어보다 우선한다. */
+  placeId?: string | null;
+  /** Google Maps 외부 링크 검색어 보강용 위치 라벨. */
+  location?: string | null;
+  /** Google Maps 외부 링크 검색어 보강용 주소. */
+  address?: string | null;
   /** "질문 / 입력" — AI 가 던지는 질문 한 줄(fsd `0-6` Open Question / Choice Conflict) */
   question: string;
   /** "질문 / 입력" — 사용자가 고를 수 있는 선택지 칩들. 다중 선택 허용. 빈 배열이면 칩 영역 생략 */

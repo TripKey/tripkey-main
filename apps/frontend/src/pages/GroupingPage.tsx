@@ -11,9 +11,9 @@ import {
 } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
+import CardAddFlow from '@/components/card-add/CardAddFlow';
 import ProgressStat from '@/components/common/ProgressStat';
 import ActionGroupSection from '@/components/grouping/ActionGroupSection';
-import AddCardModal from '@/components/grouping/AddCardModal';
 import CardDetailPanel from '@/components/grouping/CardDetailPanel';
 import EditCardDetailPanel from '@/components/grouping/EditCardDetailPanel';
 import PlaceCard from '@/components/grouping/PlaceCard';
@@ -223,7 +223,7 @@ const GroupingPage = () => {
   const [awaitingSelectId, setAwaitingSelectId] = useState<string | null>(null);
   const [editCard, setEditCard] = useState<PlaceCardViewModel | null>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [addCardOpen, setAddCardOpen] = useState(false);
+  const [cardAddFlowOpen, setCardAddFlowOpen] = useState(false);
 
   // EditCardDetailPanel 구조화 편집/선택처리 전용 상태
   const [editResolving, setEditResolving] = useState(false);
@@ -697,7 +697,7 @@ const GroupingPage = () => {
             </Button>
             <Button
               size="sm"
-              onClick={() => setAddCardOpen(true)}
+              onClick={() => setCardAddFlowOpen(true)}
               disabled={busy || !tripId}
             >
               <Plus aria-hidden="true" />
@@ -875,19 +875,23 @@ const GroupingPage = () => {
         resolveError={editResolveError}
       />
 
-      <AddCardModal
-        open={addCardOpen}
-        onOpenChange={setAddCardOpen}
+      <CardAddFlow
+        open={cardAddFlowOpen}
+        onOpenChange={setCardAddFlowOpen}
+        tripId={tripId}
+        destination={summary.destinations[0]}
         tripStartDate={tripDetailQuery.data?.start_date}
         travelDays={tripDetailQuery.data?.travel_days}
-        onSubmit={async (draft) => {
+        savedActionLabel="정리 화면에서 확인하기"
+        onManualSubmit={async (draft) => {
           if (!tripId) return;
-          setAddCardOpen(false);
+          setCardAddFlowOpen(false);
           await runCardMutation(
             () => addCard(tripId, toCardAddRequest(draft)),
             '카드 추가에 실패했습니다.'
           );
         }}
+        onAiCardsCreated={() => refresh()}
       />
     </PageTransition>
   );

@@ -1,4 +1,10 @@
-import { Calendar, Check, MapPin, UserRound, Users } from 'lucide-react';
+import {
+  Calendar,
+  Check,
+  MapPin,
+  UserRound,
+  Users,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
