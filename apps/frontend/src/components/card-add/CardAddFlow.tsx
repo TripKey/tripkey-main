@@ -22,6 +22,7 @@ type CardAddFlowProps = {
   destination?: string;
   tripStartDate?: string | null;
   travelDays?: number | null;
+  savedActionLabel?: string;
   onManualSubmit: (draft: AddCardDraft) => void;
   onAiCardsCreated: (cards: Card[]) => Promise<void> | void;
 };
@@ -33,6 +34,7 @@ const CardAddFlow = ({
   destination,
   tripStartDate,
   travelDays,
+  savedActionLabel,
   onManualSubmit,
   onAiCardsCreated,
 }: CardAddFlowProps) => {
@@ -97,6 +99,7 @@ const CardAddFlow = ({
         }}
         tripId={tripId}
         destination={destination}
+        savedActionLabel={savedActionLabel}
         onCardsCreated={onAiCardsCreated}
         onBack={() => setMethod('select')}
       />

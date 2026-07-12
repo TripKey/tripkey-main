@@ -1068,6 +1068,7 @@ const ArrangePage = () => {
         destination={summary.destination}
         tripStartDate={detail?.start_date}
         travelDays={detail?.travel_days}
+        savedActionLabel="배치 화면에서 확인하기"
         onManualSubmit={handleAddCard}
         onAiCardsCreated={async (cards) => {
           setChatCardDurations((current) => ({

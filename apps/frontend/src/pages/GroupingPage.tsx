@@ -882,6 +882,7 @@ const GroupingPage = () => {
         destination={summary.destinations[0]}
         tripStartDate={tripDetailQuery.data?.start_date}
         travelDays={tripDetailQuery.data?.travel_days}
+        savedActionLabel="정리 화면에서 확인하기"
         onManualSubmit={async (draft) => {
           if (!tripId) return;
           setCardAddFlowOpen(false);

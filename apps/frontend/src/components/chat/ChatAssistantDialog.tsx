@@ -6,6 +6,7 @@ import {
   CloudRain,
   Coffee,
   Copy,
+  ExternalLink,
   MapPin,
   ShoppingBag,
   Trash2,
@@ -45,6 +46,10 @@ type ChatMessage = {
   suggestions?: ChatSuggestedCard[];
   duplicates?: string[];
   intent?: ChatIntent;
+  action?: {
+    label: string;
+    type: 'close';
+  };
 };
 
 type ChatAssistantDialogProps = {
@@ -52,6 +57,7 @@ type ChatAssistantDialogProps = {
   onOpenChange: (open: boolean) => void;
   tripId: string | null;
   destination?: string;
+  savedActionLabel?: string;
   onCardsCreated: (cards: Card[]) => Promise<void> | void;
   onBack?: () => void;
 };
@@ -72,11 +78,19 @@ const CATEGORY_LABELS: Record<CardCategory, string> = {
   etc: '기타',
 };
 
+const googleMapsPlaceUrl = (card: ChatSuggestedCardPayload) =>
+  `https://www.google.com/maps/search/?api=1&query_place_id=${encodeURIComponent(
+    card.place_id
+  )}&query=${encodeURIComponent(
+    [card.name, card.location, card.address].filter(Boolean).join(' ')
+  )}`;
+
 const ChatAssistantDialog = ({
   open,
   onOpenChange,
   tripId,
   destination = '여행지',
+  savedActionLabel = '목록에서 확인하기',
   onCardsCreated,
   onBack,
 }: ChatAssistantDialogProps) => {
@@ -226,6 +240,10 @@ const ChatAssistantDialog = ({
           id: `saved-${Date.now()}`,
           role: 'assistant',
           text: `${response.created_cards.length}개의 카드를 목록에 추가했어요.${duplicateSuffix}`,
+          action: {
+            label: savedActionLabel,
+            type: 'close',
+          },
         },
       ]);
     } catch (error) {
@@ -289,7 +307,11 @@ const ChatAssistantDialog = ({
               className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-muted/25 px-6 py-5"
             >
               {messages.map((message) => (
-                <MessageBubble key={message.id} message={message} />
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  onAction={() => handleOpenChange(false)}
+                />
               ))}
               {isReplying && <ReplyingIndicator />}
             </div>
@@ -430,7 +452,13 @@ const ReplyingIndicator = () => (
   </div>
 );
 
-const MessageBubble = ({ message }: { message: ChatMessage }) => {
+const MessageBubble = ({
+  message,
+  onAction,
+}: {
+  message: ChatMessage;
+  onAction: () => void;
+}) => {
   const isUser = message.role === 'user';
   return (
     <div className={cn('flex items-start gap-3', isUser && 'justify-end')}>
@@ -462,6 +490,17 @@ const MessageBubble = ({ message }: { message: ChatMessage }) => {
             card={candidate.card}
           />
         ))}
+        {message.action && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8"
+            onClick={onAction}
+          >
+            {message.action.label}
+          </Button>
+        )}
       </div>
       {isUser && (
         <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -491,6 +530,7 @@ const RecommendationCard = ({ card }: { card: ChatSuggestedCardPayload }) => (
         추천됨
       </span>
     </div>
+    <GoogleMapsLink card={card} className="mt-3" />
   </article>
 );
 
@@ -542,7 +582,30 @@ const CandidateItem = ({
         <Trash2 className="size-3.5" aria-hidden="true" />
       </button>
     </div>
+    <GoogleMapsLink card={candidate.card} className="mt-2 pl-7" />
   </article>
+);
+
+const GoogleMapsLink = ({
+  card,
+  className,
+}: {
+  card: ChatSuggestedCardPayload;
+  className?: string;
+}) => (
+  <a
+    href={googleMapsPlaceUrl(card)}
+    target="_blank"
+    rel="noreferrer"
+    onClick={(event) => event.stopPropagation()}
+    className={cn(
+      'inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline',
+      className
+    )}
+  >
+    지도에서 보기
+    <ExternalLink className="size-3" aria-hidden="true" />
+  </a>
 );
 
 const LocationLine = ({ card }: { card: ChatSuggestedCardPayload }) => {

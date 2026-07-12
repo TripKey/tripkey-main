@@ -3,6 +3,7 @@ import axios from 'axios';
 import type {
   ChatCardSaveRequest,
   ChatCardSaveResponse,
+  ChatContext,
   ChatParseRequest,
   ChatParseResponse,
 } from '@/types/chat-api';
@@ -19,7 +20,7 @@ export const parseChat = async (
     API_PATH.CHAT_PARSE(tripId),
     payload
   );
-  return response.data;
+  return normalizeParseResponse(response.data, payload.context);
 };
 
 export const saveChatCards = async (
@@ -30,8 +31,37 @@ export const saveChatCards = async (
     API_PATH.CHAT_CARDS(tripId),
     payload
   );
-  return response.data;
+  return normalizeSaveResponse(response.data);
 };
+
+const normalizeParseResponse = (
+  data: ChatParseResponse,
+  fallbackContext: ChatContext
+): ChatParseResponse => ({
+  intent: data.intent ?? 'no_action',
+  reply:
+    data.reply ??
+    '채팅 응답을 불러왔지만 일부 정보가 비어 있어요. 다시 한 번 요청해주세요.',
+  updated_context: {
+    interests: Array.isArray(data.updated_context?.interests)
+      ? data.updated_context.interests
+      : fallbackContext.interests,
+    constraints: Array.isArray(data.updated_context?.constraints)
+      ? data.updated_context.constraints
+      : fallbackContext.constraints,
+  },
+  suggested_cards: Array.isArray(data.suggested_cards)
+    ? data.suggested_cards
+    : [],
+  duplicates: Array.isArray(data.duplicates) ? data.duplicates : [],
+});
+
+const normalizeSaveResponse = (
+  data: ChatCardSaveResponse
+): ChatCardSaveResponse => ({
+  created_cards: Array.isArray(data.created_cards) ? data.created_cards : [],
+  duplicates: Array.isArray(data.duplicates) ? data.duplicates : [],
+});
 
 export const chatErrorMessage = (error: unknown): string => {
   if (!axios.isAxiosError(error)) {
