@@ -612,11 +612,14 @@ const ArrangePage = () => {
           .flatMap((group) => group.cards)
           .find((card) => card.id === instanceId);
         if (refreshed) setDetailCard(refreshed);
-        setResolveError(
-          timedOut
-            ? '재처리가 시간 내에 끝나지 않았어요. 잠시 후 다시 시도해 주세요.'
-            : '현재 정보로는 위치를 찾지 못했어요. 장소명이나 주소를 더 정확히 입력해 주세요.'
-        );
+        // 후속 질문이 있으면 대화가 이어지는 것이므로 에러 대신 질문을 보여준다.
+        if (!refreshed?.detail?.question) {
+          setResolveError(
+            timedOut
+              ? '재처리가 시간 내에 끝나지 않았어요. 잠시 후 다시 시도해 주세요.'
+              : '현재 정보로는 위치를 찾지 못했어요. 장소명이나 주소를 더 정확히 입력해 주세요.'
+          );
+        }
       }
     };
 
@@ -669,7 +672,7 @@ const ArrangePage = () => {
         payload: { notes },
       });
       applyUpdatedCardLocally(updated);
-      setDetailOpen(false);
+      // 닫지 않고 유지 — 재파싱 후 후속 질문이 있으면 이어서 보여준다(startResolvePoll).
     } catch (error) {
       setResolving(false);
       setResolveError(errorMessageOf(error, '재처리 요청에 실패했습니다.'));

@@ -197,7 +197,7 @@ export const StatusInfoBox = ({
   classification: string;
   placementStatus: string;
 }) => (
-  <section className="rounded-xl bg-muted/60 p-4">
+  <section className="rounded-2xl bg-muted/60 p-4">
     <h3 className="text-sm font-semibold text-foreground">상태 정보</h3>
     <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1">
       <div className="min-w-0">
@@ -254,7 +254,7 @@ export const ItineraryInclusionBox = ({
   //포함하기(included=false 일 때만 보임)
   onInclude?: () => void;
 }) => (
-  <div className="flex items-center justify-between gap-3 rounded-xl bg-muted/60 p-4">
+  <div className="flex items-center justify-between gap-3 rounded-2xl bg-muted/60 p-4">
     <div className="min-w-0">
       <p className="text-sm font-semibold text-foreground">
         {included ? '일정에 포함된 항목이에요' : '현재 제외된 항목이에요'}
@@ -292,7 +292,7 @@ export const ItineraryInclusionBox = ({
 
 // 질문 박스
 export const QuestionBox = ({ question }: { question: string }) => (
-  <div className="mt-3 rounded-xl bg-primary/10 px-4 py-3.5 dark:bg-primary/15">
+  <div className="mt-3 rounded-2xl bg-primary/10 px-4 py-3.5 dark:bg-primary/15">
     <p className="text-xs font-semibold text-primary dark:text-primary">
       질문
     </p>
