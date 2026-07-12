@@ -16,6 +16,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import CardListPanel from '@/components/arrange/CardListPanel';
 import DayColumn from '@/components/arrange/DayColumn';
 import CardDetailPanel from '@/components/card-detail/CardDetailPanel';
+import { PAGE_ENTER } from '@/components/common/PageTransition';
 import AddCardModal from '@/components/grouping/AddCardModal';
 import Header from '@/components/header/Header';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ import {
   useVerifyPlacementMutation,
 } from '@/hooks/useArrange';
 import { useTripDetailQuery } from '@/hooks/useTripDetail';
+import { cn } from '@/lib/utils';
 import type {
   ArrangeCardGroup,
   ArrangeCardViewModel,
@@ -888,7 +890,12 @@ const ArrangePage = () => {
   );
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-linear-to-b from-muted/50 to-background">
+    <div
+      className={cn(
+        'flex h-screen flex-col overflow-hidden bg-linear-to-b from-muted/50 to-background',
+        PAGE_ENTER
+      )}
+    >
       <Header
         fluid
         currentStepId="arrange"

@@ -2,6 +2,7 @@ import { Calendar, MapPin, Minus, Plus, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import PageTransition from '../components/common/PageTransition';
 import ProgressStat from '../components/common/ProgressStat';
 import Header from '../components/header/Header';
 import TripCalendar from '../components/onboarding/calendar/TripCalendar';
@@ -84,7 +85,7 @@ const OnboardingPage = () => {
   };
 
   return (
-    <>
+    <PageTransition>
       <Header
         currentStepId="onboarding"
         showTripMeta={false}
@@ -225,7 +226,7 @@ const OnboardingPage = () => {
           </div>
         </div>
       </div>
-    </>
+    </PageTransition>
   );
 };
 

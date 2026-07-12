@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import PageTransition from '../components/common/PageTransition';
 import DumpForm from '../components/dump/DumpForm';
 import {
   DumpAiInfoCard,
@@ -110,7 +111,7 @@ const DumpPage = () => {
   }
 
   return (
-    <>
+    <PageTransition>
       <Header
         currentStepId="dump"
         destination={summary.destinations[0] ?? '여행'}
@@ -167,7 +168,7 @@ const DumpPage = () => {
           </div>
         </div>
       </main>
-    </>
+    </PageTransition>
   );
 };
 
