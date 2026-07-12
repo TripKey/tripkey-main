@@ -1,5 +1,6 @@
 package com.tripkey.domain.place;
 
+import com.tripkey.domain.alert.AlertCardRepository;
 import com.tripkey.domain.trip.Trip;
 import com.tripkey.domain.trip.TripDestination;
 import com.tripkey.domain.trip.TripDestinationRepository;
@@ -24,6 +25,7 @@ public class CardInputParsingProcessor {
     private final TripRepository tripRepository;
     private final TripDestinationRepository tripDestinationRepository;
     private final PlaceCardRepository placeCardRepository;
+    private final AlertCardRepository alertCardRepository;
     private final AiEngineClient aiEngineClient;
 
     @Async("dumpTaskExecutor")
@@ -75,6 +77,14 @@ public class CardInputParsingProcessor {
                 card.markProcessingFailed();
             }
             placeCardRepository.save(card);
+            if ("completed".equals(card.getProcessingStatus())) {
+                // 카드 재파싱 전 상태에서 생성된 연결 alert는 더 이상 유효하다고 볼 수 없다.
+                // 카드 파서가 새 alert를 반환하지 않으므로 성공 시 기존 스냅샷을 무효화한다.
+                alertCardRepository.deleteAll(
+                        alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId).stream()
+                                .filter(alert -> alert.relatedInstanceUuids().contains(instanceId))
+                                .toList());
+            }
         } catch (Exception e) {
             card.markProcessingFailed();
             placeCardRepository.save(card);

@@ -550,9 +550,9 @@ export const mapToArrangeViewModel = (
     },
     heading: {
       title: '일정 배치',
+      // context_summary는 최초 전체 파싱 시점의 스냅샷이라 카드 수정 후 stale해질 수 있다.
       subtitle:
-        cardsRes.context_summary ??
-        '배치 가능한 카드를 Day별로 끌어다 놓아 일정을 완성하세요.',
+        '카드를 Day별로 직접 배치하거나 여행 초안을 만든 뒤 원하는 순서로 다듬어보세요.',
     },
     cardListTitle: '카드 목록',
     groups,

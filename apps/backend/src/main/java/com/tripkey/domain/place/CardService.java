@@ -24,7 +24,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -43,10 +45,15 @@ public class CardService {
             throw new TripNotFoundException(tripId);
         }
 
-        List<CardDto> cards = placeCardRepository.findAllByTripId(tripId).stream()
+        List<PlaceCard> placeCards = placeCardRepository.findAllByTripId(tripId);
+        List<CardDto> cards = placeCards.stream()
                 .sorted(Comparator.comparing(PlaceCard::getCreatedAt))
                 .map(CardDto::from)
                 .toList();
+        Set<UUID> placedInstanceIds = placeCards.stream()
+                .filter(card -> card.getDay() != null)
+                .map(PlaceCard::getInstanceId)
+                .collect(Collectors.toSet());
 
         String contextSummary = dumpJobRepository
                 .findFirstByTripIdOrderByCreatedAtDesc(tripId)
@@ -55,6 +62,9 @@ public class CardService {
 
         List<AlertCardDto> alertCards = new ArrayList<>(
                 alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId).stream()
+                        // 특정 카드에 연결된 알림은 그 카드가 실제 Day에 배치된 경우에만 노출한다.
+                        .filter(alert -> alert.relatedInstanceUuids().isEmpty()
+                                || alert.relatedInstanceUuids().stream().allMatch(placedInstanceIds::contains))
                         .map(CardService::toAlertCardDto)
                         .toList());
         // Day 단위 conflict(route_warnings)를 scope=day 알림으로 조회 시점에 합성한다(미저장 → 항상 현재 배치 반영).

@@ -8,7 +8,6 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { PAGE_ENTER_FADE } from '@/components/common/PageTransition';
 import AlertCardList from '@/components/confirm/AlertCardList';
 import ContextCardList from '@/components/confirm/ContextCardList';
-import DayChecklist from '@/components/confirm/DayChecklist';
 import DaySummary from '@/components/confirm/DaySummary';
 import DayTabs from '@/components/confirm/DayTabs';
 import MapCard from '@/components/confirm/MapCard';
@@ -18,7 +17,7 @@ import TripHeroCard from '@/components/confirm/TripHeroCard';
 import Header from '@/components/header/Header';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { useArrangeCardsQuery, useDaysQuery } from '@/hooks/useArrange';
+import { useArrangeCardsQuery, useDaysQuery, useRouteLegsQuery } from '@/hooks/useArrange';
 import { useTripDetailQuery } from '@/hooks/useTripDetail';
 import { cn } from '@/lib/utils';
 import { formatDateRangeLabel, useCalendarStore } from '@/utils/calendar-store';
@@ -48,6 +47,7 @@ const ConfirmPage = () => {
 
   const tripDetailQuery = useTripDetailQuery(tripId);
   const cardsQuery = useArrangeCardsQuery(tripId);
+  const routeLegsQuery = useRouteLegsQuery(tripId);
   const detail = tripDetailQuery.data;
 
   // Day 수 = travel_days(메타 미로딩 시 온보딩 form 폴백).
@@ -63,6 +63,7 @@ const ConfirmPage = () => {
       detail,
       cardsRes: cardsQuery.data,
       dayViewModels: daysQuery.dayViewModels,
+      routeLegs: routeLegsQuery.data?.route_legs ?? [],
       form,
       // formatDateRangeLabel 은 값이 없으면 '-' 를 반환 — 매퍼에서 '기간 미정' 으로 처리되게 빈 문자열로.
       dateRangeFallback: rawFallback === '-' ? '' : rawFallback,
@@ -71,6 +72,7 @@ const ConfirmPage = () => {
     detail,
     cardsQuery.data,
     daysQuery.dayViewModels,
+    routeLegsQuery.data,
     form,
     calType,
     exactDate,
@@ -243,7 +245,6 @@ const ConfirmPage = () => {
                       <div className="grid grid-cols-[minmax(0,1fr)_320px] items-start gap-6">
                         <ContextCardList cards={activeDay.contextCards} />
                         <div className="flex flex-col gap-6">
-                          <DayChecklist items={activeDay.dayChecklist} />
                           <SaveShareCard tripId={tripId} />
                         </div>
                       </div>

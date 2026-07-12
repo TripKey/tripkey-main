@@ -78,9 +78,12 @@ class CardServiceTest {
     @Test
     void getCardsReturnsAlertCardsInCreatedAtAscOrder() {
         UUID tripId = UUID.randomUUID();
-        UUID relatedId = UUID.randomUUID();
+        PlaceCard placedCard = userPlaceCard(tripId);
+        placedCard.onCreate();
+        placedCard.applyDayPlacement(1, 0, (short) 60);
+        UUID relatedId = placedCard.getInstanceId();
         when(tripRepository.existsById(tripId)).thenReturn(true);
-        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of());
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(placedCard));
         when(dumpJobRepository.findFirstByTripIdOrderByCreatedAtDesc(tripId)).thenReturn(Optional.empty());
 
         AlertCard alert = AlertCard.fromAiResponse(
@@ -107,6 +110,27 @@ class CardServiceTest {
         assertThat(response.alertCards().get(0).scope()).isEqualTo("trip");
         assertThat(response.alertCards().get(0).day()).isNull();
         assertThat(response.alertCards().get(0).relatedInstanceIds()).containsExactly(relatedId);
+    }
+
+    @Test
+    void getCardsHidesAlertWhenAllRelatedCardsAreUnplaced() {
+        UUID tripId = UUID.randomUUID();
+        PlaceCard unplacedCard = userPlaceCard(tripId);
+        unplacedCard.onCreate();
+        when(tripRepository.existsById(tripId)).thenReturn(true);
+        when(placeCardRepository.findAllByTripId(tripId)).thenReturn(List.of(unplacedCard));
+        when(dumpJobRepository.findFirstByTripIdOrderByCreatedAtDesc(tripId)).thenReturn(Optional.empty());
+
+        AlertCard alert = AlertCard.fromAiResponse(
+                new AiParseResponse.AlertCard(
+                        "alert-unplaced", "timing_conflict", "practical", "trip", null,
+                        "미배치 카드 알림", List.of(unplacedCard.getInstanceId())),
+                tripId, UUID.randomUUID());
+        when(alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId)).thenReturn(List.of(alert));
+
+        CardsResponse response = cardService.getCards(tripId);
+
+        assertThat(response.alertCards()).isEmpty();
     }
 
     @Test

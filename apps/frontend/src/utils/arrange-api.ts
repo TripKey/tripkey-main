@@ -5,6 +5,7 @@ import type {
   PlacementSaveResponse,
   SuggestedItineraryResponse,
   SuggestedItineraryRequest,
+  RouteLegsResponse,
 } from '../types/arrange-api';
 
 import { apiClient } from './api-client';
@@ -66,6 +67,16 @@ export const suggestItinerary = async (
   const response = await apiClient.post<SuggestedItineraryResponse>(
     API_PATH.SUGGEST_ITINERARY(tripId),
     payload
+  );
+  return response.data;
+};
+
+/** 현재 확정 배치 기준으로 캐시에 저장된 인접 장소 이동 구간을 조회한다. */
+export const fetchRouteLegs = async (
+  tripId: string
+): Promise<RouteLegsResponse> => {
+  const response = await apiClient.get<RouteLegsResponse>(
+    API_PATH.ROUTE_LEGS(tripId)
   );
   return response.data;
 };

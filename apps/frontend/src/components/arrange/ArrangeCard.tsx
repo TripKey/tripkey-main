@@ -47,6 +47,11 @@ const ArrangeCard = ({
   isDragging = false,
   isPlaced = false,
 }: ArrangeCardProps) => {
+  const visibleBadges = isPlaced && !badges.some(
+    (badge) => badge.kind === 'status' && badge.label === '배치됨'
+  )
+    ? [...badges, { kind: 'status' as const, label: '배치됨', tone: 'pending' as const }]
+    : badges;
   const handleDragStart = (event: DragEvent<HTMLButtonElement>) => {
     if (processing) {
       event.preventDefault();
@@ -85,9 +90,9 @@ const ArrangeCard = ({
             <p className="truncate text-sm font-semibold text-foreground">
               {name}
             </p>
-            {badges.length > 0 && (
+            {visibleBadges.length > 0 && (
               <div className="mt-1 flex items-center gap-1.5">
-                {badges.map((badge, index) => (
+                {visibleBadges.map((badge, index) => (
                   <PlaceCardBadge key={index} {...badge} />
                 ))}
               </div>

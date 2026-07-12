@@ -21,6 +21,7 @@ export const API_PATH = {
   VERIFY: (tripId: string) => `/trips/${tripId}/verify`,
   SUGGEST_ITINERARY: (tripId: string) =>
     `/trips/${tripId}/optimize/suggest-itinerary`,
+  ROUTE_LEGS: (tripId: string) => `/trips/${tripId}/route-legs`,
   CONFIRM: (tripId: string) => `/trips/${tripId}/confirm`,
 } as const;
 

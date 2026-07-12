@@ -10,6 +10,7 @@
 
 import { format } from 'date-fns';
 import { ArrowLeft, ArrowRight, Plus, Sparkles } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -148,6 +149,7 @@ const toUpdatedScheduledCard = (
 
 const ArrangePage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const urlTripId = searchParams.get('tripId');
   const storeTripId = useOnboardingStore((s) => s.tripId);
@@ -830,32 +832,6 @@ const ArrangePage = () => {
     }
   };
 
-  // 배치된 카드 중 좌표(지도 위치)가 없는 카드에 대한 안내 경고를 합성한다.
-  // 백엔드 RouteValidator 는 geom 이 null 인 카드를 거리 검증에서 조용히 제외하고
-  // 경고를 내려주지 않으므로(배치 자체는 허용), FE 가 검증 흐름에서 보완 안내한다.
-  const buildMissingLocationWarnings = (): RouteWarning[] => {
-    const noCoordsNames = new Map(
-      (cardsQuery.data?.cards ?? [])
-        .filter((card) => card.coordinates == null)
-        .map((card) => [card.instance_id, card.name])
-    );
-    const warnings: RouteWarning[] = [];
-    days.forEach((day, index) => {
-      day.cards.forEach((card) => {
-        if (!noCoordsNames.has(card.id)) return;
-        warnings.push({
-          type: 'missing_location',
-          day: index + 1,
-          instance_ids: [card.id],
-          message: `'${noCoordsNames.get(card.id) ?? card.name}' 카드는 위치 정보가 없어 거리 검증에서 제외됐어요. 정확한 장소를 확인해 주세요.`,
-          distance_meters: null,
-          total_minutes: null,
-        });
-      });
-    });
-    return warnings;
-  };
-
   // 일정 확정 — POST /confirm. 성공 시 확정 상태로 전환.
   const handleConfirm = async () => {
     if (!tripId) return;
@@ -867,9 +843,13 @@ const ArrangePage = () => {
       );
       setRouteWarnings([
         ...result.route_warnings,
-        ...buildMissingLocationWarnings(),
       ]);
       setConfirmed(true);
+      // 배치 화면과 확정 화면이 같은 arrange query key를 사용하므로,
+      // confirm 저장 직후 서버의 day/day_order를 다시 받아 stale 보드 진입을 막는다.
+      await queryClient.invalidateQueries({
+        queryKey: ['arrange', tripId],
+      });
       navigate(`/confirm${tripId ? `?tripId=${tripId}` : ''}`, {
         state: { notice: '일정이 확정되었습니다.' },
       });

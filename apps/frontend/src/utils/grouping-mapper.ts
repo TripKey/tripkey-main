@@ -339,9 +339,8 @@ export const mapToGroupingViewModel = (
   return {
     heading: {
       title: '정보 정리하기',
-      subtitle:
-        options?.contextSummary ??
-        '카드별로 확인/수정/선택을 진행해 일정을 정리하세요',
+      // contextSummary는 최초 파싱 이후 카드별 수정 내용을 반영하지 못하므로 헤딩에 쓰지 않는다.
+      subtitle: '카드별로 필요한 정보를 확인하고 수정해 여행 준비를 정리하세요.',
     },
     progress: { percent, activeCount, doneCount },
     groups: actionGroups,

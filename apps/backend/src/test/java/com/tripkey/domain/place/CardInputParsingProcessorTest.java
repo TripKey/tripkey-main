@@ -1,11 +1,14 @@
 package com.tripkey.domain.place;
 
+import com.tripkey.domain.alert.AlertCard;
+import com.tripkey.domain.alert.AlertCardRepository;
 import com.tripkey.domain.trip.Trip;
 import com.tripkey.domain.trip.TripDestinationRepository;
 import com.tripkey.domain.trip.TripRepository;
 import com.tripkey.infra.aiengine.AiEngineClient;
 import com.tripkey.infra.aiengine.dto.AiCardParseRequest;
 import com.tripkey.infra.aiengine.dto.AiPlaceCardDto;
+import com.tripkey.infra.aiengine.dto.AiParseResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -35,6 +38,9 @@ class CardInputParsingProcessorTest {
     private PlaceCardRepository placeCardRepository;
 
     @Mock
+    private AlertCardRepository alertCardRepository;
+
+    @Mock
     private AiEngineClient aiEngineClient;
 
     @InjectMocks
@@ -51,6 +57,13 @@ class CardInputParsingProcessorTest {
         when(tripRepository.findById(tripId)).thenReturn(Optional.of(trip));
         when(tripDestinationRepository.findByTripTripIdOrderBySortOrder(tripId)).thenReturn(List.of());
         when(aiEngineClient.parseCard(any(AiCardParseRequest.class))).thenReturn(parsedCard());
+        AlertCard staleAlert = AlertCard.fromAiResponse(
+                new AiParseResponse.AlertCard(
+                        "stale", "missing_detail", "practical", "trip", null,
+                        "장소 확인 필요", List.of(instanceId)),
+                tripId, UUID.randomUUID());
+        when(alertCardRepository.findAllByTripIdOrderByCreatedAtAsc(tripId))
+                .thenReturn(List.of(staleAlert));
 
         processor.parseAndEnrich(tripId, instanceId, "도톤보리 글리코 사인으로 가자");
 
@@ -65,6 +78,7 @@ class CardInputParsingProcessorTest {
         assertThat(card.getAddress()).isEqualTo("1 Chome Dotonbori, Osaka");
         assertThat(card.getSearchAlias()).isEqualTo("Dotonbori Glico Sign");
         verify(placeCardRepository).save(card);
+        verify(alertCardRepository).deleteAll(List.of(staleAlert));
     }
 
     @Test

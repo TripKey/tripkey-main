@@ -94,6 +94,10 @@ export type RouteLeg = {
   source: string | null;
 };
 
+export type RouteLegsResponse = {
+  route_legs: RouteLeg[];
+};
+
 export type PlacementSaveResponse = {
   saved: boolean;
   trip_id: string;
