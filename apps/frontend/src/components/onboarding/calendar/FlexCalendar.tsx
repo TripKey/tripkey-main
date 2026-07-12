@@ -1,7 +1,7 @@
 import './FlexCalendar.css';
 import { useEffect, useState } from 'react';
 
-import { useCalendarStore } from '@/utils/calendar-store';
+import { MAX_TRIP_NIGHTS, useCalendarStore } from '@/utils/calendar-store';
 import { useOnboardingStore } from '@/utils/onboarding-store';
 
 const FlexCalendar = () => {
@@ -21,7 +21,7 @@ const FlexCalendar = () => {
 
   const durationOptions = [1, 2, 3, 4];
   const MIN_NIGHTS = 1;
-  const MAX_NIGHTS = 30;
+  const MAX_NIGHTS = MAX_TRIP_NIGHTS;
 
   const [showCustom, setShowCustom] = useState(
     flexDate?.nights != null && !durationOptions.includes(flexDate.nights)
@@ -67,7 +67,7 @@ const FlexCalendar = () => {
   const handleCustomToggle = () => {
     setShowCustom(true);
     if (durationNights === null || durationOptions.includes(durationNights)) {
-      handleDurationClick(8);
+      handleDurationClick(5);
     }
   };
 
