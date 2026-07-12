@@ -29,6 +29,12 @@ import type { ChatIntent } from '@/types/chat-api';
 import type { PlaceCardViewModel, PlaceCategory } from '@/types/grouping';
 import type { Card, CardCategory } from '@/types/grouping-api';
 import { chatErrorMessage, parseChat, saveChatCards } from '@/utils/chat-api';
+import {
+  CHAT_CONSTRAINT_OPTIONS,
+  CHAT_INTEREST_OPTIONS,
+  chatContextLabel,
+} from '@/utils/chat-context';
+import type { ChatContextOption } from '@/utils/chat-context';
 import { fetchCards, patchCard } from '@/utils/grouping-api';
 import { useOnboardingStore } from '@/utils/onboarding-store';
 import { tripDateRangeLabel } from '@/utils/trip-meta';
@@ -57,36 +63,6 @@ const SUGGESTIONS = [
   { label: '쇼핑할 곳 더 찾아줘', icon: ShoppingBag },
 ];
 
-type ContextOption = { value: string; label: string };
-
-const INTEREST_OPTIONS: ContextOption[] = [
-  { value: 'food', label: '맛집' },
-  { value: 'cafe', label: '카페' },
-  { value: 'shopping', label: '쇼핑' },
-  { value: 'landmark', label: '관광지' },
-  { value: 'culture_art', label: '문화·예술' },
-  { value: 'history', label: '역사' },
-  { value: 'nature', label: '자연' },
-  { value: 'activity', label: '액티비티' },
-  { value: 'night_view', label: '야경' },
-  { value: 'local_experience', label: '로컬 체험' },
-  { value: 'photography', label: '사진' },
-  { value: 'relaxation', label: '휴식' },
-];
-
-const CONSTRAINT_OPTIONS: ContextOption[] = [
-  { value: 'low_walking', label: '적게 걷기' },
-  { value: 'rainy_day_option', label: '우천 대비' },
-  { value: 'relaxed_pace', label: '느긋한 일정' },
-  { value: 'with_children', label: '아이 동반' },
-  { value: 'with_parents', label: '부모님 동반' },
-  { value: 'wheelchair_accessible', label: '휠체어 접근' },
-  { value: 'indoor_focused', label: '실내 중심' },
-  { value: 'public_transit', label: '대중교통 중심' },
-  { value: 'budget_friendly', label: '저예산' },
-  { value: 'late_hours', label: '늦은 시간 가능' },
-];
-
 const INITIAL_INTERESTS = ['food', 'shopping'];
 const INITIAL_CONSTRAINTS = ['low_walking'];
 
@@ -107,9 +83,6 @@ const CATEGORY_LABELS: Record<CardCategory, string> = {
   food: '맛집',
   etc: '기타',
 };
-
-const contextLabel = (value: string, options: ContextOption[]) =>
-  options.find((option) => option.value === value)?.label ?? value;
 
 const formatDuration = (minutes: number | null): string | undefined => {
   if (minutes == null || minutes < 0) return undefined;
@@ -268,7 +241,7 @@ const ChatPrototypePage = () => {
   }: {
     value: string;
     items: string[];
-    options: ContextOption[];
+    options: ChatContextOption[];
     setItems: Dispatch<SetStateAction<string[]>>;
   }) => {
     const inputValue = value.trim();
@@ -463,14 +436,14 @@ const ChatPrototypePage = () => {
             <ContextSection
               title="관심사"
               items={interests}
-              options={INTEREST_OPTIONS}
+              options={CHAT_INTEREST_OPTIONS}
               allowCustom
               emptyLabel="아직 등록된 관심사가 없어요"
               onAdd={(item) =>
                 addContextItem({
                   value: item,
                   items: interests,
-                  options: INTEREST_OPTIONS,
+                  options: CHAT_INTEREST_OPTIONS,
                   setItems: setInterests,
                 })
               }
@@ -483,13 +456,13 @@ const ChatPrototypePage = () => {
             <ContextSection
               title="여행 조건"
               items={constraints}
-              options={CONSTRAINT_OPTIONS}
+              options={CHAT_CONSTRAINT_OPTIONS}
               emptyLabel="아직 등록된 조건이 없어요"
               onAdd={(item) =>
                 addContextItem({
                   value: item,
                   items: constraints,
-                  options: CONSTRAINT_OPTIONS,
+                  options: CHAT_CONSTRAINT_OPTIONS,
                   setItems: setConstraints,
                 })
               }
@@ -674,7 +647,7 @@ const ContextSection = ({
 }: {
   title: string;
   items: string[];
-  options: ContextOption[];
+  options: ChatContextOption[];
   allowCustom?: boolean;
   emptyLabel: string;
   onAdd: (item: string) => boolean;
@@ -782,12 +755,12 @@ const ContextSection = ({
               key={item}
               className="inline-flex items-center gap-1 rounded-full bg-primary/8 py-1.5 pl-3 pr-1.5 text-xs font-medium text-primary"
             >
-              {contextLabel(item, options)}
+              {chatContextLabel(item, options)}
               <button
                 type="button"
                 onClick={() => onRemove(item)}
                 className="rounded-full p-0.5 hover:bg-primary/10"
-                aria-label={`${contextLabel(item, options)} 삭제`}
+                aria-label={`${chatContextLabel(item, options)} 삭제`}
               >
                 <X className="size-3" aria-hidden="true" />
               </button>

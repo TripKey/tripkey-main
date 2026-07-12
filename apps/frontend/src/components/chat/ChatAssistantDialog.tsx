@@ -31,6 +31,12 @@ import type {
 } from '@/types/chat-api';
 import type { Card, CardCategory } from '@/types/grouping-api';
 import { chatErrorMessage, parseChat, saveChatCards } from '@/utils/chat-api';
+import {
+  CHAT_CONSTRAINT_OPTIONS,
+  CHAT_INTEREST_OPTIONS,
+  chatContextLabel,
+} from '@/utils/chat-context';
+import type { ChatContextOption } from '@/utils/chat-context';
 
 type ChatMessage = {
   id: string;
@@ -371,8 +377,16 @@ const ChatAssistantDialog = ({
                   </p>
                 </div>
               )}
-              <ContextSummary title="관심사" items={interests} />
-              <ContextSummary title="여행 조건" items={constraints} />
+              <ContextSummary
+                title="관심사"
+                items={interests}
+                options={CHAT_INTEREST_OPTIONS}
+              />
+              <ContextSummary
+                title="여행 조건"
+                items={constraints}
+                options={CHAT_CONSTRAINT_OPTIONS}
+              />
             </div>
             <div className="border-t p-4">
               <Button
@@ -543,9 +557,11 @@ const LocationLine = ({ card }: { card: ChatSuggestedCardPayload }) => {
 const ContextSummary = ({
   title,
   items,
+  options,
 }: {
   title: string;
   items: string[];
+  options: ChatContextOption[];
 }) => (
   <section className="mt-4 border-t pt-4">
     <div className="flex items-center justify-between">
@@ -556,7 +572,7 @@ const ContextSummary = ({
       {items.length > 0 ? (
         items.map((item) => (
           <Badge key={item} variant="secondary" className="font-normal">
-            {item}
+            {chatContextLabel(item, options)}
           </Badge>
         ))
       ) : (
