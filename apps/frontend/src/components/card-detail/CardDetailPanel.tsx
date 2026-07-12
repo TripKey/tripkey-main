@@ -45,6 +45,8 @@ export type CommonCardDetailViewModel = {
   memo?: string;
   question?: string;
   choices?: string[];
+  /** 질문 선택지를 Google Maps에서 검색할 때 함께 사용할 여행지 문맥. */
+  choiceMapContext?: string;
   selectedChoices?: string[];
   answer?: string;
   canResolveByNotes?: boolean;
@@ -457,6 +459,7 @@ const CardDetailBody = ({
           <QuestionInputSection
             question={detail.question!}
             choices={detail.choices ?? []}
+            mapContext={detail.choiceMapContext}
             selectedChoices={selectedChoices}
             onToggleChoice={toggleChoice}
             answer={answer}
@@ -533,6 +536,7 @@ const CardDetailBody = ({
 const QuestionInputSection = ({
   question,
   choices,
+  mapContext,
   selectedChoices,
   onToggleChoice,
   answer,
@@ -541,6 +545,7 @@ const QuestionInputSection = ({
 }: {
   question: string;
   choices: string[];
+  mapContext?: string;
   selectedChoices: string[];
   onToggleChoice: (choice: string) => void;
   answer: string;
@@ -565,22 +570,34 @@ const QuestionInputSection = ({
       <div className="mt-3 flex flex-wrap gap-2 pl-10.5">
         {choices.map((choice) => {
           const active = selectedChoices.includes(choice);
+          const mapUrl = googleMapsSearchUrl(choice, mapContext);
           return (
-            <button
-              key={choice}
-              type="button"
-              aria-pressed={active}
-              disabled={disabled}
-              onClick={() => onToggleChoice(choice)}
-              className={cn(
-                'rounded-full border px-3.5 py-1.5 text-sm transition-colors disabled:opacity-50',
-                active
-                  ? 'border-primary/40 bg-primary/10 font-medium text-primary dark:border-primary/40 dark:bg-primary/20 dark:text-primary'
-                  : 'border-input bg-background text-foreground hover:border-muted-foreground/30 hover:bg-muted/50'
-              )}
-            >
-              {choice}
-            </button>
+            <div key={choice} className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-pressed={active}
+                disabled={disabled}
+                onClick={() => onToggleChoice(choice)}
+                className={cn(
+                  'rounded-full border px-3.5 py-1.5 text-sm transition-colors disabled:opacity-50',
+                  active
+                    ? 'border-primary/40 bg-primary/10 font-medium text-primary dark:border-primary/40 dark:bg-primary/20 dark:text-primary'
+                    : 'border-input bg-background text-foreground hover:border-muted-foreground/30 hover:bg-muted/50'
+                )}
+              >
+                {choice}
+              </button>
+              <a
+                href={mapUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`${choice} Google 지도에서 보기`}
+                title="Google 지도에서 보기"
+                className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <ExternalLink className="size-3.5" aria-hidden="true" />
+              </a>
+            </div>
           );
         })}
       </div>
@@ -597,6 +614,12 @@ const QuestionInputSection = ({
     </div>
   </section>
 );
+
+const googleMapsSearchUrl = (choice: string, context?: string) => {
+  const query = [choice, context].filter(Boolean).join(' ');
+  const params = new URLSearchParams({ api: '1', query });
+  return `https://www.google.com/maps/search/?${params.toString()}`;
+};
 
 const googleMapsPlaceUrl = ({
   name,
@@ -615,8 +638,7 @@ const googleMapsPlaceUrl = ({
   const params = new URLSearchParams({
     api: '1',
     query:
-      query ||
-      (coordinates ? `${coordinates.lat},${coordinates.lng}` : name),
+      query || (coordinates ? `${coordinates.lat},${coordinates.lng}` : name),
   });
   if (placeId) params.set('query_place_id', placeId);
   return `https://www.google.com/maps/search/?${params.toString()}`;
