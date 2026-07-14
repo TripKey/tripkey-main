@@ -77,6 +77,12 @@ def build_core_parse_prompt(req: ParseRequest) -> str:
 - When the user asks for broad recommendations without a subtype, create one undecided ready_partial card that asks the user to choose a subtype/preference first.
   - Pattern: "음식점 추천" → one food card with options like ["스시", "라멘", "오코노미야키", "카페"], not restaurant venues yet.
   - Pattern: "관광지 추천" → one place card with options like ["랜드마크", "사찰/신사", "전망/야경", "쇼핑거리"], not attraction venues yet.
+- When the user provides an abstract whole-trip style such as "휴양", "힐링", "여유롭게", or "쉬는 여행"
+  together with a trip duration, treat it as a request for an initial itinerary rather than a subtype-selection question.
+  Generate exactly travel_days distinct, concrete, real venue cards that fit that style and destination, up to 7 cards.
+  Keep the set varied (for example a spa/onsen, a quiet park or garden, a relaxed cafe, and a low-intensity cultural venue)
+  without creating generic style/category cards. Every generated card must be a place that Google Places can resolve.
+  - Pattern: "도쿄 3박 4일 휴양을 하고 싶어요" with travel_days=4 → four concrete Tokyo venue cards, not one "휴양" card.
 - When the user asks for recommendations for a specific type, cuisine, neighborhood, mood, or activity in dump_text, create one undecided card for that requested type and provide 2~4 concrete venue/place options.
   - Pattern: "{{destination}} {{requested_type}} 추천" where requested_type is specific → one undecided card named "{{requested_type}}" with concrete venue options.
   - Pattern: "{{cuisine_or_food}} 맛집 아직 못 정했어" → one undecided food card named "{{cuisine_or_food}} 맛집" with concrete restaurant options.
@@ -84,7 +90,8 @@ def build_core_parse_prompt(req: ParseRequest) -> str:
 - Only generate is_ai_generated: true recommendation cards when:
   - the user asks for general recommendations without a specific type or category, or
   - the dump only contains destination-level context with no specific places at all.
-- Even then, generate at most 3 recommendation cards.
+- Even then, generate at most 3 recommendation cards, except whole-trip style requests with an explicit duration;
+  for those, generate min(travel_days, 7) concrete recommendation cards as described above.
 - Do not create generic category cards such as "{{destination}} restaurants", "{{destination}} attractions",
   "{{destination}} activities", "{{destination}} shopping", "{{destination}} cafes", or "{{destination}} nightlife" as open_question.
 - If a generated recommendation card is not a concrete venue/place, classify it as undecided:

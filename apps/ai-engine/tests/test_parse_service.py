@@ -192,6 +192,9 @@ def test_core_parse_prompt_requires_destination_aware_responses() -> None:
     assert "broad recommendation cards" in prompt
     assert "subcategories/preferences" in prompt
     assert "Do not mix subcategory options and venue options" in prompt
+    assert '"도쿄 3박 4일 휴양을 하고 싶어요"' in prompt
+    assert "Generate exactly travel_days distinct, concrete, real venue cards" in prompt
+    assert "four concrete Tokyo venue cards" in prompt
     assert "must explain what is currently missing" in prompt
     assert "what kind of answer the user can provide" in prompt
 
