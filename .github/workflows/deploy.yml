@@ -44,10 +44,12 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ steps.image-meta.outputs.image-tag }}
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY || secrets.VITE_GOOGLE_MAPS_KEY }}
+          VITE_PUBLIC_POSTHOG_KEY: ${{ secrets.VITE_PUBLIC_POSTHOG_KEY }}
         run: |
           docker build \
             --build-arg VITE_API_BASE_URL=/api \
             --build-arg VITE_GOOGLE_MAPS_API_KEY="$VITE_GOOGLE_MAPS_API_KEY" \
+            --build-arg VITE_PUBLIC_POSTHOG_KEY="$VITE_PUBLIC_POSTHOG_KEY" \
             -t "$ECR_REGISTRY/tripkey-frontend:$IMAGE_TAG" \
             -t "$ECR_REGISTRY/tripkey-frontend:latest" \
             apps/frontend
