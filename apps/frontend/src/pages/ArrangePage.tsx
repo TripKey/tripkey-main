@@ -8,9 +8,9 @@
 //  - "동선 검증하기" = POST /verify, "일정 확정하기" = POST /confirm 로 전체 배치 스냅샷을 전송한다.
 //    (백엔드에 카드별 day 저장 API 가 없어 스냅샷 일괄 전송만 가능)
 
+import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ArrowLeft, ArrowRight, Plus, Sparkles } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -48,7 +48,10 @@ import type {
   DayColumnViewModel,
   ScheduledCardViewModel,
 } from '@/types/arrange';
-import type { RouteWarning, SuggestedItineraryRequest } from '@/types/arrange-api';
+import type {
+  RouteWarning,
+  SuggestedItineraryRequest,
+} from '@/types/arrange-api';
 import type { Card, CardPatchRequest } from '@/types/grouping-api';
 import type { ArrangeDragPayload } from '@/utils/arrange-dnd';
 
@@ -253,7 +256,8 @@ const ArrangePage = () => {
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [suggestionDialogOpen, setSuggestionDialogOpen] = useState(false);
-  const [travelStyle, setTravelStyle] = useState<SuggestedItineraryRequest['travel_style']>('BALANCED');
+  const [travelStyle, setTravelStyle] =
+    useState<SuggestedItineraryRequest['travel_style']>('BALANCED');
   const [pace, setPace] = useState<SuggestedItineraryRequest['pace']>('NORMAL');
 
   // 진행 중인 재처리 폴링 취소 핸들. 카드 전환/언마운트 시 정리한다.
@@ -798,29 +802,38 @@ const ArrangePage = () => {
         pace,
       });
       const cardsById = new Map<string, ScheduledCardViewModel>();
-      groups.flatMap((group) => group.cards).forEach((card) =>
-        cardsById.set(card.id, toScheduledCard(card))
-      );
-      days.flatMap((day) => day.cards).forEach((card) => cardsById.set(card.id, card));
+      groups
+        .flatMap((group) => group.cards)
+        .forEach((card) => cardsById.set(card.id, toScheduledCard(card)));
+      days
+        .flatMap((day) => day.cards)
+        .forEach((card) => cardsById.set(card.id, card));
 
-      setDays((previous) => previous.map((day, index) => {
-        const suggestedDay = suggestion.days.find((item) => item.day === index + 1);
-        const fixedCards = day.cards.filter((card) => card.fixedTime);
-        if (!suggestedDay) return { ...day, cards: fixedCards };
-        const fixedIds = new Set(fixedCards.map((card) => card.id));
-        const suggestedCards = suggestedDay.ordered_instance_ids
-          .filter((id) => !fixedIds.has(id))
-          .map((id) => cardsById.get(id))
-          .filter((card): card is ScheduledCardViewModel => card != null);
-        return {
-          ...day,
-          cards: [...fixedCards, ...suggestedCards],
-        };
-      }));
+      setDays((previous) =>
+        previous.map((day, index) => {
+          const suggestedDay = suggestion.days.find(
+            (item) => item.day === index + 1
+          );
+          const fixedCards = day.cards.filter((card) => card.fixedTime);
+          if (!suggestedDay) return { ...day, cards: fixedCards };
+          const fixedIds = new Set(fixedCards.map((card) => card.id));
+          const suggestedCards = suggestedDay.ordered_instance_ids
+            .filter((id) => !fixedIds.has(id))
+            .map((id) => cardsById.get(id))
+            .filter((card): card is ScheduledCardViewModel => card != null);
+          return {
+            ...day,
+            cards: [...fixedCards, ...suggestedCards],
+          };
+        })
+      );
       setRouteWarnings(null);
       setConfirmed(false);
       setSuggestionDialogOpen(false);
-      const placed = suggestion.days.reduce((sum, day) => sum + day.ordered_instance_ids.length, 0);
+      const placed = suggestion.days.reduce(
+        (sum, day) => sum + day.ordered_instance_ids.length,
+        0
+      );
       const unplaced = suggestion.unplaced_cards.length;
       setNotice(
         unplaced > 0
@@ -841,9 +854,7 @@ const ArrangePage = () => {
       const result = await confirmMutation.mutateAsync(
         buildPlacementRequest(days, durationByInstance)
       );
-      setRouteWarnings([
-        ...result.route_warnings,
-      ]);
+      setRouteWarnings([...result.route_warnings]);
       setConfirmed(true);
       // 배치 화면과 확정 화면이 같은 arrange query key를 사용하므로,
       // confirm 저장 직후 서버의 day/day_order를 다시 받아 stale 보드 진입을 막는다.
@@ -1060,28 +1071,46 @@ const ArrangePage = () => {
         </div>
       </footer>
 
-      <Dialog open={suggestionDialogOpen} onOpenChange={setSuggestionDialogOpen}>
+      <Dialog
+        open={suggestionDialogOpen}
+        onOpenChange={setSuggestionDialogOpen}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>여행 초안을 만들어볼까요?</DialogTitle>
             <DialogDescription>
-              가까운 장소와 선택한 일정 밀도를 기준으로 Day별로 나눠드려요. 만든 뒤 자유롭게 옮길 수 있어요.
+              가까운 장소와 선택한 일정 밀도를 기준으로 Day별로 나눠드려요. 만든
+              뒤 자유롭게 옮길 수 있어요.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-2">
             <fieldset>
-              <legend className="mb-3 text-sm font-semibold">여행 스타일</legend>
+              <legend className="mb-3 text-sm font-semibold">
+                여행 스타일
+              </legend>
               <div className="grid grid-cols-3 gap-2">
-                {([
-                  ['BALANCED', '균형 있게', '맛집과 관광을 고르게'],
-                  ['SIGHTSEEING', '관광 중심', '장소를 더 많이'],
-                  ['FOOD', '맛집 중심', '먹는 즐거움을 더'],
-                ] as const).map(([value, label, description]) => (
-                  <button key={value} type="button" onClick={() => setTravelStyle(value)}
-                    className={cn('rounded-xl border px-3 py-3 text-left transition-colors',
-                      travelStyle === value ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted')}>
+                {(
+                  [
+                    ['BALANCED', '균형 있게', '맛집과 관광을 고르게'],
+                    ['SIGHTSEEING', '관광 중심', '장소를 더 많이'],
+                    ['FOOD', '맛집 중심', '먹는 즐거움을 더'],
+                  ] as const
+                ).map(([value, label, description]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTravelStyle(value)}
+                    className={cn(
+                      'rounded-xl border px-3 py-3 text-left transition-colors',
+                      travelStyle === value
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:bg-muted'
+                    )}
+                  >
                     <span className="block text-sm font-semibold">{label}</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">{description}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {description}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -1089,25 +1118,42 @@ const ArrangePage = () => {
             <fieldset>
               <legend className="mb-3 text-sm font-semibold">일정 밀도</legend>
               <div className="grid grid-cols-3 gap-2">
-                {([
-                  ['RELAXED', '여유롭게', '하루 3~4곳'],
-                  ['NORMAL', '보통', '하루 4~6곳'],
-                  ['PACKED', '알차게', '하루 6~8곳'],
-                ] as const).map(([value, label, description]) => (
-                  <button key={value} type="button" onClick={() => setPace(value)}
-                    className={cn('rounded-xl border px-3 py-3 text-left transition-colors',
-                      pace === value ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted')}>
+                {(
+                  [
+                    ['RELAXED', '여유롭게', '하루 3~4곳'],
+                    ['NORMAL', '보통', '하루 4~6곳'],
+                    ['PACKED', '알차게', '하루 6~8곳'],
+                  ] as const
+                ).map(([value, label, description]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPace(value)}
+                    className={cn(
+                      'rounded-xl border px-3 py-3 text-left transition-colors',
+                      pace === value
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:bg-muted'
+                    )}
+                  >
                     <span className="block text-sm font-semibold">{label}</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">{description}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {description}
+                    </span>
                   </button>
                 ))}
               </div>
             </fieldset>
           </div>
           <DialogFooter>
-            <Button onClick={handleSuggestItinerary} disabled={suggestedItineraryMutation.isPending}>
+            <Button
+              onClick={handleSuggestItinerary}
+              disabled={suggestedItineraryMutation.isPending}
+            >
               <Sparkles aria-hidden="true" />
-              {suggestedItineraryMutation.isPending ? '초안 만드는 중…' : '초안 만들기'}
+              {suggestedItineraryMutation.isPending
+                ? '초안 만드는 중…'
+                : '초안 만들기'}
             </Button>
           </DialogFooter>
         </DialogContent>
