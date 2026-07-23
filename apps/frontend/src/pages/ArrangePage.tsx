@@ -11,6 +11,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ArrowLeft, ArrowRight, Plus, Sparkles } from 'lucide-react';
+import posthog from 'posthog-js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -856,6 +857,7 @@ const ArrangePage = () => {
       );
       setRouteWarnings([...result.route_warnings]);
       setConfirmed(true);
+      posthog.capture('arrange_confirmed');
       // 배치 화면과 확정 화면이 같은 arrange query key를 사용하므로,
       // confirm 저장 직후 서버의 day/day_order를 다시 받아 stale 보드 진입을 막는다.
       await queryClient.invalidateQueries({

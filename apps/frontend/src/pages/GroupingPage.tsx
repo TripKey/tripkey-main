@@ -1,6 +1,7 @@
 // GroupingPage (SCR-03 그룹화 '정보 정리하기' 페이지)
 
 import { Plus } from 'lucide-react';
+import posthog from 'posthog-js';
 import {
   useCallback,
   useEffect,
@@ -782,9 +783,10 @@ const GroupingPage = () => {
                   bare
                   hideProgress
                   nextDisabled={nextDisabled}
-                  onNext={() =>
-                    navigate(tripId ? `/arrange?tripId=${tripId}` : '/arrange')
-                  }
+                  onNext={() => {
+                    posthog.capture('grouping_completed');
+                    navigate(tripId ? `/arrange?tripId=${tripId}` : '/arrange');
+                  }}
                   onPrev={handlePrev}
                 />
               </aside>

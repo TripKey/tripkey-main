@@ -4,6 +4,7 @@
 // 저장하기: 아직 준비 중 — 프로필 버튼과 동일하게 Tooltip 안내만.
 
 import { Download, Share2 } from 'lucide-react';
+import posthog from 'posthog-js';
 import { useState } from 'react';
 
 import {
@@ -21,6 +22,7 @@ const SaveShareCard = ({ tripId }: SaveShareCardProps) => {
 
   const handleShare = async () => {
     if (!tripId) return;
+    posthog.capture('trip_shared');
 
     // shared=1 : 공유 링크로 들어온 방문자는 확정 화면만 읽기 전용으로 보게 한다.
     const shareUrl = `${window.location.origin}/confirm?tripId=${tripId}&shared=1`;
