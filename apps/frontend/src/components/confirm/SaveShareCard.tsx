@@ -22,7 +22,7 @@ const SaveShareCard = ({ tripId }: SaveShareCardProps) => {
 
   const handleShare = async () => {
     if (!tripId) return;
-    posthog.capture('trip_shared');
+    posthog.capture('trip_share_attempted', { trip_id: tripId });
 
     // shared=1 : 공유 링크로 들어온 방문자는 확정 화면만 읽기 전용으로 보게 한다.
     const shareUrl = `${window.location.origin}/confirm?tripId=${tripId}&shared=1`;

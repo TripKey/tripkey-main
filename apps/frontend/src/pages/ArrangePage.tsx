@@ -857,7 +857,7 @@ const ArrangePage = () => {
       );
       setRouteWarnings([...result.route_warnings]);
       setConfirmed(true);
-      posthog.capture('arrange_confirmed');
+      posthog.capture('itinerary_confirm_succeeded', { trip_id: tripId });
       // 배치 화면과 확정 화면이 같은 arrange query key를 사용하므로,
       // confirm 저장 직후 서버의 day/day_order를 다시 받아 stale 보드 진입을 막는다.
       await queryClient.invalidateQueries({

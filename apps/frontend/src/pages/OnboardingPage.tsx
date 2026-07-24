@@ -75,7 +75,8 @@ const OnboardingPage = () => {
   const handleNext = async () => {
     const success = await submitOnboarding();
     if (success) {
-      posthog.capture('onboarding_completed');
+      const tripId = useOnboardingStore.getState().tripId;
+      posthog.capture('onboarding_completed', { trip_id: tripId });
       navigate('/dump');
     }
   };

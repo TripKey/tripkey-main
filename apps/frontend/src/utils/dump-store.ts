@@ -194,7 +194,7 @@ export const useDumpStore = create<DumpStore>()(
               ...(accommodation_inputs.length && { accommodation_inputs }),
             });
             set({ requestStatus: 'success', jobId: response.job_id });
-            posthog.capture('dump_submitted');
+            posthog.capture('dump_submitted', { trip_id: tripId });
             return true;
           } catch (error) {
             set({

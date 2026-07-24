@@ -784,7 +784,7 @@ const GroupingPage = () => {
                   hideProgress
                   nextDisabled={nextDisabled}
                   onNext={() => {
-                    posthog.capture('grouping_completed');
+                    posthog.capture('grouping_completed', { trip_id: tripId });
                     navigate(tripId ? `/arrange?tripId=${tripId}` : '/arrange');
                   }}
                   onPrev={handlePrev}
