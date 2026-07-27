@@ -2,7 +2,8 @@
 // 이 화면은 GET /trips·/cards·/days 를 조합해 확정 결과를 점검용으로 보여준다.
 // tripId 는 URL(?tripId=) → 온보딩 스토어 순으로 취득(진입 가드는 RequireTrip 위임).
 
-import { useMemo, useState } from 'react';
+import posthog from 'posthog-js';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { PAGE_ENTER_FADE } from '@/components/common/PageTransition';
@@ -17,7 +18,11 @@ import TripHeroCard from '@/components/confirm/TripHeroCard';
 import Header from '@/components/header/Header';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { useArrangeCardsQuery, useDaysQuery, useRouteLegsQuery } from '@/hooks/useArrange';
+import {
+  useArrangeCardsQuery,
+  useDaysQuery,
+  useRouteLegsQuery,
+} from '@/hooks/useArrange';
 import { useTripDetailQuery } from '@/hooks/useTripDetail';
 import { cn } from '@/lib/utils';
 import { formatDateRangeLabel, useCalendarStore } from '@/utils/calendar-store';
@@ -77,6 +82,33 @@ const ConfirmPage = () => {
     calType,
     exactDate,
     flexDate,
+  ]);
+
+  const hasCapturedView = useRef(false);
+
+  useEffect(() => {
+    if (hasCapturedView.current) return; // 이미 보냈으면 끝
+    // 일정 데이터가 모두 로드된 뒤에만 '정상 도달'로 기록한다.
+    if (!detail || !cardsQuery.data || !daysQuery.isLoaded) return;
+
+    hasCapturedView.current = true; // 이후 재실행 차단
+    const entryMethod = (location.state as { notice?: string } | null)?.notice
+      ? 'owner_flow'
+      : isShared
+        ? 'shared_link'
+        : 'revisit';
+
+    posthog.capture('confirm_page_viewed', {
+      trip_id: tripId,
+      entry_method: entryMethod,
+    });
+  }, [
+    detail,
+    cardsQuery.data,
+    daysQuery.isLoaded,
+    isShared,
+    tripId,
+    location.state,
   ]);
 
   const { summary, hero, tripChecklist, alertCards, days } = viewModel;

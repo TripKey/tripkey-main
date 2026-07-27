@@ -1,4 +1,5 @@
 import { Calendar, MapPin, Minus, Plus, User } from 'lucide-react';
+import posthog from 'posthog-js';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -73,7 +74,11 @@ const OnboardingPage = () => {
 
   const handleNext = async () => {
     const success = await submitOnboarding();
-    if (success) navigate('/dump');
+    if (success) {
+      const tripId = useOnboardingStore.getState().tripId;
+      posthog.capture('onboarding_completed', { trip_id: tripId });
+      navigate('/dump');
+    }
   };
 
   const changeTravelers = (delta: number) =>
