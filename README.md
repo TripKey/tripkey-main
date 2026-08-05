@@ -16,14 +16,15 @@ TripKey는 이 단절을 없앱니다.
 
 | 레이어 | 기술 |
 |---|---|
-| Frontend | React, Vite |
-| Backend | Java, Spring Boot |
-| AI Engine | Python, FastAPI |
+| Frontend | React 19, Vite, React Router, React Query |
+| Backend | Java 21, Spring Boot 3.5, Spring Data JPA |
+| AI Engine | Python 3.11, FastAPI |
 | LLM | Gemini 2.5 Flash |
-| Maps | Google Maps API (Places, Directions) |
-| Database | Supabase (PostgreSQL) |
-| 배포 | AWS |
-| 인프라 | Docker, docker-compose |
+| Maps | Google Maps API (Places, Routes/Directions) |
+| Database | Supabase PostgreSQL + PostGIS |
+| Queue | AWS SQS / LocalStack(dev) |
+| 배포 | AWS, Docker, Kubernetes manifests |
+| 인프라 | Docker Compose, nginx, k8s |
 
 ---
 
@@ -38,8 +39,8 @@ tripkey-main/
 │   ├── frontend/          # React + Vite
 │   ├── backend/           # Java Spring Boot
 │   └── ai-engine/         # Python FastAPI
-├── infra/                 # Docker, AWS 배포 설정
-├── shared/                # 공통 타입 정의, 상수 등
+├── infra/                 # 배포 스크립트, Docker, k8s 설정
+├── shared/                # DB schema/migration, 제품/기술 문서
 ├── .gitignore
 ├── LICENSE
 └── README.md
@@ -52,7 +53,7 @@ tripkey-main/
 ### 사전 요구사항
 
 - Docker / Docker Compose
-- Node.js 20+
+- Node.js 22+ (frontend README 기준)
 - Java 21+
 - Python 3.11+
 
@@ -71,10 +72,16 @@ cp apps/ai-engine/.env.example apps/ai-engine/.env
 ```
 # frontend
 VITE_API_BASE_URL=/api
+VITE_DEV_PROXY_TARGET=http://localhost:8080
+VITE_GOOGLE_MAPS_API_KEY=
 
 # backend
 SPRING_PROFILES_ACTIVE=dev
 AI_ENGINE_URL=http://tripkey-ai-engine:8000
+AI_ENGINE_TIMEOUT_SECONDS=90
+SUPABASE_DB_URL=
+SUPABASE_DB_USERNAME=
+SUPABASE_DB_PASSWORD=
 SUPABASE_URL=
 SUPABASE_KEY=
 GEMINI_API_KEY=
@@ -82,9 +89,12 @@ GOOGLE_MAPS_API_KEY=
 
 # ai-engine
 GEMINI_API_KEY=
+GEMINI_COOLDOWN_SECONDS=60
 GOOGLE_MAPS_API_KEY=
+AI_ENGINE_WORKERS=2
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
+PLACES_CACHE_ENABLED=true
 ```
 
 ### 실행
@@ -102,8 +112,21 @@ cd apps/ai-engine && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ### 확인 방법
 
 - Frontend: `http://localhost:3000`
-- Backend: `http://localhost:8080` 접속 시 404가 보여도 서버가 떠 있으면 정상입니다.
-- AI Engine: `docker compose -f docker-compose.yml -f docker-compose.dev.yml logs --tail=50 ai-engine` 또는 컨테이너 내부에서 `/health`로 확인할 수 있습니다.
+- Backend health: `http://localhost:8080/v1/health`
+- Backend OpenAPI: `http://localhost:8080/v1/api-docs`, Swagger UI: `http://localhost:8080/v1/swagger-ui.html`
+- AI Engine health: `http://localhost:8000/health`
+
+---
+
+## 현재 주요 플로우
+
+- `/onboarding`: 여행 생성, 목적지 검색
+- `/dump`: 여행 정보 덤프 입력 및 비동기 파싱 시작
+- `/grouping`: 카드 정리, 카드 추가/수정, action type 기반 검토
+- `/arrange`: Day 배치, 그룹 재정렬, 동선 검증
+- `/confirm`: 최종 확인 화면. 일정/카드/alert는 실데이터 기반이며 일부 요약/체크리스트/저장 공유는 아직 프론트 폴백입니다.
+
+주요 API는 백엔드 context path `/v1` 아래에 있습니다. 프론트 dev server는 `/api` 요청을 `/v1`로 rewrite해 백엔드에 프록시합니다.
 
 ---
 
