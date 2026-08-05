@@ -2,6 +2,10 @@ import { format } from 'date-fns';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
+/** 여행 길이 상한 — 배치 단계의 Day 카드/요청 폭발 방지 (유연·정확 공통) */
+export const MAX_TRIP_NIGHTS = 9; // 9박 10일
+export const MAX_TRIP_DAYS = MAX_TRIP_NIGHTS + 1;
+
 type ExactDate = { from: Date; to: Date; nights: number };
 type FlexDate = { year: number; month: number; nights: number };
 

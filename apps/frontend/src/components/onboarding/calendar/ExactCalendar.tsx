@@ -2,7 +2,12 @@ import { format, differenceInDays } from 'date-fns';
 import { useEffect, useState } from 'react';
 import { type DateRange, DayPicker } from 'react-day-picker';
 
-import { useCalendarStore } from '@/utils/calendar-store';
+import Callout from '@/components/common/Callout';
+import {
+  MAX_TRIP_DAYS,
+  MAX_TRIP_NIGHTS,
+  useCalendarStore,
+} from '@/utils/calendar-store';
 import { useOnboardingStore } from '@/utils/onboarding-store';
 
 import { CalendarNav } from './CalendarNav';
@@ -18,10 +23,12 @@ export const ExactCalendar = () => {
     from: exactDate?.from,
     to: exactDate?.to,
   }));
+  const [showLimit, setShowLimit] = useState(false);
 
   useEffect(() => {
     if (exactDate === null) {
       setRange({ from: undefined, to: undefined });
+      setShowLimit(false);
     }
   }, [exactDate]);
 
@@ -30,13 +37,23 @@ export const ExactCalendar = () => {
     const to =
       newRange?.to?.getTime() === from?.getTime() ? undefined : newRange?.to;
 
-    setRange({ from, to });
-
     if (from && to) {
       const nights = differenceInDays(to, from);
+      if (nights + 1 > MAX_TRIP_DAYS) {
+        // 상한 초과: 반영하지 않고 방금 클릭한 날짜를 새 시작일로 두어 다시 고르게 함
+        setShowLimit(true);
+        setRange({ from: to, to: undefined });
+        clearExactDate();
+        setForm({ travel_days: 0 });
+        return;
+      }
+      setShowLimit(false);
+      setRange({ from, to });
       setExactDate({ from, to, nights });
       setForm({ travel_days: nights + 1 });
     } else {
+      setShowLimit(false);
+      setRange({ from, to });
       clearExactDate();
       setForm({ travel_days: 0 });
     }
@@ -69,6 +86,11 @@ export const ExactCalendar = () => {
           {nights ? `${nights}박 ${nights + 1}일` : '-'}
         </div>
       </footer>
+      {showLimit && (
+        <Callout tone="warning" className="mt-2">
+          최대 {MAX_TRIP_NIGHTS}박 {MAX_TRIP_DAYS}일까지 선택할 수 있어요.
+        </Callout>
+      )}
     </>
   );
 };
